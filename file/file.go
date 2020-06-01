@@ -27,8 +27,8 @@ func (s *Store) blobpath(ref bs.Ref) string {
 	return filepath.Join(s.root, "blobs", h[:2], h[:4], h)
 }
 
-func (s *Store) anchorpath(anchor bs.Anchor) string {
-	enc := url.PathEscape(string(anchor))
+func (s *Store) anchorpath(a bs.Anchor) string {
+	enc := url.PathEscape(string(a))
 	el1 := enc
 	if len(el1) > 2 {
 		el1 = el1[:2]
@@ -52,8 +52,8 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 	return bs.GetMulti(ctx, s, refs)
 }
 
-func (s *Store) GetAnchored(ctx context.Context, anchor bs.Anchor, t time.Time) (bs.Ref, bs.Blob, error) {
-	dir := s.anchorpath(anchor)
+func (s *Store) GetAnchored(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, bs.Blob, error) {
+	dir := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return bs.Zero, nil, bs.ErrNotFound
@@ -73,7 +73,7 @@ func (s *Store) GetAnchored(ctx context.Context, anchor bs.Anchor, t time.Time) 
 		if err != nil {
 			continue
 		}
-		if parsed.After(t) {
+		if parsed.After(at) {
 			break
 		}
 		best = name
@@ -120,20 +120,20 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 	return bs.PutMulti(ctx, s, blobs)
 }
 
-func (s *Store) PutAnchored(ctx context.Context, b bs.Blob, anchor bs.Anchor, t time.Time) (bs.Ref, bool, error) {
+func (s *Store) PutAnchored(ctx context.Context, b bs.Blob, a bs.Anchor, at time.Time) (bs.Ref, bool, error) {
 	ref, added, err := s.Put(ctx, b)
 	if err != nil {
 		return ref, added, err
 	}
 
-	dir := s.anchorpath(anchor)
+	dir := s.anchorpath(a)
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return bs.Zero, false, err
 	}
 
 	err = ioutil.WriteFile(
-		filepath.Join(dir, t.Format(time.RFC3339Nano)),
+		filepath.Join(dir, at.Format(time.RFC3339Nano)),
 		[]byte(hex.EncodeToString(ref[:])),
 		0644,
 	)
