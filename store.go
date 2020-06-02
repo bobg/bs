@@ -13,9 +13,9 @@ type Getter interface {
 	// GetMulti returns multiple blobs in a single call.
 	GetMulti(context.Context, []Ref) (GetMultiResult, error)
 
-	// GetAnchored gets the latest ref and blob with the given anchor
+	// GetAnchor gets the latest ref with the given anchor
 	// not later than the given timestamp.
-	GetAnchored(context.Context, Anchor, time.Time) (Ref, Blob, error)
+	GetAnchor(context.Context, Anchor, time.Time) (Ref, error)
 }
 
 type Store interface {
@@ -28,9 +28,8 @@ type Store interface {
 	// PutMulti adds multiple blobs to the store.
 	PutMulti(context.Context, []Blob) (PutMultiResult, error)
 
-	// PutAnchored stores a blob like Put,
-	// but also indexes the blob by the given "anchor" and timestamp.
-	PutAnchored(context.Context, Blob, Anchor, time.Time) (Ref, bool, error)
+	// PutAnchor associates an anchor and a timestamp with a ref.
+	PutAnchor(context.Context, Ref, Anchor, time.Time) error
 }
 
 type (

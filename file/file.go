@@ -52,14 +52,14 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 	return bs.GetMulti(ctx, s, refs)
 }
 
-func (s *Store) GetAnchored(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, bs.Blob, error) {
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	dir := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return bs.Zero, nil, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 	if err != nil {
-		return bs.Zero, nil, err
+		return bs.Zero, err
 	}
 
 	// We might use sort.Search here (since ReadDir returns entries sorted by name),
@@ -79,20 +79,17 @@ func (s *Store) GetAnchored(ctx context.Context, a bs.Anchor, at time.Time) (bs.
 		best = name
 	}
 	if best == "" {
-		return bs.Zero, nil, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 
 	h, err := ioutil.ReadFile(filepath.Join(dir, best))
 	if err != nil {
-		return bs.Zero, nil, err
+		return bs.Zero, err
 	}
+
 	var ref bs.Ref
 	_, err = hex.Decode(ref[:], h)
-	if err != nil {
-		return bs.Zero, nil, err
-	}
-	b, err := s.Get(ctx, ref)
-	return ref, b, err
+	return ref, err
 }
 
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
@@ -120,22 +117,15 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 	return bs.PutMulti(ctx, s, blobs)
 }
 
-func (s *Store) PutAnchored(ctx context.Context, b bs.Blob, a bs.Anchor, at time.Time) (bs.Ref, bool, error) {
-	ref, added, err := s.Put(ctx, b)
-	if err != nil {
-		return ref, added, err
-	}
-
+func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	dir := s.anchorpath(a)
-	err = os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		return bs.Zero, false, err
+		return err
 	}
-
-	err = ioutil.WriteFile(
+	return ioutil.WriteFile(
 		filepath.Join(dir, at.Format(time.RFC3339Nano)),
 		[]byte(hex.EncodeToString(ref[:])),
 		0644,
 	)
-	return ref, added, err
 }

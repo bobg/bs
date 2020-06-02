@@ -59,31 +59,29 @@ func (s *Store) GetMulti(_ context.Context, refs []bs.Ref) (bs.GetMultiResult, e
 	return result, nil
 }
 
-func (s *Store) GetAnchored(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref, bs.Blob, error) {
+func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	pairs := s.anchors[a]
 	if len(pairs) == 0 {
-		return bs.Zero, nil, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 
 	index := sort.Search(len(pairs), func(n int) bool {
 		return !pairs[n].t.Before(at)
 	})
 	if index == len(pairs) {
-		return bs.Zero, nil, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 	if pairs[index].t.Equal(at) {
-		ref := pairs[index].r
-		return ref, s.blobs[ref], nil
+		return pairs[index].r, nil
 	}
 	if index == 0 {
-		return bs.Zero, nil, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 	index--
-	ref := pairs[index].r
-	return ref, s.blobs[ref], nil
+	return pairs[index].r, nil
 }
 
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
@@ -123,16 +121,14 @@ func (s *Store) PutMulti(_ context.Context, blobs []bs.Blob) (bs.PutMultiResult,
 	return result, nil
 }
 
-func (s *Store) PutAnchored(_ context.Context, b bs.Blob, a bs.Anchor, at time.Time) (bs.Ref, bool, error) {
+func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	ref, added := s.put(b)
 
 	s.anchors[a] = append(s.anchors[a], timeRefPair{t: at, r: ref})
 	sort.Slice(s.anchors[a], func(i, j int) bool {
 		return s.anchors[a][i].t.Before(s.anchors[a][j].t)
 	})
 
-	return ref, added, nil
+	return nil
 }
