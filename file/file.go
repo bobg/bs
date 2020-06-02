@@ -109,7 +109,7 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 		return ref, false, err
 	}
 
-	err = ioutil.WriteFile(path, b, 0644)
+	err = ioutil.WriteFile(path, b, 0444)
 	return ref, true, err
 }
 
