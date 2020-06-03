@@ -41,5 +41,5 @@ type (
 )
 
 // ErrNotFound is the error returned
-// when Get and GetMulti try to access a non-existent ref.
+// when a Getter tries to access a non-existent ref or anchor.
 var ErrNotFound = errors.New("not found")

@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"encoding/hex"
-	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/file"
@@ -17,18 +20,12 @@ func main() {
 	var (
 		anchor = flag.String("anchor", "", "anchor")
 		get    = flag.Bool("get", false, "get")
+		tree   = flag.Bool("tree", false, "get tree structure")
 		put    = flag.Bool("put", false, "put")
 		root   = flag.String("root", "", "root")
 		atstr  = flag.String("at", "", "at")
 	)
 	flag.Parse()
-
-	if *get && *put {
-		log.Fatal("-get and -put are mutually exclusive")
-	}
-	if !*get && !*put {
-		log.Fatal("must supply one of -get and -put")
-	}
 
 	var (
 		err       error
@@ -49,13 +46,14 @@ func main() {
 		if err != nil {
 			log.Fatalf("writing to filestore: %s", err)
 		}
+		fmt.Printf("%s\n", ref)
 		if *anchor != "" {
 			err = filestore.PutAnchor(ctx, ref, bs.Anchor(*anchor), at)
 			if err != nil {
 				log.Fatalf("storing anchor: %s", err)
 			}
 		}
-	} else {
+	} else if *get || *tree {
 		var ref bs.Ref
 		if *anchor != "" {
 			ref, err = filestore.GetAnchor(ctx, bs.Anchor(*anchor), at)
@@ -70,11 +68,50 @@ func main() {
 				log.Fatalf("parsing command-line ref: %s", err)
 			}
 		}
-		err = bs.SplitRead(ctx, filestore, ref, os.Stdout)
-		if err != nil {
-			log.Fatalf("reading from filestore: %s", err)
+
+		if *get {
+			err = bs.SplitRead(ctx, filestore, ref, os.Stdout)
+			if err != nil {
+				log.Fatalf("reading from filestore: %s", err)
+			}
+		} else {
+			err = doTree(ctx, filestore, ref, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	} else {
+		log.Fatal("must supply one of -put, -get, -tree")
+	}
+}
+
+func doTree(ctx context.Context, g bs.Getter, ref bs.Ref, depth int) error {
+	var tn bs.TreeNode
+	err := bs.GetProto(ctx, g, ref, &tn)
+	if err != nil {
+		return errors.Wrapf(err, "getting treenode %s", ref)
+	}
+
+	indent := strings.Repeat("  ", depth)
+	fmt.Printf("%ssize: %d\n", indent, tn.Size)
+	if len(tn.Nodes) > 0 {
+		fmt.Printf("%snodes:\n", indent)
+		for _, n := range tn.Nodes {
+			var subref bs.Ref
+			copy(subref[:], n)
+			fmt.Printf("%s %s:\n", indent, subref)
+			err = doTree(ctx, g, subref, depth+1)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		fmt.Printf("%sleaves:\n", indent)
+		for _, l := range tn.Leaves {
+			fmt.Printf("%s %x\n", indent, l)
 		}
 	}
+	return nil
 }
 
 var layouts = []string{

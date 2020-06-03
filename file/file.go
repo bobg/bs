@@ -2,7 +2,9 @@ package file
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
+	"hash/adler32"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -28,16 +30,11 @@ func (s *Store) blobpath(ref bs.Ref) string {
 }
 
 func (s *Store) anchorpath(a bs.Anchor) string {
-	enc := url.PathEscape(string(a))
-	el1 := enc
-	if len(el1) > 2 {
-		el1 = el1[:2]
-	}
-	el2 := enc
-	if len(el2) > 4 {
-		el2 = el2[:4]
-	}
-	return filepath.Join(s.root, "anchors", el1, el2, enc)
+	sum := adler32.Checksum([]byte(a))
+	var sumbytes [4]byte
+	binary.BigEndian.PutUint32(sumbytes[:], sum)
+	sumhex := hex.EncodeToString(sumbytes[:])
+	return filepath.Join(s.root, "anchors", sumhex[:2], sumhex, url.PathEscape(string(a)))
 }
 
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
