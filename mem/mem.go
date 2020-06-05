@@ -14,12 +14,7 @@ var _ bs.Store = &Store{}
 type Store struct {
 	mu      sync.Mutex
 	blobs   map[bs.Ref]bs.Blob
-	anchors map[bs.Anchor][]timeRefPair
-}
-
-type timeRefPair struct {
-	t time.Time
-	r bs.Ref
+	anchors map[bs.Anchor][]bs.TimeRef
 }
 
 func New() *Store {
@@ -63,25 +58,7 @@ func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	pairs := s.anchors[a]
-	if len(pairs) == 0 {
-		return bs.Zero, bs.ErrNotFound
-	}
-
-	index := sort.Search(len(pairs), func(n int) bool {
-		return !pairs[n].t.Before(at)
-	})
-	if index == len(pairs) {
-		return bs.Zero, bs.ErrNotFound
-	}
-	if pairs[index].t.Equal(at) {
-		return pairs[index].r, nil
-	}
-	if index == 0 {
-		return bs.Zero, bs.ErrNotFound
-	}
-	index--
-	return pairs[index].r, nil
+	return bs.FindAnchor(s.anchors[a], at)
 }
 
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
@@ -125,9 +102,9 @@ func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Ti
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.anchors[a] = append(s.anchors[a], timeRefPair{t: at, r: ref})
+	s.anchors[a] = append(s.anchors[a], bs.TimeRef{T: at, R: ref})
 	sort.Slice(s.anchors[a], func(i, j int) bool {
-		return s.anchors[a][i].t.Before(s.anchors[a][j].t)
+		return s.anchors[a][i].T.Before(s.anchors[a][j].T)
 	})
 
 	return nil
