@@ -11,5 +11,5 @@ message TreeNode {
   repeated bytes leaves = 2;
 
   // Number of bytes represented by this node.
-  int64 size = 3;
+  uint64 size = 3;
 }

@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	cloud.google.com/go/storage v1.5.0
-	github.com/bobg/hashsplit v0.0.0-20200601135509-7a19b502fdfb
+	github.com/bobg/hashsplit v0.0.0-20200612133620-8d12abff8c50
 	github.com/cenkalti/backoff/v4 v4.0.2
 	github.com/golang/protobuf v1.4.1
 	github.com/hashicorp/golang-lru v0.5.1

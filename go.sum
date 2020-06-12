@@ -23,8 +23,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/bobg/hashsplit v0.0.0-20200601135509-7a19b502fdfb h1:3deNnHHSO9xPunmdgHSQgnLdKZ++a76wlrAVXxtmOGs=
-github.com/bobg/hashsplit v0.0.0-20200601135509-7a19b502fdfb/go.mod h1:xAwCurk7Umk+n4k5wfYrZ5TEqDbA1rU1ks0Bz2ekwC4=
+github.com/bobg/hashsplit v0.0.0-20200612133620-8d12abff8c50 h1:Gu9EpG/ES4rKZhMMGsES68ciasPSGBGZ0Egb59FNF9Q=
+github.com/bobg/hashsplit v0.0.0-20200612133620-8d12abff8c50/go.mod h1:xAwCurk7Umk+n4k5wfYrZ5TEqDbA1rU1ks0Bz2ekwC4=
 github.com/cenkalti/backoff/v4 v4.0.2 h1:JIufpQLbh4DkbQoii76ItQIUFzevQSqOLZca4eamEDs=
 github.com/cenkalti/backoff/v4 v4.0.2/go.mod h1:eEew/i+1Q6OrCDZh3WiXYv3+nJwBASZ8Bog/87DQnVg=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

@@ -27,3 +27,9 @@ var Zero Ref
 func (r Ref) String() string {
 	return hex.EncodeToString(r[:])
 }
+
+func RefFromBytes(b []byte) Ref {
+	var out Ref
+	copy(out[:], b)
+	return out
+}

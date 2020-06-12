@@ -63,6 +63,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	// which is O(log N),
 	// but we want to be robust in the face of filenames that time.Parse fails to parse,
 	// so O(N) it is.
+	// Oh, also: filenames are times that may be expressed in different timezones.
 	var best string
 	for _, entry := range entries {
 		name := entry.Name()
