@@ -9,7 +9,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/bobg/bs"
 )
@@ -24,9 +28,17 @@ func New(root string) *Store {
 	return &Store{root: root}
 }
 
+func (s *Store) blobroot() string {
+	return filepath.Join(s.root, "blobs")
+}
+
 func (s *Store) blobpath(ref bs.Ref) string {
-	h := hex.EncodeToString(ref[:])
-	return filepath.Join(s.root, "blobs", h[:2], h[:4], h)
+	h := ref.String()
+	return filepath.Join(s.blobroot(), h[:2], h[:4], h)
+}
+
+func (s *Store) anchorroot() string {
+	return filepath.Join(s.root, "anchors")
 }
 
 func (s *Store) anchorpath(a bs.Anchor) string {
@@ -34,7 +46,7 @@ func (s *Store) anchorpath(a bs.Anchor) string {
 	var sumbytes [4]byte
 	binary.BigEndian.PutUint32(sumbytes[:], sum)
 	sumhex := hex.EncodeToString(sumbytes[:])
-	return filepath.Join(s.root, "anchors", sumhex[:2], sumhex, url.PathEscape(string(a)))
+	return filepath.Join(s.anchorroot(), sumhex[:2], sumhex, encodeAnchor(a))
 }
 
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
@@ -85,9 +97,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 		return bs.Zero, err
 	}
 
-	var ref bs.Ref
-	_, err = hex.Decode(ref[:], h)
-	return ref, err
+	return bs.RefFromHex(string(h))
 }
 
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
@@ -123,7 +133,211 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	}
 	return ioutil.WriteFile(
 		filepath.Join(dir, at.Format(time.RFC3339Nano)),
-		[]byte(hex.EncodeToString(ref[:])),
+		[]byte(ref.String()),
 		0644,
 	)
+}
+
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
+	var (
+		ch = make(chan bs.Ref)
+		g  errgroup.Group
+	)
+	g.Go(func() error {
+		defer close(ch)
+
+		topLevel, err := ioutil.ReadDir(s.blobroot())
+		if err != nil {
+			return err
+		}
+
+		startHex := start.String()
+		topIndex := sort.Search(len(topLevel), func(n int) bool {
+			return topLevel[n].Name() >= startHex[:2]
+		})
+		for i := topIndex; i < len(topLevel); i++ {
+			topInfo := topLevel[i]
+			if !topInfo.IsDir() {
+				continue
+			}
+			topName := topInfo.Name()
+			if len(topName) != 2 {
+				continue
+			}
+			if _, err = strconv.ParseInt(topName, 16, 64); err != nil {
+				continue
+			}
+
+			midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
+			if err != nil {
+				return err
+			}
+			midIndex := sort.Search(len(midLevel), func(n int) bool {
+				return midLevel[n].Name() >= startHex[:4]
+			})
+			for j := midIndex; j < len(midLevel); j++ {
+				midInfo := midLevel[j]
+				if !midInfo.IsDir() {
+					continue
+				}
+				midName := midInfo.Name()
+				if len(midName) != 4 {
+					continue
+				}
+				if _, err = strconv.ParseInt(midName, 16, 64); err != nil {
+					continue
+				}
+
+				blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
+				if err != nil {
+					return err
+				}
+
+				index := sort.Search(len(blobInfos), func(n int) bool {
+					return blobInfos[n].Name() > startHex
+				})
+				for k := index; k < len(blobInfos); k++ {
+					blobInfo := blobInfos[k]
+					if blobInfo.IsDir() {
+						continue
+					}
+
+					ref, err := bs.RefFromHex(blobInfo.Name())
+					if err != nil {
+						continue
+					}
+
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+
+					case ch <- ref:
+						// do nothing
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	return ch, g.Wait, nil
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
+	var (
+		ch       = make(chan bs.Anchor)
+		innerErr error
+	)
+
+	go func() {
+		defer close(ch)
+
+		topLevel, err := ioutil.ReadDir(s.anchorroot())
+		if err != nil {
+			innerErr = err
+			return
+		}
+		// xxx filter results
+
+		var anchors []bs.Anchor
+
+		for _, topInfo := range topLevel {
+			var (
+				topName = topInfo.Name()
+				topDir  = filepath.Join(s.anchorroot(), topName)
+			)
+			midLevel, err := ioutil.ReadDir(topDir)
+			if err != nil {
+				innerErr = err
+				return
+			}
+			// xxx filter results
+
+			for _, midInfo := range midLevel {
+				var (
+					midName = midInfo.Name()
+					midDir  = filepath.Join(topDir, midName)
+				)
+				anchorLevel, err := ioutil.ReadDir(midDir)
+				if err != nil {
+					innerErr = err
+					return
+				}
+				// xxx filter results
+
+				for _, anchorInfo := range anchorLevel {
+					// xxx check ctx.Done()
+
+					anchor, err := decodeAnchor(anchorInfo.Name())
+					if err != nil {
+						innerErr = err
+						return
+					}
+					if anchor <= start {
+						continue
+					}
+					anchors = append(anchors, anchor)
+				}
+			}
+		}
+
+		sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
+
+		for _, anchor := range anchors {
+			select {
+			case <-ctx.Done():
+				innerErr = ctx.Err()
+				return
+			case ch <- anchor:
+				// do nothing
+			}
+		}
+	}()
+
+	return ch, func() error { return innerErr }, nil
+}
+
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+	path := s.anchorpath(a)
+	entries, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	// xxx filter entries and sort by parsed time
+	ch := make(chan bs.TimeRef)
+	var g errgroup.Group
+	g.Go(func() error {
+		for _, entry := range entries {
+			name := entry.Name()
+			t, err := time.Parse(time.RFC3339Nano, name)
+			if err != nil {
+				return err
+			}
+			h, err := ioutil.ReadFile(filepath.Join(path, name))
+			if err != nil {
+				return err
+			}
+			ref, err := bs.RefFromHex(string(h))
+			if err != nil {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case ch <- bs.TimeRef{T: t, R: ref}:
+				// do nothing
+			}
+		}
+		return nil
+	})
+	return ch, g.Wait, nil
+}
+
+func encodeAnchor(a bs.Anchor) string {
+	return url.PathEscape(string(a))
+}
+
+func decodeAnchor(inp string) (bs.Anchor, error) {
+	out, err := url.PathUnescape(inp)
+	return bs.Anchor(out), err
 }

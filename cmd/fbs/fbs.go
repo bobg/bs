@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -63,7 +62,7 @@ func main() {
 		} else if flag.NArg() != 1 {
 			log.Fatalf("usage: %s -get REF", os.Args[0])
 		} else {
-			_, err = hex.Decode(ref[:], []byte(flag.Arg(0)))
+			err = ref.FromHex(flag.Arg(0))
 			if err != nil {
 				log.Fatalf("parsing command-line ref: %s", err)
 			}

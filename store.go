@@ -16,6 +16,27 @@ type Getter interface {
 	// GetAnchor gets the latest ref with the given anchor
 	// not later than the given timestamp.
 	GetAnchor(context.Context, Anchor, time.Time) (Ref, error)
+
+	// ListRefs lists all blob refs in the store in lexical order,
+	// beginning with the first ref _after_ the specified one.
+	//
+	// The contents of the channel must reflect at least the set of refs known at the moment ListRefs was called.
+	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	ListRefs(context.Context, Ref) (<-chan Ref, func() error, error)
+
+	// ListAnchors lists all anchors in the store in lexical order,
+	// beginning with the first anchor _after_ the specified one.
+	//
+	// The contents of the channel must reflect at least the set of anchors known at the moment ListAnchors was called.
+	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	ListAnchors(context.Context, Anchor) (<-chan Anchor, func() error, error)
+
+	// ListAnchorRefs lists all TimeRefs for the given anchor,
+	// in time order.
+	//
+	// The contents of the channel must reflect at least the set of time/ref pairs known at the moment ListAnchorRefs was called.
+	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	ListAnchorRefs(context.Context, Anchor) (<-chan TimeRef, func() error, error)
 }
 
 type Store interface {

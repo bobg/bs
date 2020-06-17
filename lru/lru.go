@@ -87,3 +87,15 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	return s.s.PutAnchor(ctx, ref, a, at)
 }
+
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
+	return s.s.ListRefs(ctx, start)
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
+	return s.s.ListAnchors(ctx, start)
+}
+
+func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+	return s.s.ListAnchorRefs(ctx, anchor)
+}

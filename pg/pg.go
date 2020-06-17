@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/bobg/bs"
 )
 
@@ -121,4 +123,109 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 
 	_, err := s.db.ExecContext(ctx, q, a, at, ref)
 	return err
+}
+
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
+	const q = `SELECT ref FROM blobs WHERE ref > $1 ORDER BY ref`
+	rows, err := s.db.QueryContext(ctx, q, start)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ch := make(chan bs.Ref)
+	var g errgroup.Group
+	g.Go(func() error {
+		defer close(ch)
+		defer rows.Close()
+
+		for rows.Next() {
+			var ref bs.Ref
+			err := rows.Scan(&ref)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+
+			case ch <- ref:
+				// do nothing
+			}
+		}
+		return rows.Err()
+	})
+
+	return ch, g.Wait, nil
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
+	const q = `SELECT DISTINCT(anchor) FROM anchors WHERE anchor > $1 ORDER BY anchor`
+	rows, err := s.db.QueryContext(ctx, q, start)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ch := make(chan bs.Anchor)
+	var g errgroup.Group
+	g.Go(func() error {
+		defer close(ch)
+		defer rows.Close()
+
+		for rows.Next() {
+			var anchor bs.Anchor
+			err := rows.Scan(&anchor)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+
+			case ch <- anchor:
+				// do nothing
+			}
+		}
+		return rows.Err()
+	})
+
+	return ch, g.Wait, nil
+}
+
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+	const q = `SELECT at, ref FROM anchors WHERE anchor = $1 ORDER BY at`
+	rows, err := s.db.QueryContext(ctx, q, a)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ch := make(chan bs.TimeRef)
+	var g errgroup.Group
+	g.Go(func() error {
+		defer close(ch)
+		defer rows.Close()
+
+		for rows.Next() {
+			var (
+				t   time.Time
+				ref bs.Ref
+			)
+			err := rows.Scan(&t, &ref)
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+
+			case ch <- bs.TimeRef{T: t, R: ref}:
+				// do nothing
+			}
+		}
+		return rows.Err()
+	})
+
+	return ch, g.Wait, nil
 }

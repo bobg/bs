@@ -2,13 +2,16 @@ package gcs
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"sort"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/cenkalti/backoff/v4"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/iterator"
 
 	"github.com/bobg/bs"
 )
@@ -62,20 +65,10 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
-	name := anchorObjName(a)
-	obj := s.anchors.Object(name)
-	r, err := obj.NewReader(ctx)
+	pairs, err := s.anchorPairs(ctx, a)
 	if err != nil {
 		return bs.Zero, err
 	}
-
-	var pairs []bs.TimeRef
-	dec := json.NewDecoder(r)
-	err = dec.Decode(&pairs)
-	if err != nil {
-		return bs.Zero, err
-	}
-
 	return bs.FindAnchor(pairs, at)
 }
 
@@ -175,7 +168,157 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	)
 }
 
-// TODO: Perform whatever escaping is needed here. Or maybe just hashing?
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
+	var (
+		ch = make(chan bs.Ref)
+		g  errgroup.Group
+	)
+	g.Go(func() error {
+		defer close(ch)
+
+		// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
+		// But they can filter by object-name prefix.
+		// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
+		// If `start` is e67a, for example, the sequence of generated prefixes is:
+		//   e67b e67c e67d e67e e67f
+		//   e68 e69 e6a e6b e6c e6d e6e e6f
+		//   e7 e8 e9 ea eb ec ed ee ef
+		//   f
+		for prefix := range hexPrefixes(ctx, start.String()) {
+			err := s.listRefs(ctx, prefix, ch)
+			if err != nil {
+				return err
+			}
+		}
+		return ctx.Err() // in case the channel from hexPrefixes closed due to context cancellation
+	})
+
+	return ch, g.Wait, nil
+}
+
+func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) error {
+	iter := s.blobs.Objects(ctx, &storage.Query{Prefix: prefix})
+	for {
+		obj, err := iter.Next()
+		if err == iterator.Done {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		ref, err := bs.RefFromHex(obj.Name)
+		if err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- ref:
+			// do nothing
+		}
+	}
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
+	var (
+		ch = make(chan bs.Anchor)
+		g  errgroup.Group
+	)
+	g.Go(func() error {
+		defer close(ch)
+
+		for prefix := range hexPrefixes(ctx, anchorObjName(start)) {
+			err := s.listAnchors(ctx, prefix, ch)
+			if err != nil {
+				return err
+			}
+		}
+		return ctx.Err() // in case the channel from hexPrefixes closed due to context cancellation
+	})
+	return ch, g.Wait, nil
+}
+
+func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anchor) error {
+	iter := s.anchors.Objects(ctx, &storage.Query{Prefix: prefix})
+	for {
+		obj, err := iter.Next()
+		if err == iterator.Done {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		anchor, err := hex.DecodeString(obj.Name)
+		if err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- bs.Anchor(anchor):
+			// do nothing
+		}
+	}
+}
+
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+	var (
+		ch = make(chan bs.TimeRef)
+		g  errgroup.Group
+	)
+	g.Go(func() error {
+		pairs, err := s.anchorPairs(ctx, a)
+		if err != nil {
+			return err
+		}
+		for _, pair := range pairs {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case ch <- pair:
+				// do nothing
+			}
+		}
+		return nil
+	})
+	return ch, g.Wait, nil
+}
+
+func (s *Store) anchorPairs(ctx context.Context, a bs.Anchor) ([]bs.TimeRef, error) {
+	name := anchorObjName(a)
+	obj := s.anchors.Object(name)
+	r, err := obj.NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var pairs []bs.TimeRef
+	dec := json.NewDecoder(r)
+	err = dec.Decode(&pairs)
+	return pairs, err
+}
+
 func anchorObjName(a bs.Anchor) string {
-	return string(a)
+	return hex.EncodeToString([]byte(a))
+}
+
+func hexPrefixes(ctx context.Context, after string) <-chan string {
+	ch := make(chan string)
+	go func() {
+		defer close(ch)
+
+		for len(after) > 0 {
+			end := after[len(after)-1:][0]
+			after = after[:len(after)-1]
+
+			for c := end + 1; c <= 'f'; c++ { // assumes that `after` is lowercase!
+				select {
+				case <-ctx.Done():
+					return
+				case ch <- after + string(c):
+					// do nothing
+				}
+			}
+		}
+	}()
+	return ch
 }
