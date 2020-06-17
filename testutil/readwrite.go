@@ -1,24 +1,14 @@
-package bs_test
+package testutil
 
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"testing"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/mem"
 )
 
-func TestStore(t *testing.T) {
-	data, err := ioutil.ReadFile("testdata/yubnub.opus")
-	if err != nil {
-		t.Fatal(err)
-	}
-	store := mem.New()
-
-	ctx := context.Background()
-
+func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	ref, err := bs.SplitWrite(ctx, store, bytes.NewReader(data), nil)
 	if err != nil {
 		t.Fatal(err)
