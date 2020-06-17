@@ -225,17 +225,15 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func
 
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	var (
-		ch       = make(chan bs.Anchor)
-		innerErr error
+		ch = make(chan bs.Anchor)
+		g  errgroup.Group
 	)
-
-	go func() {
+	g.Go(func() error {
 		defer close(ch)
 
 		topLevel, err := ioutil.ReadDir(s.anchorroot())
 		if err != nil {
-			innerErr = err
-			return
+			return err
 		}
 		// xxx filter results
 
@@ -248,8 +246,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 			)
 			midLevel, err := ioutil.ReadDir(topDir)
 			if err != nil {
-				innerErr = err
-				return
+				return err
 			}
 			// xxx filter results
 
@@ -260,18 +257,17 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 				)
 				anchorLevel, err := ioutil.ReadDir(midDir)
 				if err != nil {
-					innerErr = err
-					return
+					return err
 				}
 				// xxx filter results
 
 				for _, anchorInfo := range anchorLevel {
-					// xxx check ctx.Done()
-
+					if err = ctx.Err(); err != nil {
+						return err
+					}
 					anchor, err := decodeAnchor(anchorInfo.Name())
 					if err != nil {
-						innerErr = err
-						return
+						return err
 					}
 					if anchor <= start {
 						continue
@@ -286,15 +282,15 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 		for _, anchor := range anchors {
 			select {
 			case <-ctx.Done():
-				innerErr = ctx.Err()
-				return
+				return ctx.Err()
 			case ch <- anchor:
 				// do nothing
 			}
 		}
-	}()
+		return nil
+	})
 
-	return ch, func() error { return innerErr }, nil
+	return ch, g.Wait, nil
 }
 
 func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
