@@ -34,7 +34,7 @@ func (r Ref) Less(other Ref) bool {
 	return bytes.Compare(r[:], other[:]) < 0
 }
 
-func (r Ref) FromHex(s string) error {
+func (r *Ref) FromHex(s string) error {
 	if len(s) != 2*sha256.Size {
 		return errors.New("wrong length")
 	}
