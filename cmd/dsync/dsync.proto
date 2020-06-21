@@ -1,0 +1,13 @@
+syntax = "proto3";
+package dsync;
+
+option go_package = ".;main";
+
+message Dirent {
+  string name = 1;
+  uint32 mode = 2;
+}
+
+message Dir {
+  repeated Dirent entries = 1; // Keep this sorted by name.
+}
