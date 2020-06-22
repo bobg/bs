@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	sync "sync"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"

@@ -10,9 +10,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rjeczalik/notify"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/file"
@@ -36,6 +38,7 @@ func runPrimary(ctx context.Context, root, replicaURL string) error {
 		fstore  = file.New(bsdir)
 		rec     = newRecorder(fstore, refs, anchors)
 		p       = &primary{s: rec, root: root}
+		fsch    = make(chan notify.EventInfo, 100)
 	)
 
 	anchorURL, err := url.Parse(replicaURL + "/anchor")
@@ -43,10 +46,15 @@ func runPrimary(ctx context.Context, root, replicaURL string) error {
 		return errors.Wrapf(err, "parsing URL %s/anchor", replicaURL)
 	}
 
+	var wg sync.WaitGroup
+
+	// This goroutine monitors the recorder channels for new blobs and anchors,
+	// turning them into HTTP requests to the replica.
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer close(anchors)
 		defer close(refs)
-		defer rec.wg.Wait()
 
 		// TODO: Might be able to get a little better performance
 		// with grpc streaming instead of separate http requests.
@@ -103,7 +111,7 @@ func runPrimary(ctx context.Context, root, replicaURL string) error {
 				}
 
 			case info := <-anchors:
-				var v url.Values
+				v := url.Values{}
 				v.Set("ref", info.ref.String())
 				v.Set("a", string(info.a))
 
@@ -128,12 +136,44 @@ func runPrimary(ctx context.Context, root, replicaURL string) error {
 		}
 	}()
 
+	// This goroutine monitors the filesystem watcher.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer notify.Stop(fsch)
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Print("context canceled, exiting watcher goroutine")
+				return
+
+			case ev, ok := <-fsch:
+				if !ok {
+					log.Fatal("EOF on watcher events channel")
+				}
+
+				log.Printf("got event %s", ev.Event())
+
+				err := p.changesFromFile(ctx, ev.Path())
+				if err != nil {
+					log.Printf("ERROR handling changes from file %s: %s", ev.Path(), err)
+				}
+			}
+		}
+	}()
+
+	err = notify.Watch(root+"/...", fsch, notify.All)
+	if err != nil {
+		return errors.Wrap(err, "watching filesystem")
+	}
+
 	err = p.populate(ctx, root)
 	if err != nil {
 		return errors.Wrapf(err, "populating root %s", root)
 	}
 
-	// xxx other stuff
+	wg.Wait()
 
 	return nil
 }
@@ -146,7 +186,7 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 
 	dp := infosToDirProto(infos)
 
-	ref, _, err := bs.PutProto(ctx, p.s, dp)
+	dirRef, _, err := bs.PutProto(ctx, p.s, dp)
 	if err != nil {
 		return errors.Wrapf(err, "storing blob for dir %s", dir)
 	}
@@ -171,7 +211,7 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 		if err != nil {
 			return errors.Wrapf(err, "opening %s for reading", fpath)
 		}
-		ref, err = bs.SplitWrite(ctx, p.s, f, nil)
+		ref, err := bs.SplitWrite(ctx, p.s, f, nil)
 		f.Close() // in lieu of defer f.Close() above, which would require a new closure
 		if err != nil {
 			return errors.Wrapf(err, "populating blob store from file %s", fpath)
@@ -191,7 +231,7 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 	if err != nil {
 		return errors.Wrapf(err, "computing anchor for dir %s", dir)
 	}
-	err = p.s.PutAnchor(ctx, ref, da, time.Now())
+	err = p.s.PutAnchor(ctx, dirRef, da, time.Now())
 	return errors.Wrapf(err, "storing anchor for dir %s", dir)
 }
 
@@ -199,6 +239,9 @@ func infosToDirProto(infos []os.FileInfo) *Dir {
 	dp := new(Dir)
 	for _, info := range infos {
 		name, mode := info.Name(), info.Mode()
+		if name == "." || name == ".." {
+			continue
+		}
 		if info.IsDir() {
 			if name == ".git" {
 				continue
@@ -215,6 +258,19 @@ func infosToDirProto(infos []os.FileInfo) *Dir {
 // File is somewhere in the root tree and is thought to have changed somehow.
 // Identify all the new blobrefs and anchors needed to represent the change.
 func (p *primary) changesFromFile(ctx context.Context, file string) error {
+	info, err := os.Lstat(file)
+	if os.IsNotExist(err) {
+		// Perhaps file was removed, which means its containing dir has changed.
+		return p.changesFromDir(ctx, filepath.Dir(file))
+	}
+
+	if info.IsDir() {
+		return p.changesFromDir(ctx, file)
+	}
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+
 	fa, err := p.fileAnchor(file)
 	if err != nil {
 		return errors.Wrapf(err, "computing anchor for file %s", file)

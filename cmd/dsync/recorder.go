@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/bobg/bs"
@@ -16,7 +15,6 @@ type recorder struct {
 	s       bs.Store
 	refs    chan<- bs.Ref
 	anchors chan<- anchorInfo
-	wg      sync.WaitGroup // wait on this before closing the channels to allow pending writes to drain
 }
 
 type anchorInfo struct {
@@ -56,16 +54,11 @@ func (r *recorder) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.T
 func (r *recorder) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := r.s.Put(ctx, b)
 	if err == nil && added && r.refs != nil {
-		// Do not block the caller.
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-
-			select {
-			case <-ctx.Done():
-			case r.refs <- ref:
-			}
-		}()
+		select {
+		case <-ctx.Done():
+			return bs.Zero, false, ctx.Err()
+		case r.refs <- ref:
+		}
 	}
 	return ref, added, nil
 }
@@ -77,21 +70,16 @@ func (r *recorder) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiRe
 	}
 
 	if r.refs != nil {
-		// Do not block the caller.
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-
-			for _, f := range res {
-				ref, added, err := f(ctx)
-				if err == nil && added {
-					select {
-					case <-ctx.Done():
-					case r.refs <- ref:
-					}
+		for _, f := range res {
+			ref, added, err := f(ctx)
+			if err == nil && added {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case r.refs <- ref:
 				}
 			}
-		}()
+		}
 	}
 
 	return res, nil
@@ -100,21 +88,16 @@ func (r *recorder) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiRe
 func (r *recorder) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, t time.Time) error {
 	err := r.s.PutAnchor(ctx, ref, a, t)
 	if err == nil && r.anchors != nil {
-		// Do not block the caller.
-		r.wg.Add(1)
-		go func() {
-			defer r.wg.Done()
-
-			info := anchorInfo{
-				a:   a,
-				ref: ref,
-				t:   t,
-			}
-			select {
-			case <-ctx.Done():
-			case r.anchors <- info:
-			}
-		}()
+		info := anchorInfo{
+			a:   a,
+			ref: ref,
+			t:   t,
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case r.anchors <- info:
+		}
 	}
 	return err
 }
