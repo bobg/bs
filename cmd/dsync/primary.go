@@ -26,7 +26,7 @@ type primary struct {
 }
 
 func runPrimary(ctx context.Context, root, replicaURL string) error {
-	bsdir, err := ioutil.TempDir("/tmp", "dsync-primary") // xxx
+	bsdir, err := ioutil.TempDir("", "dsync-primary")
 	if err != nil {
 		return errors.Wrap(err, "creating tempdir")
 	}

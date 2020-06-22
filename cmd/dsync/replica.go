@@ -31,7 +31,7 @@ func runReplica(ctx context.Context, root, addr string) error {
 		return errors.Wrapf(err, "listening on %s", addr)
 	}
 
-	bsdir, err := ioutil.TempDir("/tmp", "dsync-replica") // xxx
+	bsdir, err := ioutil.TempDir("", "dsync-replica") // xxx
 	if err != nil {
 		return errors.Wrap(err, "creating tempdir")
 	}
