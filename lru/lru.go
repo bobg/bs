@@ -11,16 +11,21 @@ import (
 
 var _ bs.Store = &Store{}
 
+// Store implements a memory-based least-recently-used cache for a blob store.
+// At present it caches only blobs, not anchors.
+// Writes pass through to the underlying blob store.
 type Store struct {
 	c *lru.Cache // Ref->Blob
 	s bs.Store
 }
 
+// New produces a new Store backed by `s` and caching up to `size` blobs.
 func New(s bs.Store, size int) (*Store, error) {
 	c, err := lru.New(size)
 	return &Store{s: s, c: c}, err
 }
 
+// Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	if got, ok := s.c.Get(ref); ok {
 		return got.(bs.Blob), nil
@@ -33,6 +38,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return got, nil
 }
 
+// GetMulti gets multiple blobs in one call.
 func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	m := make(bs.GetMultiResult)
 
@@ -67,10 +73,12 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 	return m, nil
 }
 
+// GetAnchor gets the latest blob ref for a given anchor as of a given time.
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	return s.s.GetAnchor(ctx, a, at)
 }
 
+// Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.s.Put(ctx, b)
 	if err != nil {
@@ -80,22 +88,29 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
+// PutMulti adds multiple blobs to the store in one call.
 func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	return bs.PutMulti(ctx, s, blobs)
 }
 
+// PutAnchor adds a new ref for a given anchor as of a given time.
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	return s.s.PutAnchor(ctx, ref, a, at)
 }
 
+// ListRefs produces all blob refs in the store, in lexical order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
 	return s.s.ListRefs(ctx, start)
 }
 
+// ListAnchors lists all anchors in the store, in lexical order.
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	return s.s.ListAnchors(ctx, start)
 }
 
+// ListAnchorRefs lists all blob refs for a given anchor,
+// together with their timestamps,
+// in chronological order.
 func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	return s.s.ListAnchorRefs(ctx, anchor)
 }

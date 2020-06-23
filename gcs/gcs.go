@@ -18,20 +18,21 @@ import (
 
 var _ bs.Store = &Store{}
 
+// Store is a Google Cloud Storage-based implementation of a blob store.
 type Store struct {
-	client  *storage.Client
 	anchors *storage.BucketHandle
 	blobs   *storage.BucketHandle
 }
 
+// New produces a new Store with blobs and anchors in the given buckets.
 func New(ctx context.Context, client *storage.Client, blobBucket, anchorBucket string) *Store {
 	return &Store{
-		client:  client,
 		anchors: client.Bucket(anchorBucket),
 		blobs:   client.Bucket(blobBucket),
 	}
 }
 
+// Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	obj := s.blobs.Object(ref.String())
 	r, err := obj.NewReader(ctx)
@@ -43,6 +44,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return b, err
 }
 
+// GetMulti gets multiple blobs in one call.
 func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	result := make(bs.GetMultiResult)
 	for _, ref := range refs {
@@ -64,6 +66,7 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 	return result, nil
 }
 
+// GetAnchor gets the latest blob ref for a given anchor as of a given time.
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	pairs, err := s.anchorPairs(ctx, a)
 	if err != nil {
@@ -72,6 +75,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	return bs.FindAnchor(pairs, at)
 }
 
+// Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref := b.Ref()
 	obj := s.blobs.Object(ref.String()).If(storage.Conditions{DoesNotExist: true})
@@ -87,6 +91,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, true, err
 }
 
+// PutMulti adds multiple blobs to the store in one call.
 func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	result := make(bs.PutMultiResult, len(blobs))
 	for i, b := range blobs {
@@ -110,6 +115,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 	return result, nil
 }
 
+// PutAnchor adds a new ref for a given anchor as of a given time.
 // TODO: Need a different model for anchors.
 // Apart from the retry loop needed here,
 // an anchor with a lot of writes will get slower and slower without bound.
@@ -168,6 +174,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	)
 }
 
+// ListRefs produces all blob refs in the store, in lexical order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
 	var (
 		ch = make(chan bs.Ref)
@@ -219,6 +226,7 @@ func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) e
 	}
 }
 
+// ListAnchors lists all anchors in the store, in lexical order.
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	var (
 		ch = make(chan bs.Anchor)
@@ -261,6 +269,9 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anc
 	}
 }
 
+// ListAnchorRefs lists all blob refs for a given anchor,
+// together with their timestamps,
+// in chronological order.
 func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	var (
 		ch = make(chan bs.TimeRef)

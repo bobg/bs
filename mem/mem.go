@@ -11,18 +11,22 @@ import (
 
 var _ bs.Store = &Store{}
 
+// Store is a memory-based implementation of a blob store.
 type Store struct {
 	mu      sync.Mutex
 	blobs   map[bs.Ref]bs.Blob
 	anchors map[bs.Anchor][]bs.TimeRef
 }
 
+// New produces a new Store.
 func New() *Store {
 	return &Store{
-		blobs: make(map[bs.Ref]bs.Blob),
+		blobs:   make(map[bs.Ref]bs.Blob),
+		anchors: make(map[bs.Anchor][]bs.TimeRef),
 	}
 }
 
+// Get gets the blob with hash `ref`.
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -37,6 +41,7 @@ func (s *Store) get(ref bs.Ref) (bs.Blob, error) {
 	return nil, bs.ErrNotFound
 }
 
+// GetMulti gets multiple blobs in one call.
 func (s *Store) GetMulti(_ context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -54,6 +59,7 @@ func (s *Store) GetMulti(_ context.Context, refs []bs.Ref) (bs.GetMultiResult, e
 	return result, nil
 }
 
+// GetAnchor gets the latest blob ref for a given anchor as of a given time.
 func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -61,6 +67,7 @@ func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref,
 	return bs.FindAnchor(s.anchors[a], at)
 }
 
+// Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,6 +89,7 @@ func (s *Store) put(b bs.Blob) (bs.Ref, bool) {
 	return r, added
 }
 
+// PutMulti adds multiple blobs to the store in one call.
 func (s *Store) PutMulti(_ context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -98,6 +106,7 @@ func (s *Store) PutMulti(_ context.Context, blobs []bs.Blob) (bs.PutMultiResult,
 	return result, nil
 }
 
+// PutAnchor adds a new ref for a given anchor as of a given time.
 func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -110,6 +119,7 @@ func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Ti
 	return nil
 }
 
+// ListRefs produces all blob refs in the store, in lexical order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,6 +155,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func
 	return ch, func() error { return innerErr }, nil
 }
 
+// ListAnchors lists all anchors in the store, in lexical order.
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -180,6 +191,9 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 	return ch, func() error { return innerErr }, nil
 }
 
+// ListAnchorRefs lists all blob refs for a given anchor,
+// together with their timestamps,
+// in chronological order.
 func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

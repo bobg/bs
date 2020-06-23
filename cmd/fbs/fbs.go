@@ -1,3 +1,4 @@
+// Command fbs operates on a file-based blobstore.
 package main
 
 import (

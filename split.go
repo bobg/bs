@@ -8,6 +8,21 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// SplitWrite writes the contents of `r` to the blob store `s`,
+// splitting the input into a tree of blobs according to `splitter`.
+// It returns the ref of the root blob,
+// which is a serialized TreeNode.
+//
+// Splitting is done with the "hashsplitting" technique,
+// which finds blob boundaries based on the content of the data
+// rather than by position.
+// If a new version of the same data is written to the store,
+// but with a change,
+// only the region of the change will need a new blob;
+// the others will be unaffected.
+//
+// If splitter is nil,
+// a default splitter is used that produces chunks that are typically 5-10kb in size.
 func SplitWrite(ctx context.Context, s Store, r io.Reader, splitter *hashsplit.Splitter) (Ref, error) {
 	if splitter == nil {
 		splitter = &hashsplit.Splitter{
@@ -60,6 +75,10 @@ func splitWrite(ctx context.Context, s Store, n *hashsplit.Node) (Ref, error) {
 	return ref, err
 }
 
+// SplitRead reads blobs from `g`,
+// reassembling the content of the blob tree created with SplitWrite
+// and writing it to `w`.
+// The ref of the root TreeNode is given by `ref`.
 func SplitRead(ctx context.Context, g Getter, ref Ref, w io.Writer) error {
 	var tn TreeNode
 	err := GetProto(ctx, g, ref, &tn)

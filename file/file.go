@@ -20,10 +20,12 @@ import (
 
 var _ bs.Store = &Store{}
 
+// Store is a file-based implementation of a blob store.
 type Store struct {
 	root string
 }
 
+// New produces a new Store storing data beneath `root`.
 func New(root string) *Store {
 	return &Store{root: root}
 }
@@ -49,6 +51,7 @@ func (s *Store) anchorpath(a bs.Anchor) string {
 	return filepath.Join(s.anchorroot(), sumhex[:2], sumhex, encodeAnchor(a))
 }
 
+// Get gets the blob with hash `ref`.
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	b, err := ioutil.ReadFile(s.blobpath(ref))
 	if os.IsNotExist(err) {
@@ -57,10 +60,12 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	return b, err
 }
 
+// GetMulti gets multiple blobs in one call.
 func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	return bs.GetMulti(ctx, s, refs)
 }
 
+// GetAnchor gets the latest blob ref for a given anchor as of a given time.
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	dir := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(dir)
@@ -100,6 +105,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	return bs.RefFromHex(string(h))
 }
 
+// Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
 		ref  = b.Ref()
@@ -121,10 +127,12 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, true, err
 }
 
+// PutMulti adds multiple blobs to the store in one call.
 func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	return bs.PutMulti(ctx, s, blobs)
 }
 
+// PutAnchor adds a new ref for a given anchor as of a given time.
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	dir := s.anchorpath(a)
 	err := os.MkdirAll(dir, 0755)
@@ -138,6 +146,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	)
 }
 
+// ListRefs produces all blob refs in the store, in lexical order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
 	var (
 		ch = make(chan bs.Ref)
@@ -223,6 +232,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func
 	return ch, g.Wait, nil
 }
 
+// ListAnchors lists all anchors in the store, in lexical order.
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	var (
 		ch = make(chan bs.Anchor)
@@ -293,6 +303,9 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 	return ch, g.Wait, nil
 }
 
+// ListAnchorRefs lists all blob refs for a given anchor,
+// together with their timestamps,
+// in chronological order.
 func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	path := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(path)
