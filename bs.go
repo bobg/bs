@@ -12,9 +12,10 @@ type (
 	// Blob is the type of a blob.
 	Blob []byte
 
-	// Ref is the ref of a blob: its sha256 hash.
+	// Ref is a reference of a blob: its sha256 hash.
 	Ref [sha256.Size]byte
 
+	// Anchor maps an arbitrary string to one or more blob references.
 	Anchor string
 )
 
@@ -26,14 +27,17 @@ func (b Blob) Ref() Ref {
 // Zero is the zero value of a Ref.
 var Zero Ref
 
+// String converts a Ref to hexadecimal.
 func (r Ref) String() string {
 	return hex.EncodeToString(r[:])
 }
 
+// Less tells whether `r` is lexicographically less than `other`.
 func (r Ref) Less(other Ref) bool {
 	return bytes.Compare(r[:], other[:]) < 0
 }
 
+// FromHex parses the hex string `s` and places the result in `r`.
 func (r *Ref) FromHex(s string) error {
 	if len(s) != 2*sha256.Size {
 		return errors.New("wrong length")
@@ -42,12 +46,14 @@ func (r *Ref) FromHex(s string) error {
 	return err
 }
 
+// RefFromBytes produces a Ref from a byte slice.
 func RefFromBytes(b []byte) Ref {
 	var out Ref
 	copy(out[:], b)
 	return out
 }
 
+// RefFromHex produces a Ref from a hex string.
 func RefFromHex(s string) (Ref, error) {
 	var out Ref
 	err := out.FromHex(s)

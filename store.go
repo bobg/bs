@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Getter is a read-only Store (qv).
 type Getter interface {
 	// Get gets a blob by its ref.
 	Get(context.Context, Ref) (Blob, error)
@@ -39,6 +40,10 @@ type Getter interface {
 	ListAnchorRefs(context.Context, Anchor) (<-chan TimeRef, func() error, error)
 }
 
+// Store is a blob store.
+// It stores byte sequences - "blobs" - of arbitrary length.
+// Each blob can be retrieved using its "ref" as a lookup key.
+// A ref is simply the SHA2-256 hash of the blob's content.
 type Store interface {
 	Getter
 
