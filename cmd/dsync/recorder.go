@@ -56,7 +56,7 @@ func (r *recorder) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	if err == nil && added && r.refs != nil {
 		select {
 		case <-ctx.Done():
-			return bs.Zero, false, ctx.Err()
+			return bs.Ref{}, false, ctx.Err()
 		case r.refs <- ref:
 		}
 	}
