@@ -10,7 +10,7 @@ import (
 func PutProto(ctx context.Context, s Store, p proto.Message) (ref Ref, added bool, err error) {
 	m, err := proto.Marshal(p)
 	if err != nil {
-		return Zero, false, err
+		return Ref{}, false, err
 	}
 	return s.Put(ctx, m)
 }

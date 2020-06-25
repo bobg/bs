@@ -49,10 +49,10 @@ func SplitWrite(ctx context.Context, s Store, r io.Reader, splitter *hashsplit.S
 
 	root := hashsplit.Tree(chunks)
 	if err := splitter.E; err != nil {
-		return Zero, err
+		return Ref{}, err
 	}
 	if err := errfn(); err != nil {
-		return Zero, err
+		return Ref{}, err
 	}
 
 	return splitWrite(ctx, s, root)
@@ -66,7 +66,7 @@ func splitWrite(ctx context.Context, s Store, n *hashsplit.Node) (Ref, error) {
 		for _, child := range n.Nodes {
 			childRef, err := splitWrite(ctx, s, child)
 			if err != nil {
-				return Zero, err
+				return Ref{}, err
 			}
 			tn.Nodes = append(tn.Nodes, childRef[:])
 		}

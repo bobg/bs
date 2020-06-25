@@ -70,10 +70,10 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	dir := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return bs.Zero, bs.ErrNotFound
+		return bs.Ref{}, bs.ErrNotFound
 	}
 	if err != nil {
-		return bs.Zero, err
+		return bs.Ref{}, err
 	}
 
 	// We might use sort.Search here (since ReadDir returns entries sorted by name),
@@ -94,12 +94,12 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 		best = name
 	}
 	if best == "" {
-		return bs.Zero, bs.ErrNotFound
+		return bs.Ref{}, bs.ErrNotFound
 	}
 
 	h, err := ioutil.ReadFile(filepath.Join(dir, best))
 	if err != nil {
-		return bs.Zero, err
+		return bs.Ref{}, err
 	}
 
 	return bs.RefFromHex(string(h))

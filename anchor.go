@@ -20,13 +20,13 @@ func FindAnchor(pairs []TimeRef, at time.Time) (Ref, error) {
 		return !pairs[n].T.Before(at)
 	})
 	if index == len(pairs) {
-		return Zero, ErrNotFound
+		return Ref{}, ErrNotFound
 	}
 	if pairs[index].T.Equal(at) {
 		return pairs[index].R, nil
 	}
 	if index == 0 {
-		return Zero, ErrNotFound
+		return Ref{}, ErrNotFound
 	}
 	return pairs[index-1].R, nil
 }
