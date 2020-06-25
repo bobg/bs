@@ -24,9 +24,6 @@ func (b Blob) Ref() Ref {
 	return sha256.Sum256(b)
 }
 
-// Zero is the zero value of a Ref.
-var Zero Ref
-
 // String converts a Ref to hexadecimal.
 func (r Ref) String() string {
 	return hex.EncodeToString(r[:])

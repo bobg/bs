@@ -1,5 +1,8 @@
 # BS, a content-addressable blob store
 
+[![GoDoc](https://godoc.org/github.com/bobg/bs?status.svg)](https://godoc.org/github.com/bobg/bs)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bobg/bs)](https://goreportcard.com/report/github.com/bobg/bs)
+
 This is BS, an implementation of a content-addressable blob store.
 
 A blob store stores arbitrarily sized sequences of bytes,
@@ -30,6 +33,25 @@ which maps an arbitrary string
 to a ref and a timestamp.
 At a later timestamp,
 the same anchor may map to a different ref.
+
+BS works best when blobs are not too big,
+so when storing potentially large bytestreams,
+use the SplitWrite function.
+This splits the input into multiple blobs organized as a tree,
+and it returns the ref of the tree’s root.
+The bytestream can be reassembled with SplitRead.
+
+When splitting,
+blob boundaries are determined not by position or size but by content,
+using the technique of _hashsplitting_.
+This same technique is used by git and rsync to represent file changes very compactly:
+if two versions of a file have a small difference,
+only the blob containing the difference is affected.
+The other blobs of the file are unchanged.
+This is the same reason that the blobs are organized into a tree.
+If the blobs were organized as a list,
+the whole list would have to change any time a blob is added, removed, or replaced.
+But as a tree, only the subtree with the affected blob has to change.
 
 Subpackages of this module implement different versions of blob stores:
 a memory-based one, a file-based one, a Postgresql-based one,

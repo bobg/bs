@@ -70,7 +70,7 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
 	pairs, err := s.anchorPairs(ctx, a)
 	if err != nil {
-		return bs.Zero, err
+		return bs.Ref{}, err
 	}
 	return bs.FindAnchor(pairs, at)
 }

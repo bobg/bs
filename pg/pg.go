@@ -87,7 +87,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	var result bs.Ref // xxx Scan/Value methods?
 	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result)
 	if errors.Is(err, sql.ErrNoRows) {
-		return bs.Zero, bs.ErrNotFound
+		return bs.Ref{}, bs.ErrNotFound
 	}
 	return result, err
 }
@@ -99,7 +99,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref := b.Ref()
 	res, err := s.db.ExecContext(ctx, q, ref, b)
 	if err != nil {
-		return bs.Zero, false, err
+		return bs.Ref{}, false, err
 	}
 
 	aff, err := res.RowsAffected()
