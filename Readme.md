@@ -1,5 +1,8 @@
 # BS, a content-addressable blob store
 
+[![GoDoc](https://godoc.org/github.com/bobg/bs?status.svg)](https://godoc.org/github.com/bobg/bs)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bobg/bs)](https://goreportcard.com/report/github.com/bobg/bs)
+
 This is BS, an implementation of a content-addressable blob store.
 
 A blob store stores arbitrarily sized sequences of bytes,
