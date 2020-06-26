@@ -21,8 +21,9 @@ import (
 )
 
 type primary struct {
-	s    bs.Store
-	root string
+	s          bs.Store
+	root       string
+	replicaURL string
 }
 
 func runPrimary(ctx context.Context, root, replicaURL string) error {
@@ -37,7 +38,7 @@ func runPrimary(ctx context.Context, root, replicaURL string) error {
 		anchors = make(chan anchorInfo)
 		fstore  = file.New(bsdir)
 		rec     = newRecorder(fstore, refs, anchors)
-		p       = &primary{s: rec, root: root}
+		p       = &primary{s: rec, root: root, replicaURL: replicaURL}
 		fsch    = make(chan notify.EventInfo, 100)
 	)
 
@@ -184,29 +185,22 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 		return errors.Wrapf(err, "reading dir %s", dir)
 	}
 
-	dp := infosToDirProto(infos)
-
-	dirRef, _, err := bs.PutProto(ctx, p.s, dp)
-	if err != nil {
-		return errors.Wrapf(err, "storing blob for dir %s", dir)
-	}
-
-	// Populate everything under this dir before writing its anchor.
+	// Populate everything under this dir before doing the dir node itself,
+	// because constructing the dir node relies on looking up refs for its children.
 	// Hopefully the replica receives things in roughly the same order.
 	// If it receives things too badly out of order,
 	// it might have to create a directory entry for a file that doesn't exist yet.
 
-	for _, entry := range dp.Entries {
-		mode := os.FileMode(entry.Mode)
-		if mode.IsDir() {
-			err = p.populate(ctx, filepath.Join(dir, entry.Name))
+	for _, info := range infos {
+		if info.IsDir() {
+			err = p.populate(ctx, filepath.Join(dir, info.Name()))
 			if err != nil {
 				return err
 			}
 			continue
 		}
 		// Regular file.
-		fpath := filepath.Join(dir, entry.Name)
+		fpath := filepath.Join(dir, info.Name())
 		f, err := os.Open(fpath)
 		if err != nil {
 			return errors.Wrapf(err, "opening %s for reading", fpath)
@@ -227,6 +221,16 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 		}
 	}
 
+	dp, err := p.infosToDirProto(ctx, infos, dir)
+	if err != nil {
+		return errors.Wrapf(err, "populating dir proto for %s", dir)
+	}
+
+	dirRef, _, err := bs.PutProto(ctx, p.s, dp)
+	if err != nil {
+		return errors.Wrapf(err, "storing blob for dir %s", dir)
+	}
+
 	da, err := p.dirAnchor(dir)
 	if err != nil {
 		return errors.Wrapf(err, "computing anchor for dir %s", dir)
@@ -235,24 +239,51 @@ func (p *primary) populate(ctx context.Context, dir string) error {
 	return errors.Wrapf(err, "storing anchor for dir %s", dir)
 }
 
-func infosToDirProto(infos []os.FileInfo) *Dir {
+func (p *primary) infosToDirProto(ctx context.Context, infos []os.FileInfo, dirname string) (*Dir, error) {
 	dp := new(Dir)
 	for _, info := range infos {
 		name, mode := info.Name(), info.Mode()
 		if name == "." || name == ".." {
 			continue
 		}
+
+		fullpath := filepath.Join(dirname, name)
+		var (
+			a   bs.Anchor
+			err error
+		)
+
 		if info.IsDir() {
 			if name == ".git" {
 				continue
 			}
-		} else if !mode.IsRegular() {
+			a, err = p.dirAnchor(fullpath)
+			if err != nil {
+				return nil, errors.Wrapf(err, "computing anchor for dir %s", fullpath)
+			}
+		} else if mode.IsRegular() {
+			a, err = p.fileAnchor(fullpath)
+			if err != nil {
+				return nil, errors.Wrapf(err, "computing anchor for file %s", fullpath)
+			}
+		} else {
 			continue
 		}
-		dp.Entries = append(dp.Entries, &Dirent{Name: name, Mode: uint32(mode)})
+
+		ref, err := p.s.GetAnchor(ctx, a, time.Now())
+		if err != nil {
+			return nil, errors.Wrapf(err, "getting anchor for %s", fullpath)
+		}
+
+		dirent := &Dirent{
+			Name: name,
+			Mode: uint32(mode),
+			Ref:  ref[:],
+		}
+		dp.Entries = append(dp.Entries, dirent)
 	}
 	// No need to sort; ReadDir returns entries already sorted by name.
-	return dp
+	return dp, nil
 }
 
 // File is somewhere in the root tree and is thought to have changed somehow.
@@ -338,7 +369,10 @@ func (p *primary) changesFromDir(ctx context.Context, dir string) error {
 		return errors.Wrapf(err, "reading dir %s", dir)
 	}
 
-	dp := infosToDirProto(infos)
+	dp, err := p.infosToDirProto(ctx, infos, dir)
+	if err != nil {
+		return errors.Wrapf(err, "populating dir proto for %s", dir)
+	}
 	newRef, _, err := bs.PutProto(ctx, p.s, dp)
 	if err != nil {
 		return errors.Wrapf(err, "storing blob for dir %s", dir)

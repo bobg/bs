@@ -6,8 +6,22 @@ option go_package = ".;main";
 message Dirent {
   string name = 1;
   uint32 mode = 2;
+  bytes  ref  = 3;
 }
 
 message Dir {
   repeated Dirent entries = 1; // Keep this sorted by name.
+}
+
+message SyncPayload {
+  string name = 1;
+  bytes  ref  = 2;
+}
+
+message SyncResponse {
+  bytes ref = 1;
+}
+
+service Sync {
+  rpc Sync(stream SyncPayload) returns (stream SyncResponse);
 }
