@@ -1,2 +1,2 @@
 //go:generate protoc -I. --go_out=. dsync.proto
-package main
+package dsync

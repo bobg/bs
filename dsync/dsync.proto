@@ -1,7 +1,7 @@
 syntax = "proto3";
 package dsync;
 
-option go_package = ".;main";
+option go_package = ".;dsync";
 
 message Dirent {
   string name = 1;
