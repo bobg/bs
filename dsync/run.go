@@ -141,12 +141,16 @@ func (t *Tree) constitute(ctx context.Context, a string, ref bs.Ref) error {
 	// Constitute a plain file.
 
 	dir := filepath.Dir(path)
-	err := os.MkdirAll(dir, 0755) // TODO: each dir should have its proper mode
+	// TODO: each dir should have its proper mode
+	// (and will, once its containing dir is sync'd, but this is a hack)
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return errors.Wrapf(err, "making dir %s", dir)
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644) // xxx file should have its proper mode
+	// TODO: each file should have its proper mode
+	// (and will, once its containiner dir is sync'd, but this is a hack)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return errors.Wrapf(err, "opening file %s for writing", path)
 	}
