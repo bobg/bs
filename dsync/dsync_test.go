@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/mem"
 )
@@ -59,14 +61,18 @@ func TestDsync(t *testing.T) {
 	ctx := context.Background()
 
 	newRef := func(ref bs.Ref) error {
+		t.Logf("new ref %s", ref)
+
 		blob, err := primary.S.Get(ctx, ref)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "getting ref %s from primary", ref)
 		}
 		_, _, err = replica.S.Put(ctx, blob)
-		return err
+		return errors.Wrapf(err, "storing blob %s to replica", ref)
 	}
 	newAnchor := func(tuple AnchorTuple) error {
+		t.Logf("new anchor %s (%s)", tuple.A, tuple.Ref)
+
 		return replica.ReplicaAnchor(ctx, tuple.A, tuple.Ref)
 	}
 
@@ -79,7 +85,7 @@ func TestDsync(t *testing.T) {
 		defer close(errCh)
 		err := primary.RunPrimary(ctx, newRef, newAnchor)
 		if err != nil {
-			errCh <- err
+			errCh <- errors.Wrap(err, "from RunPrimary")
 		}
 	}()
 
@@ -106,7 +112,14 @@ func TestDsync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	err = f.Sync() // the test is flaky without this Sync!
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = f.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	err = primary.FileChanged(ctx, editFile)
 	if err != nil {
@@ -144,16 +157,21 @@ func TestDsync(t *testing.T) {
 	if !eq {
 		t.Fatal("dirs not equal after file deletion")
 	}
+
+	cancel()
+	if err, ok := <-errCh; ok {
+		t.Fatal(err)
+	}
 }
 
 func dirsEqual(a, b string) (bool, error) {
 	aEntries, err := ioutil.ReadDir(a)
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "reading dir %s", a)
 	}
 	bEntries, err := ioutil.ReadDir(b)
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "reading dir %s", b)
 	}
 
 	i, j := 0, 0
@@ -178,7 +196,7 @@ func dirsEqual(a, b string) (bool, error) {
 			if bEntry.IsDir() {
 				eq, err := dirsEqual(filepath.Join(a, name), filepath.Join(b, name))
 				if err != nil || !eq {
-					return eq, err
+					return eq, errors.Wrapf(err, "comparing dirs %s/%s and %s/%s", a, name, b, name)
 				}
 			} else {
 				return false, nil
@@ -188,7 +206,7 @@ func dirsEqual(a, b string) (bool, error) {
 		} else {
 			eq, err := filesEqual(a, aEntry, b, bEntry)
 			if err != nil || !eq {
-				return eq, err
+				return eq, errors.Wrapf(err, "comparing files %s/%s and %s/%s", a, name, b, name)
 			}
 		}
 
@@ -218,13 +236,13 @@ func filesEqual(dir1 string, entry1 os.FileInfo, dir2 string, entry2 os.FileInfo
 
 	f1, err := os.Open(filepath.Join(dir1, entry1.Name()))
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "opening %s/%s for reading", dir1, entry1.Name())
 	}
 	defer f1.Close()
 
 	f2, err := os.Open(filepath.Join(dir2, entry2.Name()))
 	if err != nil {
-		return false, err
+		return false, errors.Wrapf(err, "opening %s/%s for reading", dir2, entry2.Name())
 	}
 	defer f2.Close()
 
@@ -239,10 +257,10 @@ func filesEqual(dir1 string, entry1 os.FileInfo, dir2 string, entry2 os.FileInfo
 			return true, nil
 		}
 		if err1 != nil {
-			return false, err1
+			return false, errors.Wrapf(err1, "reading from %s/%s", dir1, entry1.Name())
 		}
 		if err2 != nil {
-			return false, err2
+			return false, errors.Wrapf(err2, "reading from %s/%s", dir2, entry2.Name())
 		}
 		if b1 != b2 {
 			return false, nil
@@ -266,7 +284,7 @@ func isIgnoreEntry(entry os.FileInfo) bool {
 func copyDir(dst, src string) error {
 	infos, err := ioutil.ReadDir(src)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "reading dir %s", src)
 	}
 	for _, info := range infos {
 		if isIgnoreEntry(info) {
@@ -281,18 +299,18 @@ func copyDir(dst, src string) error {
 		if info.IsDir() {
 			err = os.Mkdir(dstName, 0755)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "making dir %s", dstName)
 			}
 			err = copyDir(dstName, srcName)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "copying dir %s to %s", srcName, dstName)
 			}
 			continue
 		}
 
 		err = copyFile(dstName, srcName)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "copying file %s to %s", srcName, dstName)
 		}
 	}
 
@@ -302,16 +320,16 @@ func copyDir(dst, src string) error {
 func copyFile(dst, src string) error {
 	inp, err := os.Open(src)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "opening %s for reading", src)
 	}
 	defer inp.Close()
 
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "opening %s for writing", dst)
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, inp)
-	return err
+	return errors.Wrap(err, "in io.Copy")
 }
