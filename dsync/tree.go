@@ -14,11 +14,17 @@ import (
 	"github.com/bobg/bs"
 )
 
+// Tree represents a synchronizable tree of files and directories.
 type Tree struct {
-	S    bs.Store
+	// S is the blob store where a representation of the file tree is stored.
+	S bs.Store
+
+	// Root is the path to the root of the file tree.
 	Root string
 }
 
+// Ingest adds dir and all of its children to Tree.
+// Return value is the ref of the resulting Dir blob.
 func (t *Tree) Ingest(ctx context.Context, dir string) (bs.Ref, error) {
 	infos, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -159,6 +165,11 @@ func (t *Tree) dirAnchor(dir string) (bs.Anchor, error) {
 	return bs.Anchor(rel + "/"), err
 }
 
+// FileChanged causes file to be re-added to Tree.
+// If this results in any changes,
+// or if file is new or does not exist
+// (perhaps it existed before and has been removed),
+// then its containing directory is re-added with DirChanged.
 func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	info, err := os.Lstat(file)
 	if os.IsNotExist(err) {
@@ -222,6 +233,12 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	return nil
 }
 
+// DirChanged causes dir to be re-added to Tree.
+// If this results in any differences,
+// or if dir does not exist
+// (perhaps it existed before and has been removed),
+// dir's parent is recursively re-added
+// (up to and including t.Root but not beyond).
 func (t *Tree) DirChanged(ctx context.Context, dir string) error {
 	return t.dirChanged(ctx, dir, nil)
 }

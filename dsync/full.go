@@ -187,6 +187,7 @@ func (t *Tree) Full(ctx context.Context, r Receiver) error {
 	return nil
 }
 
+// Offer implements Receiver.Offer.
 func (t *Tree) Offer(ctx context.Context, refs []bs.Ref) ([]bs.Ref, error) {
 	results, err := t.S.GetMulti(ctx, refs)
 	if err != nil {
@@ -206,6 +207,7 @@ func (t *Tree) Offer(ctx context.Context, refs []bs.Ref) ([]bs.Ref, error) {
 	return need, nil
 }
 
+// Blobs implements Receivers.Blobs.
 func (t *Tree) Blobs(ctx context.Context, blobs []bs.Blob) error {
 	results, err := t.S.PutMulti(ctx, blobs)
 	if err != nil {
@@ -222,6 +224,7 @@ func (t *Tree) Blobs(ctx context.Context, blobs []bs.Blob) error {
 	return nil
 }
 
+// Anchors implements Receivers.Anchors.
 func (t *Tree) Anchors(ctx context.Context, tuples []AnchorTuple) error {
 	for _, tuple := range tuples {
 		err := t.ReplicaAnchor(ctx, tuple.A, tuple.Ref) // TODO: use tuple.T too

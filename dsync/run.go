@@ -17,6 +17,11 @@ import (
 	"github.com/bobg/bs"
 )
 
+// RunPrimary causes t to act as the primary for file-tree synchronization.
+// It creates a wrapper for t that uses a Streamer calling `newRef` and `newAnchor` for new refs and anchors.
+// It then ingests the file tree at t.Root.
+// It also launches a notify.Watch goroutine generating Tree.FileChanged calls on that wrapper.
+// The function returns when `ctx` is canceled.
 func (t *Tree) RunPrimary(ctx context.Context, newRef func(bs.Ref) error, newAnchor func(AnchorTuple) error) error {
 	var (
 		refs    = make(chan bs.Ref)
@@ -84,6 +89,12 @@ func (t *Tree) RunPrimary(ctx context.Context, newRef func(bs.Ref) error, newAnc
 	return nil
 }
 
+// WatchRefsAnchors runs as a goroutine until `ctx` is canceled.
+// It calls newRef for each Ref arriving on `refs`,
+// and newAnchor for each AnchorTuple arriving on `anchors`.
+// When refs and anchors are available simultaneously,
+// it favors consuming all the refs first before any of the anchors.
+// This is meant to help ensure all needed blobs are present before a call to ReplicaAnchor.
 func WatchRefsAnchors(ctx context.Context, refs <-chan bs.Ref, anchors <-chan AnchorTuple, newRef func(bs.Ref) error, newAnchor func(AnchorTuple) error) {
 	for {
 		// There are two selects here
@@ -141,6 +152,10 @@ func WatchRefsAnchors(ctx context.Context, refs <-chan bs.Ref, anchors <-chan An
 	}
 }
 
+// ReplicaAnchor handles the arrival of a new anchor for a Tree acting as a sync replica.
+// It will add, remove, and update files and directories under t.Root as needed,
+// provided the tree of blobs rooted at `ref` are already present.
+// (If they are not, an error will be returned, and t's file tree may be partially updated.)
 func (t *Tree) ReplicaAnchor(ctx context.Context, a bs.Anchor, ref bs.Ref) error {
 	err := t.S.PutAnchor(ctx, ref, a, time.Now())
 	if err != nil {

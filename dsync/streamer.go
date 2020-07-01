@@ -9,46 +9,68 @@ import (
 
 var _ bs.Store = &Streamer{}
 
+// Streamer is a blob store that wraps another blob store,
+// delegating all operations to it.
+// Additionally, when writing to the store,
+// each call to Put or PutMulti sends any new refs on one channel
+// (but not refs that already existed in the store),
+// and each call to PutAnchor sends anchors on another.
 type Streamer struct {
 	s       bs.Store
 	refs    chan<- bs.Ref
 	anchors chan<- AnchorTuple
 }
 
+// AnchorTuple packages up the parameters in a call to PutAnchor.
 type AnchorTuple struct {
 	A   bs.Anchor
 	Ref bs.Ref
 	T   time.Time
 }
 
+// NewStreamer creates a Streamer wrapping blob store `s`.
+// If `refs` is non-nil,
+// the Streamer will send each newly added ref to it
+// (but not refs that were already present)
+// in calls to Put and PutMulti.
+// If `anchors` is non-nil,
+// the Streamer will send AnchorTuples for each call to PutAnchor.
+// All channel sends are blocking.
 func NewStreamer(s bs.Store, refs chan<- bs.Ref, anchors chan<- AnchorTuple) *Streamer {
 	return &Streamer{s: s, refs: refs, anchors: anchors}
 }
 
+// Get implements bs.Store.Get.
 func (s *Streamer) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return s.s.Get(ctx, ref)
 }
 
+// GetMulti implements bs.Store.GetMulti.
 func (s *Streamer) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	return s.s.GetMulti(ctx, refs)
 }
 
+// GetAnchor implements bs.Store.GetAnchor.
 func (s *Streamer) GetAnchor(ctx context.Context, a bs.Anchor, t time.Time) (bs.Ref, error) {
 	return s.s.GetAnchor(ctx, a, t)
 }
 
+// ListRefs implements bs.Store.ListRefs.
 func (s *Streamer) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
 	return s.s.ListRefs(ctx, start)
 }
 
+// ListAnchors implements bs.Store.ListAnchors.
 func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
 	return s.s.ListAnchors(ctx, start)
 }
 
+// ListAnchorRefs implements bs.Store.ListAnchorRefs.
 func (s *Streamer) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	return s.s.ListAnchorRefs(ctx, a)
 }
 
+// Put implements bs.Store.Put.
 func (s *Streamer) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.s.Put(ctx, b)
 	if err == nil && added && s.refs != nil {
@@ -61,6 +83,7 @@ func (s *Streamer) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
+// PutMulti implements bs.Store.PutMulti.
 func (s *Streamer) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	res, err := s.s.PutMulti(ctx, blobs)
 	if err != nil {
@@ -83,6 +106,7 @@ func (s *Streamer) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiRe
 	return res, nil
 }
 
+// PutAnchor implements bs.Store.PutAnchor.
 func (s *Streamer) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, t time.Time) error {
 	err := s.s.PutAnchor(ctx, ref, a, t)
 	if err == nil && s.anchors != nil {
