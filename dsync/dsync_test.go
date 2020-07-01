@@ -3,11 +3,13 @@ package dsync
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -44,19 +46,16 @@ func TestDsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	eq, err := dirsEqual(primaryRoot, copyFrom)
+	err = dirsEqual(primaryRoot, copyFrom)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !eq {
-		t.Fatalf("dirs not equal after populating %s from %s", primaryRoot, copyFrom)
 	}
 
 	var primary *Tree
 
 	ctx := context.Background()
 	newRef := func(ref bs.Ref) error {
-		t.Logf("new ref %s", ref)
+		// t.Logf("new ref %s", ref)
 
 		blob, err := primary.S.Get(ctx, ref)
 		if err != nil {
@@ -66,7 +65,7 @@ func TestDsync(t *testing.T) {
 		return errors.Wrapf(err, "storing blob %s to replica", ref)
 	}
 	newAnchor := func(tuple AnchorTuple) error {
-		t.Logf("new anchor %s (%s)", tuple.A, tuple.Ref)
+		// t.Logf("new anchor %s (%s)", tuple.A, tuple.Ref)
 
 		return replica.ReplicaAnchor(ctx, tuple.A, tuple.Ref)
 	}
@@ -78,9 +77,8 @@ func TestDsync(t *testing.T) {
 	defer close(refs)
 	defer close(anchors)
 
-	primaryStore := mem.New()
 	primary = &Tree{
-		S:    NewStreamer(primaryStore, refs, anchors),
+		S:    NewStreamer(mem.New(), refs, anchors),
 		Root: primaryRoot,
 	}
 
@@ -95,15 +93,15 @@ func TestDsync(t *testing.T) {
 	}
 	t.Logf("ingested %s at %s", primaryRoot, rootRef)
 
-	eq, err = dirsEqual(replicaRoot, primaryRoot)
+	time.Sleep(time.Second)
+	err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !eq {
-		t.Fatal("dirs not equal after initial sync")
-	}
 
 	editFile := filepath.Join(primaryRoot, "testdata", "yubnub.opus")
+	t.Logf("editing %s", editFile)
+
 	f, err := os.OpenFile(editFile, os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		t.Fatal(err)
@@ -128,13 +126,25 @@ func TestDsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	eq, err = dirsEqual(replicaRoot, primaryRoot)
+	time.Sleep(time.Second)
+	err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !eq {
-		t.Fatal("dirs not equal after file edit")
+
+	addFile := filepath.Join(primaryRoot, "testdata", "added")
+	t.Logf("adding file %s", addFile)
+
+	err = ioutil.WriteFile(addFile, []byte("xyzzy"), 0644)
+	if err != nil {
+		t.Fatal(err)
 	}
+	err = primary.FileChanged(ctx, addFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("removing file %s", editFile)
 
 	err = os.Remove(editFile)
 	if err != nil {
@@ -146,23 +156,38 @@ func TestDsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	eq, err = dirsEqual(replicaRoot, primaryRoot)
+	time.Sleep(time.Second)
+	err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !eq {
-		t.Fatal("dirs not equal after file deletion")
+
+	t.Logf("removing dir %s", filepath.Dir(editFile))
+	err = os.RemoveAll(filepath.Dir(editFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = primary.FileChanged(ctx, filepath.Dir(editFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(time.Second)
+	err = dirsEqual(replicaRoot, primaryRoot)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
-func dirsEqual(a, b string) (bool, error) {
+func dirsEqual(a, b string) error {
 	aEntries, err := ioutil.ReadDir(a)
 	if err != nil {
-		return false, errors.Wrapf(err, "reading dir %s", a)
+		return errors.Wrapf(err, "reading dir %s", a)
 	}
 	bEntries, err := ioutil.ReadDir(b)
 	if err != nil {
-		return false, errors.Wrapf(err, "reading dir %s", b)
+		return errors.Wrapf(err, "reading dir %s", b)
 	}
 
 	i, j := 0, 0
@@ -180,24 +205,24 @@ func dirsEqual(a, b string) (bool, error) {
 		}
 
 		if aEntry.Name() != bEntry.Name() {
-			return false, nil
+			return fmt.Errorf("%s has %s where %s has %s", a, aEntry.Name(), b, bEntry.Name())
 		}
 		name := aEntry.Name()
 		if aEntry.IsDir() {
 			if bEntry.IsDir() {
-				eq, err := dirsEqual(filepath.Join(a, name), filepath.Join(b, name))
-				if err != nil || !eq {
-					return eq, errors.Wrapf(err, "comparing dirs %s/%s and %s/%s", a, name, b, name)
+				err := dirsEqual(filepath.Join(a, name), filepath.Join(b, name))
+				if err != nil {
+					return errors.Wrapf(err, "comparing dirs %s/%s and %s/%s", a, name, b, name)
 				}
 			} else {
-				return false, nil
+				return fmt.Errorf("%s is a dir and %s is not", aEntry.Name(), bEntry.Name())
 			}
 		} else if bEntry.IsDir() {
-			return false, nil
+			return fmt.Errorf("%s is not a dir and %s is", aEntry.Name(), bEntry.Name())
 		} else {
-			eq, err := filesEqual(a, aEntry, b, bEntry)
-			if err != nil || !eq {
-				return eq, errors.Wrapf(err, "comparing files %s/%s and %s/%s", a, name, b, name)
+			err := filesEqual(a, aEntry, b, bEntry)
+			if err != nil {
+				return errors.Wrapf(err, "comparing files %s/%s and %s/%s", a, name, b, name)
 			}
 		}
 
@@ -206,56 +231,61 @@ func dirsEqual(a, b string) (bool, error) {
 	}
 	for i < len(aEntries) {
 		if !isIgnoreEntry(aEntries[i]) {
-			return false, nil
+			return fmt.Errorf("extra entry on left: %s", aEntries[i].Name())
 		}
 		i++
 	}
 	for j < len(bEntries) {
 		if !isIgnoreEntry(bEntries[j]) {
-			return false, nil
+			return fmt.Errorf("extra entry on right: %s", bEntries[j].Name())
 		}
 		j++
 	}
 
-	return true, nil
+	return nil
 }
 
-func filesEqual(dir1 string, entry1 os.FileInfo, dir2 string, entry2 os.FileInfo) (bool, error) {
+func filesEqual(dir1 string, entry1 os.FileInfo, dir2 string, entry2 os.FileInfo) error {
 	if entry1.Size() != entry2.Size() {
-		return false, nil
+		return fmt.Errorf("sizes %d and %d do not match", entry1.Size(), entry2.Size())
 	}
 
 	f1, err := os.Open(filepath.Join(dir1, entry1.Name()))
 	if err != nil {
-		return false, errors.Wrapf(err, "opening %s/%s for reading", dir1, entry1.Name())
+		return errors.Wrapf(err, "opening %s/%s for reading", dir1, entry1.Name())
 	}
 	defer f1.Close()
 
 	f2, err := os.Open(filepath.Join(dir2, entry2.Name()))
 	if err != nil {
-		return false, errors.Wrapf(err, "opening %s/%s for reading", dir2, entry2.Name())
+		return errors.Wrapf(err, "opening %s/%s for reading", dir2, entry2.Name())
 	}
 	defer f2.Close()
 
-	bf1 := bufio.NewReader(f1)
-	bf2 := bufio.NewReader(f2)
+	var (
+		bf1 = bufio.NewReader(f1)
+		bf2 = bufio.NewReader(f2)
+		pos = 0
+	)
 
 	for {
 		b1, err1 := bf1.ReadByte()
 		b2, err2 := bf2.ReadByte()
 
 		if err1 == io.EOF && err2 == io.EOF {
-			return true, nil
+			return nil
 		}
 		if err1 != nil {
-			return false, errors.Wrapf(err1, "reading from %s/%s", dir1, entry1.Name())
+			return errors.Wrapf(err1, "reading from %s/%s", dir1, entry1.Name())
 		}
 		if err2 != nil {
-			return false, errors.Wrapf(err2, "reading from %s/%s", dir2, entry2.Name())
+			return errors.Wrapf(err2, "reading from %s/%s", dir2, entry2.Name())
 		}
 		if b1 != b2 {
-			return false, nil
+			return fmt.Errorf("files %s/%s and %s/%s disagree at position %d", dir1, entry1.Name(), dir2, entry2.Name(), pos)
 		}
+
+		pos++
 	}
 }
 
