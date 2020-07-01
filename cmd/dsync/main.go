@@ -112,10 +112,11 @@ func doReplica(ctx context.Context, t *dsync.Tree, addr string) {
 		log.Fatal(err)
 	}
 
-	err = t.Ingest(ctx, t.Root)
+	rootRef, err := t.Ingest(ctx, t.Root)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("ingested root %s at %s", t.Root, rootRef)
 
 	rep := (*replica)(t)
 	mux := http.NewServeMux()

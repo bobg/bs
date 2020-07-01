@@ -36,58 +36,17 @@ func (t *Tree) RunPrimary(ctx context.Context, newRef func(bs.Ref) error, newAnc
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		for {
-			// There are two selects here
-			// (the first one non-blocking),
-			// to ensure that all pending blobs are handled
-			// before any pending anchors.
-
-			select {
-			case <-ctx.Done():
-				log.Print("context canceled, exiting new-blob watcher")
-				return
-
-			case ref := <-refs:
-				err := newRef(ref)
-				if err != nil {
-					log.Printf("ERROR sending blob %s: %s", ref, err)
-				}
-
-				// Prevent falling through to the next select
-				// if there's another blob to process.
-				continue
-
-			default:
-			}
-
-			select {
-			case <-ctx.Done():
-				log.Print("context canceled, exiting new-blob watcher")
-				return
-
-			case ref := <-refs:
-				err := newRef(ref)
-				if err != nil {
-					log.Printf("ERROR sending blob %s: %s", ref, err)
-				}
-
-			case tuple := <-anchors:
-				err := newAnchor(tuple)
-				if err != nil {
-					log.Printf("ERROR sending anchor %s (ref %s): %s", tuple.A, tuple.Ref, err)
-				}
-			}
-		}
+		WatchRefsAnchors(ctx, refs, anchors, newRef, newAnchor)
 	}()
 
 	// This must come after the launch of the goroutine above
 	// because it wants to write to the `refs` and `anchors` channels
 	// and will block if there's nothing to consume them.
-	err := tt.Ingest(ctx, tt.Root)
+	rootRef, err := tt.Ingest(ctx, tt.Root)
 	if err != nil {
 		return errors.Wrapf(err, "ingesting %s", tt.Root)
 	}
+	log.Printf("ingested %s tree at %s", tt.Root, rootRef)
 
 	fsch := make(chan notify.EventInfo, 100)
 
@@ -103,7 +62,10 @@ func (t *Tree) RunPrimary(ctx context.Context, newRef func(bs.Ref) error, newAnc
 				log.Print("context canceled, exiting filesystem watcher")
 				return
 
-			case ev := <-fsch:
+			case ev, ok := <-fsch:
+				if !ok {
+					log.Printf("file-events channel closed, exiting filesystem watcher")
+				}
 				err := tt.FileChanged(ctx, ev.Path())
 				if err != nil {
 					log.Printf("ERROR handling change of file %s: %s", ev.Path(), err)
@@ -120,6 +82,63 @@ func (t *Tree) RunPrimary(ctx context.Context, newRef func(bs.Ref) error, newAnc
 	wg.Wait()
 
 	return nil
+}
+
+func WatchRefsAnchors(ctx context.Context, refs <-chan bs.Ref, anchors <-chan AnchorTuple, newRef func(bs.Ref) error, newAnchor func(AnchorTuple) error) {
+	for {
+		// There are two selects here
+		// (the first one non-blocking),
+		// to ensure that all pending blobs are handled
+		// before any pending anchors.
+
+		select {
+		case <-ctx.Done():
+			log.Print("context canceled, exiting WatchRefsAnchors")
+			return
+
+		case ref, ok := <-refs:
+			if !ok {
+				log.Print("refs channel closed, exiting WatchRefsAnchors")
+				return
+			}
+			err := newRef(ref)
+			if err != nil {
+				log.Printf("ERROR sending blob %s: %s", ref, err)
+			}
+
+			// Prevent falling through to the next select
+			// if there's another blob to process.
+			continue
+
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			log.Print("context canceled, exiting WatchRefsAnchors")
+			return
+
+		case ref, ok := <-refs:
+			if !ok {
+				log.Print("refs channel closed, exiting WatchRefsAnchors")
+				return
+			}
+			err := newRef(ref)
+			if err != nil {
+				log.Printf("ERROR sending blob %s: %s", ref, err)
+			}
+
+		case tuple, ok := <-anchors:
+			if !ok {
+				log.Print("anchors channel closed, exiting WatchRefsAnchors")
+				return
+			}
+			err := newAnchor(tuple)
+			if err != nil {
+				log.Printf("ERROR sending anchor %s (ref %s): %s", tuple.A, tuple.Ref, err)
+			}
+		}
+	}
 }
 
 func (t *Tree) ReplicaAnchor(ctx context.Context, a bs.Anchor, ref bs.Ref) error {

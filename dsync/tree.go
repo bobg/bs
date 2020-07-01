@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrs "errors"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,17 +19,10 @@ type Tree struct {
 	Root string
 }
 
-func (t *Tree) Ingest(ctx context.Context, dir string) error {
+func (t *Tree) Ingest(ctx context.Context, dir string) (bs.Ref, error) {
 	infos, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return errors.Wrapf(err, "reading dir %s", dir)
-	}
-
-	dp := infosToDirProto(infos)
-
-	dirRef, _, err := bs.PutProto(ctx, t.S, dp)
-	if err != nil {
-		return errors.Wrapf(err, "storing blob for dir %s", dir)
+		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", dir)
 	}
 
 	// Ingest everything under this dir before writing its anchor.
@@ -36,63 +30,123 @@ func (t *Tree) Ingest(ctx context.Context, dir string) error {
 	// If it receives things too badly out of order,
 	// it might have to create a directory entry for a file that doesn't exist yet.
 
-	for _, entry := range dp.Entries {
-		mode := os.FileMode(entry.Mode)
-		if mode.IsDir() {
-			err = t.Ingest(ctx, filepath.Join(dir, entry.Name))
-			if err != nil {
-				return err
-			}
+	dirents := make(map[string]*Dirent)
+
+	for _, info := range infos {
+		if isIgnoreInfo(info) {
 			continue
 		}
-		// Regular file.
-		fpath := filepath.Join(dir, entry.Name)
-		f, err := os.Open(fpath)
-		if err != nil {
-			return errors.Wrapf(err, "opening %s for reading", fpath)
+		dirent := &Dirent{
+			Name: info.Name(),
+			Mode: uint32(info.Mode()),
 		}
-		ref, err := bs.SplitWrite(ctx, t.S, f, nil)
-		f.Close() // in lieu of defer f.Close() above, which would require a new closure
-		if err != nil {
-			return errors.Wrapf(err, "ingesting blob store from file %s", fpath)
+		dirents[info.Name()] = dirent
+		if info.IsDir() {
+			subref, err := t.Ingest(ctx, filepath.Join(dir, info.Name()))
+			if err != nil {
+				return bs.Ref{}, errors.Wrapf(err, "ingesting dir %s/%s", dir, info.Name())
+			}
+			dirent.Ref = subref[:]
+			continue
 		}
-
-		fa, err := t.fileAnchor(fpath)
+		subref, err := t.ingestFile(ctx, filepath.Join(dir, info.Name()))
 		if err != nil {
-			return errors.Wrapf(err, "computing anchor for file %s", fpath)
+			return bs.Ref{}, errors.Wrapf(err, "ingesting file %s/%s", dir, info.Name())
 		}
-		err = t.S.PutAnchor(ctx, ref, fa, time.Now())
-		if err != nil {
-			return errors.Wrapf(err, "storing anchor for file %s", fpath)
-		}
+		dirent.Ref = subref[:]
 	}
 
 	da, err := t.dirAnchor(dir)
 	if err != nil {
-		return errors.Wrapf(err, "computing anchor for dir %s", dir)
+		return bs.Ref{}, errors.Wrapf(err, "computing anchor for dir %s", dir)
+	}
+	dp, err := t.infosToDirProto(ctx, dir, infos, dirents)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "turning FileInfos for %s into Dir proto", dir)
+	}
+	dirRef, _, err := bs.PutProto(ctx, t.S, dp)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "storing blob for dir %s", dir)
 	}
 	err = t.S.PutAnchor(ctx, dirRef, da, time.Now())
-	return errors.Wrapf(err, "storing anchor for dir %s", dir)
+	return dirRef, errors.Wrapf(err, "storing anchor for dir %s", dir)
 }
 
-func infosToDirProto(infos []os.FileInfo) *Dir {
+func (t *Tree) infosToDirProto(ctx context.Context, dir string, infos []os.FileInfo, dirents map[string]*Dirent) (*Dir, error) {
+	if dirents == nil {
+		dirents = map[string]*Dirent{}
+	}
+
 	dp := new(Dir)
+	now := time.Now()
 	for _, info := range infos {
-		name, mode := info.Name(), info.Mode()
-		if name == "." || name == ".." {
+		if isIgnoreInfo(info) {
 			continue
 		}
-		if info.IsDir() {
-			if name == ".git" {
-				continue
+
+		dirent, ok := dirents[info.Name()]
+		if !ok {
+			var (
+				a   bs.Anchor
+				err error
+			)
+			if info.Mode().IsDir() {
+				a, err = t.dirAnchor(filepath.Join(dir, info.Name()))
+				if err != nil {
+					return nil, errors.Wrapf(err, "computing dir anchor for %s/%s", dir, info.Name())
+				}
+			} else {
+				a, err = t.fileAnchor(filepath.Join(dir, info.Name()))
+				if err != nil {
+					return nil, errors.Wrapf(err, "computing file anchor for %s/%s", dir, info.Name())
+				}
 			}
-		} else if !mode.IsRegular() {
-			continue
+			ref, err := t.S.GetAnchor(ctx, a, now)
+			if err != nil {
+				return nil, errors.Wrapf(err, "getting ref for %s at %s", a, now)
+			}
+
+			dirent = &Dirent{
+				Name: info.Name(),
+				Mode: uint32(info.Mode()),
+				Ref:  ref[:],
+			}
 		}
-		dp.Entries = append(dp.Entries, &Dirent{Name: name, Mode: uint32(mode)})
+		dp.Entries = append(dp.Entries, dirent)
 	}
 	// No need to sort; ReadDir returns entries already sorted by name.
-	return dp
+	return dp, nil
+}
+
+func isIgnoreInfo(info os.FileInfo) bool {
+	if info.IsDir() {
+		switch info.Name() {
+		case ".", "..", ".git":
+			return true
+		}
+		return false
+	}
+	return !info.Mode().IsRegular()
+}
+
+func (t *Tree) ingestFile(ctx context.Context, fpath string) (bs.Ref, error) {
+	f, err := os.Open(fpath)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "opening %s for reading", fpath)
+	}
+	defer f.Close()
+
+	ref, err := bs.SplitWrite(ctx, t.S, f, nil)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "storing blobs for file %s", fpath)
+	}
+
+	fa, err := t.fileAnchor(fpath)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "computing anchor for file %s", fpath)
+	}
+	err = t.S.PutAnchor(ctx, ref, fa, time.Now())
+	return ref, errors.Wrapf(err, "storing anchor for file %s", fpath)
 }
 
 func (t *Tree) fileAnchor(file string) (bs.Anchor, error) {
@@ -124,13 +178,13 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	if err != nil {
 		return errors.Wrapf(err, "computing anchor for file %s", file)
 	}
+
+	var doParent bool
+
 	oldRef, err := t.S.GetAnchor(ctx, fa, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps file was added, which means its dir has (also) changed.
-		err = t.DirChanged(ctx, filepath.Dir(file))
-		if err != nil {
-			return errors.Wrapf(err, "computing parent-dir changes from possibly new file %s", file)
-		}
+		doParent = true
 	} else if err != nil {
 		return errors.Wrapf(err, "getting anchor for file %s", file)
 	}
@@ -153,10 +207,26 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 		}
 	}
 
+	if doParent {
+		because := &Dirent{
+			Name: filepath.Base(file),
+			Mode: uint32(info.Mode()),
+			Ref:  newRef[:],
+		}
+		err = t.dirChanged(ctx, filepath.Dir(file), map[string]*Dirent{info.Name(): because})
+		if err != nil {
+			return errors.Wrapf(err, "computing parent-dir changes from possibly new file %s", file)
+		}
+	}
+
 	return nil
 }
 
 func (t *Tree) DirChanged(ctx context.Context, dir string) error {
+	return t.dirChanged(ctx, dir, nil)
+}
+
+func (t *Tree) dirChanged(ctx context.Context, dir string, because map[string]*Dirent) error {
 	if len(t.Root) > len(dir) {
 		// Dir is higher than root; ignore.
 		return nil
@@ -167,13 +237,13 @@ func (t *Tree) DirChanged(ctx context.Context, dir string) error {
 		return errors.Wrapf(err, "computing anchor for dir %s", dir)
 	}
 
+	var doParent bool
+
 	oldRef, err := t.S.GetAnchor(ctx, da, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps dir was added, which means its containing dir has (also) changed.
-		err = t.DirChanged(ctx, filepath.Dir(dir))
-		if err != nil {
-			return errors.Wrapf(err, "computing parent-dir changes from possibly new dir %s", dir)
-		}
+		log.Printf("GetAnchor(%s) -> empty", da)
+		doParent = true
 	} else if err != nil {
 		return errors.Wrapf(err, "getting anchor for dir %s", dir)
 	}
@@ -181,13 +251,16 @@ func (t *Tree) DirChanged(ctx context.Context, dir string) error {
 	infos, err := ioutil.ReadDir(dir)
 	if os.IsNotExist(err) {
 		// Perhaps dir was removed, which means its containing dir has changed.
-		return t.DirChanged(ctx, filepath.Dir(dir))
-	}
-	if err != nil {
+		doParent = true
+	} else if err != nil {
 		return errors.Wrapf(err, "reading dir %s", dir)
 	}
 
-	dp := infosToDirProto(infos)
+	dp, err := t.infosToDirProto(ctx, dir, infos, because)
+	if err != nil {
+		return errors.Wrapf(err, "turning infos for %s into Dir proto", dir)
+	}
+
 	newRef, _, err := bs.PutProto(ctx, t.S, dp)
 	if err != nil {
 		return errors.Wrapf(err, "storing blob for dir %s", dir)
@@ -197,6 +270,14 @@ func (t *Tree) DirChanged(ctx context.Context, dir string) error {
 		err = t.S.PutAnchor(ctx, newRef, da, time.Now())
 		if err != nil {
 			return errors.Wrapf(err, "updating anchor for dir %s", dir)
+		}
+		doParent = true
+	}
+
+	if doParent {
+		err = t.dirChanged(ctx, filepath.Dir(dir), nil)
+		if err != nil {
+			return errors.Wrapf(err, "recording change of %s in %s", filepath.Base(dir), filepath.Dir(dir))
 		}
 	}
 

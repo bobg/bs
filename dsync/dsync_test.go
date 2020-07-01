@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -53,13 +52,9 @@ func TestDsync(t *testing.T) {
 		t.Fatalf("dirs not equal after populating %s from %s", primaryRoot, copyFrom)
 	}
 
-	primary := &Tree{
-		S:    mem.New(),
-		Root: primaryRoot,
-	}
+	var primary *Tree
 
 	ctx := context.Background()
-
 	newRef := func(ref bs.Ref) error {
 		t.Logf("new ref %s", ref)
 
@@ -76,22 +71,29 @@ func TestDsync(t *testing.T) {
 		return replica.ReplicaAnchor(ctx, tuple.A, tuple.Ref)
 	}
 
+	var (
+		refs    = make(chan bs.Ref)
+		anchors = make(chan AnchorTuple)
+	)
+	defer close(refs)
+	defer close(anchors)
+
+	primaryStore := mem.New()
+	primary = &Tree{
+		S:    NewStreamer(primaryStore, refs, anchors),
+		Root: primaryRoot,
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	errCh := make(chan error)
+	go WatchRefsAnchors(ctx, refs, anchors, newRef, newAnchor)
 
-	go func() {
-		defer close(errCh)
-		err := primary.RunPrimary(ctx, newRef, newAnchor)
-		if err != nil {
-			errCh <- errors.Wrap(err, "from RunPrimary")
-		}
-	}()
-
-	sleepDur := 2 * time.Second
-	t.Logf("sleeping %s for initial sync", sleepDur)
-	time.Sleep(sleepDur)
+	rootRef, err := primary.Ingest(ctx, primaryRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("ingested %s at %s", primaryRoot, rootRef)
 
 	eq, err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
@@ -126,9 +128,6 @@ func TestDsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("sleeping %s for file sync", sleepDur)
-	time.Sleep(sleepDur)
-
 	eq, err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -147,20 +146,12 @@ func TestDsync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("sleeping %s for file sync", sleepDur)
-	time.Sleep(sleepDur)
-
 	eq, err = dirsEqual(replicaRoot, primaryRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !eq {
 		t.Fatal("dirs not equal after file deletion")
-	}
-
-	cancel()
-	if err, ok := <-errCh; ok {
-		t.Fatal(err)
 	}
 }
 

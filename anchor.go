@@ -16,13 +16,13 @@ type TimeRef struct {
 // in a list of TimeRefs, sorted by time,
 // whose timestamp is not later than `at`.
 func FindAnchor(pairs []TimeRef, at time.Time) (Ref, error) {
+	if len(pairs) == 0 {
+		return Ref{}, ErrNotFound
+	}
 	index := sort.Search(len(pairs), func(n int) bool {
 		return !pairs[n].T.Before(at)
 	})
-	if index == len(pairs) {
-		return Ref{}, ErrNotFound
-	}
-	if pairs[index].T.Equal(at) {
+	if index < len(pairs) && pairs[index].T.Equal(at) {
 		return pairs[index].R, nil
 	}
 	if index == 0 {

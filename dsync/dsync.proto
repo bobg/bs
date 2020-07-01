@@ -6,6 +6,7 @@ option go_package = ".;dsync";
 message Dirent {
   string name = 1;
   uint32 mode = 2;
+  bytes  ref  = 3;
 }
 
 message Dir {
