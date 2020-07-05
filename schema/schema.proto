@@ -1,0 +1,25 @@
+syntax = "proto3";
+package bs;
+
+option go_package = ".;schema";
+
+message Subset {
+  bytes ref  = 1;
+  bytes min  = 2; // min member
+  int32 size = 3;
+}
+
+// Set is a set of refs.
+// TODO: the shape of Set should not depend on the order of Add/Remove operations.
+message Set {
+  // These fields are mutually exclusive with members.
+  Subset left  = 1;
+  Subset right = 2;
+
+  // This is mutually exclusive with left and right.
+  // It must be kept sorted.
+  repeated bytes members = 3;
+
+  // Size is the number of refs in this node plus any children.
+  int32 size = 4;
+}
