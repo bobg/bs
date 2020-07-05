@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+package main;
+
+option go_package = ".;main";
+
+message Bytes {
+  bytes b = 1;
+}
+
+message AnchorTuple {
+  string a                    = 1;
+  bytes  ref                  = 2;
+  google.protobuf.Timestamp t = 3;
+}
+
+service Replica {
+  rpc DoOffer (stream Bytes) returns (stream Bytes);
+  rpc DoBlobs (stream Bytes) returns (google.protobuf.Empty);
+  rpc DoAnchors (stream AnchorTuple) returns (google.protobuf.Empty);
+}
