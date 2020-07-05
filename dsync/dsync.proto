@@ -1,4 +1,5 @@
 syntax = "proto3";
+
 package dsync;
 
 option go_package = ".;dsync";
