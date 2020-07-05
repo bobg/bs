@@ -5,21 +5,27 @@ option go_package = ".;schema";
 
 message Subset {
   bytes ref  = 1;
-  bytes min  = 2; // min member
-  int32 size = 3;
+  int32 size = 2;
 }
 
 // Set is a set of refs.
-// TODO: the shape of Set should not depend on the order of Add/Remove operations.
 message Set {
-  // These fields are mutually exclusive with members.
-  Subset left  = 1;
-  Subset right = 2;
+  // Depth is the distance from the root of the tree.
+  // The root has depth 0.
+  // If there are subtrees,
+  // then all members of the left subtree have bit `depth` set to 0,
+  // and all members of the right subtree have bit `depth` set to 1.
+  // (This allows the shape of the tree to be independent of the order in which members are added.)
+  int32 depth = 1;
 
-  // This is mutually exclusive with left and right.
-  // It must be kept sorted.
-  repeated bytes members = 3;
+  // Mutually exclusive with members.
+  Subset left  = 2;
+  Subset right = 3;
+
+  // Mutually exclusive with left and right.
+  // Must be kept sorted.
+  repeated bytes members = 4;
 
   // Size is the number of refs in this node plus any children.
-  int32 size = 4;
+  int32 size = 5;
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -25,6 +26,7 @@ func TestSet(t *testing.T) {
 		store = mem.New()
 		s     = new(Set)
 		refs  = make(map[bs.Ref]struct{})
+		sref  bs.Ref
 	)
 
 	for sc.Scan() {
@@ -39,12 +41,10 @@ func TestSet(t *testing.T) {
 
 		refs[ref] = struct{}{}
 		if ref[0]&1 == 0 {
-			t.Logf("not adding %s", ref)
 			continue
 		}
 
-		t.Logf("adding %s", ref)
-		_, added, err = s.Add(ctx, store, ref)
+		sref, added, err = s.Add(ctx, store, ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -53,11 +53,6 @@ func TestSet(t *testing.T) {
 		}
 	}
 	if err = sc.Err(); err != nil {
-		t.Fatal(err)
-	}
-
-	err = s.dump(ctx, store, 0)
-	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -93,13 +88,54 @@ func TestSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Now delete refs and re-add them.
+	// We should always get back the same shape tree.
+	for i := int32(1); i < s.Size && i < 128; i++ {
+		var deleted []bs.Ref
+		for ref := range refs {
+			if ref[0]&1 == 0 {
+				// This ref is not in the set.
+				continue
+			}
+
+			_, removed, err := s.Remove(ctx, store, ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !removed {
+				t.Fatalf("expected to remove %s", ref)
+			}
+
+			deleted = append(deleted, ref)
+			if int32(len(deleted)) >= i {
+				break
+			}
+		}
+		// Re-add in a (probably) different order.
+		sort.Slice(deleted, func(i, j int) bool { return deleted[i].Less(deleted[j]) })
+		var newSref bs.Ref
+		for _, ref := range deleted {
+			var added bool
+			newSref, added, err = s.Add(ctx, store, ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !added {
+				t.Fatalf("expected to add %s", ref)
+			}
+		}
+		if sref != newSref {
+			t.Fatalf("after adding back %d deleted refs, set root ref %s differs from original %s", len(deleted), newSref, sref)
+		}
+	}
 }
 
 func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 	indent := strings.Repeat("  ", depth)
-	fmt.Printf("%sSize: %d\n", indent, s.Size)
+	fmt.Printf("%sSize: %d, Depth: %d\n", indent, s.Size, s.Depth)
 	if s.Left != nil {
-		fmt.Printf("%sLeft (size %d, min %x)\n", indent, s.Left.Size, s.Left.Min)
+		fmt.Printf("%sLeft (size %d)\n", indent, s.Left.Size)
 		var sub Set
 		err := bs.GetProto(ctx, g, bs.RefFromBytes(s.Left.Ref), &sub)
 		if err != nil {
@@ -110,7 +146,7 @@ func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 			return err
 		}
 
-		fmt.Printf("%sRight (size %d, min %x)\n", indent, s.Right.Size, s.Right.Min)
+		fmt.Printf("%sRight (size %d)\n", indent, s.Right.Size)
 		err = bs.GetProto(ctx, g, bs.RefFromBytes(s.Right.Ref), &sub)
 		if err != nil {
 			return err
