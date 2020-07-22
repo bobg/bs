@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // Receiver is the receiving end of a full-sync operation (see Tree.Full).
@@ -141,10 +142,10 @@ func (t *Tree) Full(ctx context.Context, r Receiver) error {
 				}
 
 			case treeNodeRef:
-				var tn bs.TreeNode
+				var tn split.Node
 				err = proto.Unmarshal(blob, &tn)
 				if err != nil {
-					return errors.Wrapf(err, "unmarshaling TreeNode proto %s", ref)
+					return errors.Wrapf(err, "unmarshaling split.Node proto %s", ref)
 				}
 				for _, n := range tn.Nodes {
 					nref := bs.RefFromBytes(n)

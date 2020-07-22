@@ -14,6 +14,7 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/file"
+	"github.com/bobg/bs/split"
 )
 
 func main() {
@@ -42,7 +43,7 @@ func main() {
 	}
 
 	if *put {
-		ref, err := bs.SplitWrite(ctx, filestore, os.Stdin, nil)
+		ref, err := split.Write(ctx, filestore, os.Stdin, nil)
 		if err != nil {
 			log.Fatalf("writing to filestore: %s", err)
 		}
@@ -70,7 +71,7 @@ func main() {
 		}
 
 		if *get {
-			err = bs.SplitRead(ctx, filestore, ref, os.Stdout)
+			err = split.Read(ctx, filestore, ref, os.Stdout)
 			if err != nil {
 				log.Fatalf("reading from filestore: %s", err)
 			}
@@ -86,7 +87,7 @@ func main() {
 }
 
 func doTree(ctx context.Context, g bs.Getter, ref bs.Ref, depth int) error {
-	var tn bs.TreeNode
+	var tn split.Node
 	err := bs.GetProto(ctx, g, ref, &tn)
 	if err != nil {
 		return errors.Wrapf(err, "getting treenode %s", ref)

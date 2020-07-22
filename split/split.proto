@@ -1,10 +1,11 @@
 syntax = "proto3";
-package bs;
+package split;
 
-option go_package = ".;bs";
+option go_package = ".;split";
 
-message TreeNode {
-  // Refs of other TreeNodes.
+// Node is a node in a hashsplit tree created with split.Write.
+message Node {
+  // Refs of other Nodes.
   repeated bytes nodes = 1;
 
   // Refs of leaf blobs.

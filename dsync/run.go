@@ -15,6 +15,7 @@ import (
 	"github.com/rjeczalik/notify"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // RunPrimary causes t to act as the primary for file-tree synchronization.
@@ -194,7 +195,7 @@ func (t *Tree) constitute(ctx context.Context, a string, ref bs.Ref) error {
 
 	var innerErr error
 	go func() {
-		innerErr = bs.SplitRead(ctx, t.S, ref, pw)
+		innerErr = split.Read(ctx, t.S, ref, pw)
 		pw.Close()
 	}()
 

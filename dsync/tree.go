@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // Tree represents a synchronizable tree of files and directories.
@@ -142,7 +143,7 @@ func (t *Tree) ingestFile(ctx context.Context, fpath string) (bs.Ref, error) {
 	}
 	defer f.Close()
 
-	ref, err := bs.SplitWrite(ctx, t.S, f, nil)
+	ref, err := split.Write(ctx, t.S, f, nil)
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing blobs for file %s", fpath)
 	}
@@ -206,7 +207,7 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	}
 	defer f.Close()
 
-	newRef, err := bs.SplitWrite(ctx, t.S, f, nil)
+	newRef, err := split.Write(ctx, t.S, f, nil)
 	if err != nil {
 		return errors.Wrapf(err, "storing blobtree for file %s", file)
 	}
