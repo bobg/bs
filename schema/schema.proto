@@ -8,7 +8,8 @@ message Subset {
   int32 size = 2;
 }
 
-// Set is a set of refs.
+// Set is a set of refs, represented as a tree.
+// The shape of the tree is insensitive to the order of Add and Remove calls.
 message Set {
   // Depth is the distance from the root of the tree.
   // The root has depth 0.

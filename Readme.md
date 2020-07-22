@@ -17,7 +17,8 @@ that you’re better off worrying about spontaneously combusting
 while also facing a thundering herd of angry rhinoceroses,
 at the very moment of a solar eclipse.
 
-This module uses sha2-256, which is a sufficiently good hash algorithm.
+This module uses sha2-256,
+which is a sufficiently good hash algorithm.
 
 The fact that the lookup key is computed from a blob’s content,
 rather than by its location in memory or the order in which it was added,
