@@ -1,5 +1,5 @@
 syntax = "proto3";
-package bs;
+package schema;
 
 option go_package = ".;schema";
 
