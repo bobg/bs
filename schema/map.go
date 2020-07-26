@@ -16,17 +16,17 @@ func (m *Map) Set(ctx context.Context, store bs.Store, key []byte, ref bs.Ref) (
 			newMembers := make([]*MapPair, 1+len(m.Members))
 			copy(newMembers[:i], m.Members[:i])
 			newMembers[i] = &MapPair{
-				Key: key,
-				Ref: ref[:],
+				Key:     key,
+				Payload: ref[:],
 			}
 			copy(newMembers[i+1:], m.Members[i:])
 			m.Members = newMembers
 			return OAdded
 		}
-		if bytes.Equal(ref[:], m.Members[i].Ref) {
+		if bytes.Equal(ref[:], m.Members[i].Payload) {
 			return ONone
 		}
-		m.Members[i].Ref = ref[:]
+		m.Members[i].Payload = ref[:]
 		return OUpdated
 	})
 }
@@ -75,7 +75,7 @@ func (m *Map) Lookup(ctx context.Context, g bs.Getter, key []byte) (bs.Ref, bool
 	err := treeLookup(ctx, m, g, hashKey(key), func(t tree, i int32) {
 		m := t.(*Map)
 		ok = true
-		ref = bs.RefFromBytes(m.Members[i].Ref)
+		ref = bs.RefFromBytes(m.Members[i].Payload)
 	})
 	return ref, ok, err
 }

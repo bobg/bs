@@ -97,8 +97,8 @@ func TestMap(t *testing.T) {
 				t.Errorf("key %d is not even", linenum)
 				continue
 			}
-			if !bytes.Equal(pair.Ref, refs[linenum][:]) {
-				t.Errorf("got ref %x for key %d, want %s", pair.Ref, linenum, refs[linenum])
+			if !bytes.Equal(pair.Payload, refs[linenum][:]) {
+				t.Errorf("got ref %x for key %d, want %s", pair.Payload, linenum, refs[linenum])
 			}
 		}
 	}()
@@ -123,16 +123,16 @@ func TestMap(t *testing.T) {
 				t.Fatalf("expected to remove %d", linenum)
 			}
 			deleted = append(deleted, MapPair{
-				Key: []byte(linenumstr),
-				Ref: refs[linenum][:],
+				Key:     []byte(linenumstr),
+				Payload: refs[linenum][:],
 			})
 		}
 
 		// Re-add in a (probably) different order.
 		var newMref bs.Ref
-		sort.Slice(deleted, func(i, j int) bool { return bytes.Compare(deleted[i].Ref, deleted[j].Ref) < 0 })
+		sort.Slice(deleted, func(i, j int) bool { return bytes.Compare(deleted[i].Payload, deleted[j].Payload) < 0 })
 		for _, pair := range deleted {
-			newMref, _, err = m.Set(ctx, store, pair.Key, bs.RefFromBytes(pair.Ref))
+			newMref, _, err = m.Set(ctx, store, pair.Key, bs.RefFromBytes(pair.Payload))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -204,7 +204,7 @@ func (m *Map) dump(ctx context.Context, g bs.Getter, depth int) error {
 	}
 
 	for _, pair := range m.Members {
-		fmt.Printf("%s  %x: %x\n", indent, pair.Key, pair.Ref)
+		fmt.Printf("%s  %x: %x\n", indent, pair.Key, pair.Payload)
 	}
 
 	return nil

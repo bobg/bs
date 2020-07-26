@@ -12,16 +12,31 @@ import (
 	"github.com/bobg/bs"
 )
 
+// The tree interface factors out common logic shared by Set and Map.
+// Both are implemented as a binary tree.
+// A node contains a sorted list of members, until it grows too large;
+// then it is split into left and right children.
+// If the depth of the node is D,
+// the left child gets all the members whose "key hash" has a 0 in bit position D
+// and the right child gets all the members whose key hash has a 1 in that position.
+// On removing an element, subtrees are coalesced back into a single node if they fit.
+// The goal is to make the shape of the tree (and its resulting Ref)
+// insensitive to the order of addition and removal operations.
+//
+// In a Set, the members are Refs and the "key hash" is simply the Ref itself.
+//
+// In a Map, the members are pairs with arbitrary byte slices for both key and payload.
+// The "key hash" is a hash of the key.
 type tree interface {
 	proto.Message
-	treenode() *TreeNode
-	numMembers() int32
-	keyHash(int32) []byte
-	zeroMembers()
-	newAt(int32) tree
 	copyMember(src tree, i int32)
+	keyHash(int32) []byte
+	newAt(int32) tree
+	numMembers() int32
 	removeMember(int32)
 	sortMembers()
+	treenode() *TreeNode
+	zeroMembers()
 }
 
 const maxNode = 128
@@ -34,6 +49,10 @@ const (
 	OUpdated
 )
 
+// Add or update an element to the tree.
+// When the right position in the member list of the right node is found,
+// mutate is called with the node, position, and a boolean: true for insertion,
+// false for update-in-place.
 func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate func(tree, int32, bool) Outcome) (bs.Ref, Outcome, error) {
 	tn := t.treenode()
 	if tn.Left != nil {
@@ -252,6 +271,7 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 	return selfRef, false, errors.Wrap(err, "computing self ref")
 }
 
+// Calls f for each member of t (recursively) in keyhash order.
 func treeEach(ctx context.Context, t tree, g bs.Getter, f func(tree, int32) error) error {
 	tn := t.treenode()
 	if tn.Left != nil {

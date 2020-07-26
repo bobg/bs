@@ -26,8 +26,8 @@ message Set {
 }
 
 message MapPair {
-  bytes key = 1;
-  bytes ref = 2;
+  bytes key     = 1;
+  bytes payload = 2;
 }
 
 message Map {
