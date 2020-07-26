@@ -142,6 +142,42 @@ func TestMap(t *testing.T) {
 			t.Fatalf("after adding back %d deleted pairs, map root ref %s differs from original %s", len(deleted), newMref, mref)
 		}
 	}
+
+	// Updating a key to the same value should not change the map.
+	newMref, outcome, err := m.Set(ctx, store, []byte("2"), refs[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != ONone {
+		t.Fatalf("got outcome %v, want ONone", outcome)
+	}
+	if newMref != mref {
+		t.Fatalf("no change to map but new ref %s != %s", newMref, mref)
+	}
+
+	// Updating a key to a new value should.
+	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[3])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != OUpdated {
+		t.Fatalf("got outcome %v, want OUpdated", outcome)
+	}
+	if newMref == mref {
+		t.Fatal("map changed but ref is unchanged")
+	}
+
+	// Restoring the original value for the changed key should reproduce the old map.
+	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome != OUpdated {
+		t.Fatalf("got outcome %v, want OUpdated", outcome)
+	}
+	if newMref != mref {
+		t.Fatalf("map changed back but new ref %s != %s", newMref, mref)
+	}
 }
 
 func (m *Map) dump(ctx context.Context, g bs.Getter, depth int) error {
