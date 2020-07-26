@@ -24,7 +24,7 @@ func TestSet(t *testing.T) {
 		ctx   = context.Background()
 		sc    = bufio.NewScanner(f)
 		store = mem.New()
-		s     = new(Set)
+		s     = &Set{Node: new(TreeNode)}
 		refs  = make(map[bs.Ref]struct{})
 		sref  bs.Ref
 	)
@@ -89,9 +89,12 @@ func TestSet(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// xxx
+	s.dump(ctx, store, 0)
+
 	// Now delete refs and re-add them.
 	// We should always get back the same shape tree.
-	for i := int32(1); i < s.Size && i < 128; i++ {
+	for i := int32(1); i < s.Node.Size && i < 128; i++ {
 		var deleted []bs.Ref
 		for ref := range refs {
 			if ref[0]&1 == 0 {
@@ -126,6 +129,7 @@ func TestSet(t *testing.T) {
 			}
 		}
 		if sref != newSref {
+			s.dump(ctx, store, 0)
 			t.Fatalf("after adding back %d deleted refs, set root ref %s differs from original %s", len(deleted), newSref, sref)
 		}
 	}
@@ -133,11 +137,11 @@ func TestSet(t *testing.T) {
 
 func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 	indent := strings.Repeat("  ", depth)
-	fmt.Printf("%sSize: %d, Depth: %d\n", indent, s.Size, s.Depth)
-	if s.Left != nil {
-		fmt.Printf("%sLeft (size %d)\n", indent, s.Left.Size)
+	fmt.Printf("%sSize: %d, Depth: %d\n", indent, s.Node.Size, s.Node.Depth)
+	if s.Node.Left != nil {
+		fmt.Printf("%sLeft (size %d)\n", indent, s.Node.Left.Size)
 		var sub Set
-		err := bs.GetProto(ctx, g, bs.RefFromBytes(s.Left.Ref), &sub)
+		err := bs.GetProto(ctx, g, bs.RefFromBytes(s.Node.Left.Ref), &sub)
 		if err != nil {
 			return err
 		}
@@ -146,8 +150,8 @@ func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 			return err
 		}
 
-		fmt.Printf("%sRight (size %d)\n", indent, s.Right.Size)
-		err = bs.GetProto(ctx, g, bs.RefFromBytes(s.Right.Ref), &sub)
+		fmt.Printf("%sRight (size %d)\n", indent, s.Node.Right.Size)
+		err = bs.GetProto(ctx, g, bs.RefFromBytes(s.Node.Right.Ref), &sub)
 		if err != nil {
 			return err
 		}

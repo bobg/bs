@@ -25,17 +25,19 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-type Subset struct {
+type TreeNode struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ref  []byte `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
-	Size int32  `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	Depth int32    `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"`
+	Size  int32    `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	Left  *SubNode `protobuf:"bytes,3,opt,name=left,proto3" json:"left,omitempty"`
+	Right *SubNode `protobuf:"bytes,4,opt,name=right,proto3" json:"right,omitempty"`
 }
 
-func (x *Subset) Reset() {
-	*x = Subset{}
+func (x *TreeNode) Reset() {
+	*x = TreeNode{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_schema_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -43,13 +45,13 @@ func (x *Subset) Reset() {
 	}
 }
 
-func (x *Subset) String() string {
+func (x *TreeNode) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Subset) ProtoMessage() {}
+func (*TreeNode) ProtoMessage() {}
 
-func (x *Subset) ProtoReflect() protoreflect.Message {
+func (x *TreeNode) ProtoReflect() protoreflect.Message {
 	mi := &file_schema_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -61,19 +63,88 @@ func (x *Subset) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Subset.ProtoReflect.Descriptor instead.
-func (*Subset) Descriptor() ([]byte, []int) {
+// Deprecated: Use TreeNode.ProtoReflect.Descriptor instead.
+func (*TreeNode) Descriptor() ([]byte, []int) {
 	return file_schema_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Subset) GetRef() []byte {
+func (x *TreeNode) GetDepth() int32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
+}
+
+func (x *TreeNode) GetSize() int32 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *TreeNode) GetLeft() *SubNode {
+	if x != nil {
+		return x.Left
+	}
+	return nil
+}
+
+func (x *TreeNode) GetRight() *SubNode {
+	if x != nil {
+		return x.Right
+	}
+	return nil
+}
+
+type SubNode struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Ref  []byte `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	Size int32  `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+}
+
+func (x *SubNode) Reset() {
+	*x = SubNode{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_schema_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SubNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SubNode) ProtoMessage() {}
+
+func (x *SubNode) ProtoReflect() protoreflect.Message {
+	mi := &file_schema_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SubNode.ProtoReflect.Descriptor instead.
+func (*SubNode) Descriptor() ([]byte, []int) {
+	return file_schema_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SubNode) GetRef() []byte {
 	if x != nil {
 		return x.Ref
 	}
 	return nil
 }
 
-func (x *Subset) GetSize() int32 {
+func (x *SubNode) GetSize() int32 {
 	if x != nil {
 		return x.Size
 	}
@@ -87,27 +158,15 @@ type Set struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Depth is the distance from the root of the tree.
-	// The root has depth 0.
-	// If there are subtrees,
-	// then all members of the left subtree have bit `depth` set to 0,
-	// and all members of the right subtree have bit `depth` set to 1.
-	// (This allows the shape of the tree to be independent of the order in which members are added.)
-	Depth int32 `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"`
-	// Mutually exclusive with members.
-	Left  *Subset `protobuf:"bytes,2,opt,name=left,proto3" json:"left,omitempty"`
-	Right *Subset `protobuf:"bytes,3,opt,name=right,proto3" json:"right,omitempty"`
-	// Mutually exclusive with left and right.
-	// Must be kept sorted.
-	Members [][]byte `protobuf:"bytes,4,rep,name=members,proto3" json:"members,omitempty"`
-	// Size is the number of refs in this node plus any children.
-	Size int32 `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
+	Node *TreeNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	// Mutually exclusive with node.left and node.right.
+	Members [][]byte `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
 }
 
 func (x *Set) Reset() {
 	*x = Set{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_schema_proto_msgTypes[1]
+		mi := &file_schema_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -120,7 +179,7 @@ func (x *Set) String() string {
 func (*Set) ProtoMessage() {}
 
 func (x *Set) ProtoReflect() protoreflect.Message {
-	mi := &file_schema_proto_msgTypes[1]
+	mi := &file_schema_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -133,26 +192,12 @@ func (x *Set) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Set.ProtoReflect.Descriptor instead.
 func (*Set) Descriptor() ([]byte, []int) {
-	return file_schema_proto_rawDescGZIP(), []int{1}
+	return file_schema_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Set) GetDepth() int32 {
+func (x *Set) GetNode() *TreeNode {
 	if x != nil {
-		return x.Depth
-	}
-	return 0
-}
-
-func (x *Set) GetLeft() *Subset {
-	if x != nil {
-		return x.Left
-	}
-	return nil
-}
-
-func (x *Set) GetRight() *Subset {
-	if x != nil {
-		return x.Right
+		return x.Node
 	}
 	return nil
 }
@@ -164,31 +209,147 @@ func (x *Set) GetMembers() [][]byte {
 	return nil
 }
 
-func (x *Set) GetSize() int32 {
-	if x != nil {
-		return x.Size
+type MapPair struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Ref []byte `protobuf:"bytes,2,opt,name=ref,proto3" json:"ref,omitempty"`
+}
+
+func (x *MapPair) Reset() {
+	*x = MapPair{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_schema_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
 	}
-	return 0
+}
+
+func (x *MapPair) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MapPair) ProtoMessage() {}
+
+func (x *MapPair) ProtoReflect() protoreflect.Message {
+	mi := &file_schema_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MapPair.ProtoReflect.Descriptor instead.
+func (*MapPair) Descriptor() ([]byte, []int) {
+	return file_schema_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MapPair) GetKey() []byte {
+	if x != nil {
+		return x.Key
+	}
+	return nil
+}
+
+func (x *MapPair) GetRef() []byte {
+	if x != nil {
+		return x.Ref
+	}
+	return nil
+}
+
+type Map struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Node *TreeNode `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
+	// Mutually exclusive with node.left and node.right.
+	Members []*MapPair `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
+}
+
+func (x *Map) Reset() {
+	*x = Map{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_schema_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Map) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Map) ProtoMessage() {}
+
+func (x *Map) ProtoReflect() protoreflect.Message {
+	mi := &file_schema_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Map.ProtoReflect.Descriptor instead.
+func (*Map) Descriptor() ([]byte, []int) {
+	return file_schema_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Map) GetNode() *TreeNode {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *Map) GetMembers() []*MapPair {
+	if x != nil {
+		return x.Members
+	}
+	return nil
 }
 
 var File_schema_proto protoreflect.FileDescriptor
 
 var file_schema_proto_rawDesc = []byte{
 	0x0a, 0x0c, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x06,
-	0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22, 0x2e, 0x0a, 0x06, 0x53, 0x75, 0x62, 0x73, 0x65, 0x74,
-	0x12, 0x10, 0x0a, 0x03, 0x72, 0x65, 0x66, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x72,
-	0x65, 0x66, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05,
-	0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x22, 0x93, 0x01, 0x0a, 0x03, 0x53, 0x65, 0x74, 0x12, 0x14,
-	0x0a, 0x05, 0x64, 0x65, 0x70, 0x74, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x64,
-	0x65, 0x70, 0x74, 0x68, 0x12, 0x22, 0x0a, 0x04, 0x6c, 0x65, 0x66, 0x74, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x53, 0x75, 0x62, 0x73,
-	0x65, 0x74, 0x52, 0x04, 0x6c, 0x65, 0x66, 0x74, 0x12, 0x24, 0x0a, 0x05, 0x72, 0x69, 0x67, 0x68,
-	0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0e, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61,
-	0x2e, 0x53, 0x75, 0x62, 0x73, 0x65, 0x74, 0x52, 0x05, 0x72, 0x69, 0x67, 0x68, 0x74, 0x12, 0x18,
-	0x0a, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x0c, 0x52,
-	0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65,
-	0x18, 0x05, 0x20, 0x01, 0x28, 0x05, 0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x42, 0x0a, 0x5a, 0x08,
-	0x2e, 0x3b, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22, 0x80, 0x01, 0x0a, 0x08, 0x54, 0x72, 0x65, 0x65, 0x4e,
+	0x6f, 0x64, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x64, 0x65, 0x70, 0x74, 0x68, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x05, 0x64, 0x65, 0x70, 0x74, 0x68, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x23, 0x0a,
+	0x04, 0x6c, 0x65, 0x66, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x73, 0x63,
+	0x68, 0x65, 0x6d, 0x61, 0x2e, 0x53, 0x75, 0x62, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6c, 0x65,
+	0x66, 0x74, 0x12, 0x25, 0x0a, 0x05, 0x72, 0x69, 0x67, 0x68, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x0f, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x53, 0x75, 0x62, 0x4e, 0x6f,
+	0x64, 0x65, 0x52, 0x05, 0x72, 0x69, 0x67, 0x68, 0x74, 0x22, 0x2f, 0x0a, 0x07, 0x53, 0x75, 0x62,
+	0x4e, 0x6f, 0x64, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x72, 0x65, 0x66, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x03, 0x72, 0x65, 0x66, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x05, 0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x22, 0x45, 0x0a, 0x03, 0x53, 0x65,
+	0x74, 0x12, 0x24, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
+	0x10, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x54, 0x72, 0x65, 0x65, 0x4e, 0x6f, 0x64,
+	0x65, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65,
+	0x72, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72,
+	0x73, 0x22, 0x2d, 0x0a, 0x07, 0x4d, 0x61, 0x70, 0x50, 0x61, 0x69, 0x72, 0x12, 0x10, 0x0a, 0x03,
+	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x10,
+	0x0a, 0x03, 0x72, 0x65, 0x66, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x72, 0x65, 0x66,
+	0x22, 0x56, 0x0a, 0x03, 0x4d, 0x61, 0x70, 0x12, 0x24, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x54,
+	0x72, 0x65, 0x65, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x29, 0x0a,
+	0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f,
+	0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e, 0x4d, 0x61, 0x70, 0x50, 0x61, 0x69, 0x72, 0x52,
+	0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73, 0x42, 0x0a, 0x5a, 0x08, 0x2e, 0x3b, 0x73, 0x63,
+	0x68, 0x65, 0x6d, 0x61, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -203,19 +364,25 @@ func file_schema_proto_rawDescGZIP() []byte {
 	return file_schema_proto_rawDescData
 }
 
-var file_schema_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_schema_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_schema_proto_goTypes = []interface{}{
-	(*Subset)(nil), // 0: schema.Subset
-	(*Set)(nil),    // 1: schema.Set
+	(*TreeNode)(nil), // 0: schema.TreeNode
+	(*SubNode)(nil),  // 1: schema.SubNode
+	(*Set)(nil),      // 2: schema.Set
+	(*MapPair)(nil),  // 3: schema.MapPair
+	(*Map)(nil),      // 4: schema.Map
 }
 var file_schema_proto_depIdxs = []int32{
-	0, // 0: schema.Set.left:type_name -> schema.Subset
-	0, // 1: schema.Set.right:type_name -> schema.Subset
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 0: schema.TreeNode.left:type_name -> schema.SubNode
+	1, // 1: schema.TreeNode.right:type_name -> schema.SubNode
+	0, // 2: schema.Set.node:type_name -> schema.TreeNode
+	0, // 3: schema.Map.node:type_name -> schema.TreeNode
+	3, // 4: schema.Map.members:type_name -> schema.MapPair
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_schema_proto_init() }
@@ -225,7 +392,7 @@ func file_schema_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_schema_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Subset); i {
+			switch v := v.(*TreeNode); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -237,7 +404,43 @@ func file_schema_proto_init() {
 			}
 		}
 		file_schema_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SubNode); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_schema_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Set); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_schema_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*MapPair); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_schema_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Map); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -255,7 +458,7 @@ func file_schema_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_schema_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

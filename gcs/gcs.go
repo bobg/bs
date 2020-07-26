@@ -58,9 +58,13 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 			b, err = s.Get(ctx, ref)
 			close(ch)
 		}()
-		result[ref] = func(_ context.Context) (bs.Blob, error) {
-			<-ch
-			return b, err
+		result[ref] = func(ctx context.Context) (bs.Blob, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-ch:
+				return b, err
+			}
 		}
 	}
 	return result, nil
@@ -107,9 +111,13 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 			ref, added, err = s.Put(ctx, b)
 			close(ch)
 		}()
-		result[i] = func(_ context.Context) (bs.Ref, bool, error) {
-			<-ch
-			return ref, added, err
+		result[i] = func(ctx context.Context) (bs.Ref, bool, error) {
+			select {
+			case <-ctx.Done():
+				return bs.Ref{}, false, ctx.Err()
+			case <-ch:
+				return ref, added, err
+			}
 		}
 	}
 	return result, nil

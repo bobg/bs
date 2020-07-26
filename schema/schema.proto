@@ -3,7 +3,15 @@ package schema;
 
 option go_package = ".;schema";
 
-message Subset {
+message TreeNode {
+  int32 depth = 1;
+  int32 size  = 2;
+
+  SubNode left  = 3;
+  SubNode right = 4;
+}
+
+message SubNode {
   bytes ref  = 1;
   int32 size = 2;
 }
@@ -11,22 +19,20 @@ message Subset {
 // Set is a set of refs, represented as a tree.
 // The shape of the tree is insensitive to the order of Add and Remove calls.
 message Set {
-  // Depth is the distance from the root of the tree.
-  // The root has depth 0.
-  // If there are subtrees,
-  // then all members of the left subtree have bit `depth` set to 0,
-  // and all members of the right subtree have bit `depth` set to 1.
-  // (This allows the shape of the tree to be independent of the order in which members are added.)
-  int32 depth = 1;
+  TreeNode node = 1;
 
-  // Mutually exclusive with members.
-  Subset left  = 2;
-  Subset right = 3;
+  // Mutually exclusive with node.left and node.right.
+  repeated bytes members = 2;
+}
 
-  // Mutually exclusive with left and right.
-  // Must be kept sorted.
-  repeated bytes members = 4;
+message MapPair {
+  bytes key = 1;
+  bytes ref = 2;
+}
 
-  // Size is the number of refs in this node plus any children.
-  int32 size = 5;
+message Map {
+  TreeNode node = 1;
+
+  // Mutually exclusive with node.left and node.right.
+  repeated MapPair members = 2;
 }
