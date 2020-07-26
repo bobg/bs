@@ -26,7 +26,7 @@ func TestMap(t *testing.T) {
 		ctx   = context.Background()
 		sc    = bufio.NewScanner(f)
 		store = mem.New()
-		m     = &Map{Node: new(TreeNode)}
+		m     = NewMap()
 		mref  bs.Ref
 		lines []string
 		refs  []bs.Ref

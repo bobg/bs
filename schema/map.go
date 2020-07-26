@@ -9,6 +9,10 @@ import (
 	"github.com/bobg/bs"
 )
 
+func NewMap() *Map {
+	return &Map{Node: new(TreeNode)}
+}
+
 func (m *Map) Set(ctx context.Context, store bs.Store, key []byte, ref bs.Ref) (bs.Ref, Outcome, error) {
 	return treeSet(ctx, m, store, hashKey(key), func(t tree, i int32, insert bool) Outcome {
 		m := t.(*Map)

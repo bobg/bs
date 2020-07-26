@@ -24,7 +24,7 @@ func TestSet(t *testing.T) {
 		ctx   = context.Background()
 		sc    = bufio.NewScanner(f)
 		store = mem.New()
-		s     = &Set{Node: new(TreeNode)}
+		s     = NewSet()
 		refs  = make(map[bs.Ref]struct{})
 		sref  bs.Ref
 	)

@@ -8,6 +8,10 @@ import (
 	"github.com/bobg/bs"
 )
 
+func NewSet() *Set {
+	return &Set{Node: new(TreeNode)}
+}
+
 func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
 	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
 		if !insert {
