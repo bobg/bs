@@ -10,8 +10,8 @@ import (
 )
 
 func (m *Map) Set(ctx context.Context, store bs.Store, key []byte, ref bs.Ref) (bs.Ref, Outcome, error) {
-	return maplikeSet(ctx, m, store, hashKey(key), func(ml maplike, i int32, insert bool) Outcome {
-		m := ml.(*Map)
+	return treeSet(ctx, m, store, hashKey(key), func(t tree, i int32, insert bool) Outcome {
+		m := t.(*Map)
 		if insert {
 			newMembers := make([]*MapPair, 1+len(m.Members))
 			copy(newMembers[:i], m.Members[:i])
@@ -35,7 +35,7 @@ func (m *Map) numMembers() int32      { return int32(len(m.Members)) }
 func (m *Map) keyHash(i int32) []byte { return hashKey(m.Members[i].Key) }
 func (m *Map) zeroMembers()           { m.Members = nil }
 
-func (m *Map) newAt(depth int32) maplike {
+func (m *Map) newAt(depth int32) tree {
 	return &Map{
 		Node: &TreeNode{
 			Depth: depth,
@@ -43,7 +43,7 @@ func (m *Map) newAt(depth int32) maplike {
 	}
 }
 
-func (m *Map) copyMember(other maplike, i int32) {
+func (m *Map) copyMember(other tree, i int32) {
 	m.Members = append(m.Members, (other.(*Map)).Members[i])
 	m.Node.Size++
 }
@@ -71,8 +71,8 @@ func (m *Map) Lookup(ctx context.Context, g bs.Getter, key []byte) (bs.Ref, bool
 		ok  bool
 		ref bs.Ref
 	)
-	err := maplikeLookup(ctx, m, g, hashKey(key), func(ml maplike, i int32) {
-		m := ml.(*Map)
+	err := treeLookup(ctx, m, g, hashKey(key), func(t tree, i int32) {
+		m := t.(*Map)
 		ok = true
 		ref = bs.RefFromBytes(m.Members[i].Ref)
 	})
@@ -80,5 +80,5 @@ func (m *Map) Lookup(ctx context.Context, g bs.Getter, key []byte) (bs.Ref, bool
 }
 
 func (m *Map) Remove(ctx context.Context, store bs.Store, key []byte) (bs.Ref, bool, error) {
-	return maplikeRemove(ctx, m, store, key)
+	return treeRemove(ctx, m, store, key)
 }

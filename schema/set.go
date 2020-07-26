@@ -9,7 +9,7 @@ import (
 )
 
 func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
-	newref, outcome, err := maplikeSet(ctx, s, store, ref[:], func(m maplike, i int32, insert bool) Outcome {
+	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
 		if !insert {
 			return ONone
 		}
@@ -29,7 +29,7 @@ func (s *Set) numMembers() int32      { return int32(len(s.Members)) }
 func (s *Set) keyHash(i int32) []byte { return s.Members[i] }
 func (s *Set) zeroMembers()           { s.Members = nil }
 
-func (s *Set) newAt(depth int32) maplike {
+func (s *Set) newAt(depth int32) tree {
 	return &Set{
 		Node: &TreeNode{
 			Depth: depth,
@@ -37,7 +37,7 @@ func (s *Set) newAt(depth int32) maplike {
 	}
 }
 
-func (s *Set) copyMember(other maplike, i int32) {
+func (s *Set) copyMember(other tree, i int32) {
 	s.Members = append(s.Members, (other.(*Set)).Members[i])
 	s.Node.Size++
 }
@@ -58,7 +58,7 @@ func (s *Set) sortMembers() {
 // Check checks whether ref is in s.
 func (s *Set) Check(ctx context.Context, g bs.Getter, ref bs.Ref) (bool, error) {
 	var ok bool
-	err := maplikeLookup(ctx, s, g, ref[:], func(maplike, int32) {
+	err := treeLookup(ctx, s, g, ref[:], func(tree, int32) {
 		ok = true
 	})
 	return ok, err
@@ -69,14 +69,14 @@ func (s *Set) Check(ctx context.Context, g bs.Getter, ref bs.Ref) (bool, error) 
 // and a boolean indicating whether the ref was removed.
 // (If false, the ref was not present in the set, and the root ref is unchanged.)
 func (s *Set) Remove(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
-	return maplikeRemove(ctx, s, store, ref[:])
+	return treeRemove(ctx, s, store, ref[:])
 }
 
 // Each sends all the members of s on ch.
 // It blocks until all members are sent,
 // so you'll probably want a separate goroutine to consume ch.
 func (s *Set) Each(ctx context.Context, g bs.Getter, ch chan<- bs.Ref) error {
-	return maplikeEach(ctx, s, g, func(ml maplike, i int32) error {
+	return treeEach(ctx, s, g, func(ml tree, i int32) error {
 		m := ml.(*Set)
 		select {
 		case <-ctx.Done():
