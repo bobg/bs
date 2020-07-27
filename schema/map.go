@@ -13,7 +13,7 @@ func NewMap() *Map {
 	return &Map{Node: new(TreeNode)}
 }
 
-func (m *Map) Set(ctx context.Context, store bs.Store, key []byte, ref bs.Ref) (bs.Ref, Outcome, error) {
+func (m *Map) Set(ctx context.Context, store bs.Store, key, payload []byte) (bs.Ref, Outcome, error) {
 	return treeSet(ctx, m, store, hashKey(key), func(t tree, i int32, insert bool) Outcome {
 		m := t.(*Map)
 		if insert {
@@ -21,16 +21,16 @@ func (m *Map) Set(ctx context.Context, store bs.Store, key []byte, ref bs.Ref) (
 			copy(newMembers[:i], m.Members[:i])
 			newMembers[i] = &MapPair{
 				Key:     key,
-				Payload: ref[:],
+				Payload: payload,
 			}
 			copy(newMembers[i+1:], m.Members[i:])
 			m.Members = newMembers
 			return OAdded
 		}
-		if bytes.Equal(ref[:], m.Members[i].Payload) {
+		if bytes.Equal(payload, m.Members[i].Payload) {
 			return ONone
 		}
-		m.Members[i].Payload = ref[:]
+		m.Members[i].Payload = payload
 		return OUpdated
 	})
 }
@@ -88,10 +88,10 @@ func (m *Map) Remove(ctx context.Context, store bs.Store, key []byte) (bs.Ref, b
 	return treeRemove(ctx, m, store, hashKey(key))
 }
 
-func (m *Map) Each(ctx context.Context, g bs.Getter, ch chan<- MapPair) error {
+func (m *Map) Each(ctx context.Context, g bs.Getter, ch chan<- *MapPair) error {
 	return treeEach(ctx, m, g, func(t tree, i int32) error {
 		m := t.(*Map)
-		ch <- *(m.Members[i])
+		ch <- m.Members[i]
 		return nil
 	})
 }

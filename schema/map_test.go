@@ -48,7 +48,7 @@ func TestMap(t *testing.T) {
 			linenumstr := strconv.Itoa(linenum)
 
 			var outcome Outcome
-			mref, outcome, err = m.Set(ctx, store, []byte(linenumstr), ref)
+			mref, outcome, err = m.Set(ctx, store, []byte(linenumstr), ref[:])
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +83,7 @@ func TestMap(t *testing.T) {
 	}
 
 	// Check that every ref in the map is an eligible one in refs.
-	ch := make(chan MapPair)
+	ch := make(chan *MapPair)
 	go func() {
 		defer close(ch)
 
@@ -111,7 +111,7 @@ func TestMap(t *testing.T) {
 	// Now delete entries and re-add them.
 	// We should always get back the same shape tree.
 	for i := int32(1); i < m.Node.Size && i < 128; i++ {
-		var deleted []MapPair
+		var deleted []*MapPair
 
 		for linenum := 0; linenum < int(i*2); linenum += 2 {
 			linenumstr := strconv.Itoa(linenum)
@@ -122,7 +122,7 @@ func TestMap(t *testing.T) {
 			if !removed {
 				t.Fatalf("expected to remove %d", linenum)
 			}
-			deleted = append(deleted, MapPair{
+			deleted = append(deleted, &MapPair{
 				Key:     []byte(linenumstr),
 				Payload: refs[linenum][:],
 			})
@@ -132,7 +132,7 @@ func TestMap(t *testing.T) {
 		var newMref bs.Ref
 		sort.Slice(deleted, func(i, j int) bool { return bytes.Compare(deleted[i].Payload, deleted[j].Payload) < 0 })
 		for _, pair := range deleted {
-			newMref, _, err = m.Set(ctx, store, pair.Key, bs.RefFromBytes(pair.Payload))
+			newMref, _, err = m.Set(ctx, store, pair.Key, pair.Payload)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -144,7 +144,7 @@ func TestMap(t *testing.T) {
 	}
 
 	// Updating a key to the same value should not change the map.
-	newMref, outcome, err := m.Set(ctx, store, []byte("2"), refs[2])
+	newMref, outcome, err := m.Set(ctx, store, []byte("2"), refs[2][:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestMap(t *testing.T) {
 	}
 
 	// Updating a key to a new value should.
-	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[3])
+	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[3][:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestMap(t *testing.T) {
 	}
 
 	// Restoring the original value for the changed key should reproduce the old map.
-	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[2])
+	newMref, outcome, err = m.Set(ctx, store, []byte("2"), refs[2][:])
 	if err != nil {
 		t.Fatal(err)
 	}
