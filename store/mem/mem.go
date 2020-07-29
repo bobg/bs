@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/store"
 )
 
 var _ bs.Store = &Store{}
@@ -220,4 +221,10 @@ func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs
 	}()
 
 	return ch, func() error { return innerErr }, nil
+}
+
+func init() {
+	store.Register("mem", func(context.Context, map[string]interface{}) (bs.Store, error) {
+		return New(), nil
+	})
 }

@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/store"
 )
 
 var _ bs.Store = &Store{}
@@ -349,4 +350,14 @@ func encodeAnchor(a bs.Anchor) string {
 func decodeAnchor(inp string) (bs.Anchor, error) {
 	out, err := url.PathUnescape(inp)
 	return bs.Anchor(out), err
+}
+
+func init() {
+	store.Register("file", func(_ context.Context, conf map[string]interface{}) (bs.Store, error) {
+		root, ok := conf["root"].(string)
+		if !ok {
+			// xxx
+		}
+		return New(root), nil
+	})
 }

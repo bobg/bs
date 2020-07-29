@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigtable"
+	"google.golang.org/api/option"
 
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/store"
 )
 
 type Store struct {
@@ -27,6 +29,10 @@ const (
 )
 
 var errEmptyItems = errors.New("empty items")
+
+func New(t *bigtable.Table) *Store {
+	return &Store{t: t}
+}
 
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	row, err := s.t.ReadRow(ctx, s.blobKey(ref))
@@ -286,3 +292,27 @@ func (s *Store) anchorTimeFromKey(key string) (bs.Anchor, time.Time, error) {
 
 // This is from https://stackoverflow.com/a/32620397
 var maxTime = time.Unix(1<<63-1-int64((1969*365+1969/4-1969/100+1969/400)*24*60*60), 999999999)
+
+func init() {
+	store.Register("bt", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
+		project, ok := conf["project"].(string)
+		if !ok {
+			// xxx
+		}
+		instance, ok := conf["instance"].(string)
+		if !ok {
+			// xxx
+		}
+		table, ok := conf["table"].(string)
+		if !ok {
+			// xxx
+		}
+		var options []option.ClientOption
+		c, err := bigtable.NewClient(ctx, project, instance, options...)
+		if err != nil {
+			// xxx
+		}
+		t := c.Open(table)
+		return New(t), nil
+	})
+}

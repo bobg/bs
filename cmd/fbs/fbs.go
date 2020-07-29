@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/file"
 	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/store/file"
 )
 
 func main() {

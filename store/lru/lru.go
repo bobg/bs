@@ -7,6 +7,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/store"
 )
 
 var _ bs.Store = &Store{}
@@ -113,4 +114,26 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anc
 // in chronological order.
 func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
 	return s.s.ListAnchorRefs(ctx, anchor)
+}
+
+func init() {
+	store.Register("lru", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
+		size, ok := conf["size"].(int)
+		if !ok {
+			// xxx
+		}
+		nested, ok := conf["nested"].(map[string]interface{})
+		if !ok {
+			// xxx
+		}
+		nestedType, ok := nested["type"].(string)
+		if !ok {
+			// xxx
+		}
+		nestedStore, err := store.Create(ctx, nestedType, nested)
+		if err != nil {
+			// xxx
+		}
+		return New(nestedStore, size)
+	})
 }

@@ -16,7 +16,7 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/dsync"
-	"github.com/bobg/bs/file"
+	"github.com/bobg/bs/store/file"
 )
 
 func main() {

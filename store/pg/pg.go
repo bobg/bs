@@ -6,9 +6,11 @@ import (
 	"errors"
 	"time"
 
+	_ "github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/store"
 )
 
 var _ bs.Store = &Store{}
@@ -255,4 +257,18 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.Time
 	})
 
 	return ch, g.Wait, nil
+}
+
+func init() {
+	store.Register("pg", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
+		conn, ok := conf["conn"].(string)
+		if !ok {
+			// xxx
+		}
+		db, err := sql.Open("postgres", conn)
+		if err != nil {
+			// xxx
+		}
+		return New(ctx, db)
+	})
 }

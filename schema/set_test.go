@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/mem"
+	"github.com/bobg/bs/store/mem"
 )
 
 func TestSet(t *testing.T) {

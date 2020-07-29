@@ -10,6 +10,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.0.2
 	github.com/golang/protobuf v1.4.2
 	github.com/hashicorp/golang-lru v0.5.1
+	github.com/lib/pq v1.8.0
 	github.com/pkg/errors v0.8.0
 	github.com/rjeczalik/notify v0.9.2
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344 // indirect
