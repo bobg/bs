@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
@@ -58,7 +58,7 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	if os.IsNotExist(err) {
 		return nil, bs.ErrNotFound
 	}
-	return b, err
+	return b, errors.Wrapf(err, "reading file %s", s.blobpath(ref))
 }
 
 // GetMulti gets multiple blobs in one call.
@@ -74,7 +74,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 		return bs.Ref{}, bs.ErrNotFound
 	}
 	if err != nil {
-		return bs.Ref{}, err
+		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", dir)
 	}
 
 	// We might use sort.Search here (since ReadDir returns entries sorted by name),
@@ -100,7 +100,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 
 	h, err := ioutil.ReadFile(filepath.Join(dir, best))
 	if err != nil {
-		return bs.Ref{}, err
+		return bs.Ref{}, errors.Wrapf(err, "reading file %s/%s", dir, best)
 	}
 
 	return bs.RefFromHex(string(h))
@@ -116,16 +116,16 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		return ref, false, err
+		return ref, false, errors.Wrapf(err, "ensuring path %s exists", dir)
 	}
 
 	_, err = os.Stat(path)
 	if !os.IsNotExist(err) {
-		return ref, false, err
+		return ref, false, errors.Wrapf(err, "statting %s", path)
 	}
 
 	err = ioutil.WriteFile(path, b, 0444)
-	return ref, true, err
+	return ref, true, errors.Wrapf(err, "writing file %s", path)
 }
 
 // PutMulti adds multiple blobs to the store in one call.
@@ -138,7 +138,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	dir := s.anchorpath(a)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "ensuring path %s exists", dir)
 	}
 	return ioutil.WriteFile(
 		filepath.Join(dir, at.Format(time.RFC3339Nano)),
@@ -148,199 +148,180 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
-	var (
-		ch = make(chan bs.Ref)
-		g  errgroup.Group
-	)
-	g.Go(func() error {
-		defer close(ch)
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
+	defer close(ch)
 
-		topLevel, err := ioutil.ReadDir(s.blobroot())
-		if err != nil {
-			return err
-		}
+	topLevel, err := ioutil.ReadDir(s.blobroot())
+	if err != nil {
+		return errors.Wrapf(err, "reading dir %s", s.blobroot())
+	}
 
-		startHex := start.String()
-		topIndex := sort.Search(len(topLevel), func(n int) bool {
-			return topLevel[n].Name() >= startHex[:2]
-		})
-		for i := topIndex; i < len(topLevel); i++ {
-			topInfo := topLevel[i]
-			if !topInfo.IsDir() {
-				continue
-			}
-			topName := topInfo.Name()
-			if len(topName) != 2 {
-				continue
-			}
-			if _, err = strconv.ParseInt(topName, 16, 64); err != nil {
-				continue
-			}
-
-			midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
-			if err != nil {
-				return err
-			}
-			midIndex := sort.Search(len(midLevel), func(n int) bool {
-				return midLevel[n].Name() >= startHex[:4]
-			})
-			for j := midIndex; j < len(midLevel); j++ {
-				midInfo := midLevel[j]
-				if !midInfo.IsDir() {
-					continue
-				}
-				midName := midInfo.Name()
-				if len(midName) != 4 {
-					continue
-				}
-				if _, err = strconv.ParseInt(midName, 16, 64); err != nil {
-					continue
-				}
-
-				blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
-				if err != nil {
-					return err
-				}
-
-				index := sort.Search(len(blobInfos), func(n int) bool {
-					return blobInfos[n].Name() > startHex
-				})
-				for k := index; k < len(blobInfos); k++ {
-					blobInfo := blobInfos[k]
-					if blobInfo.IsDir() {
-						continue
-					}
-
-					ref, err := bs.RefFromHex(blobInfo.Name())
-					if err != nil {
-						continue
-					}
-
-					select {
-					case <-ctx.Done():
-						return ctx.Err()
-
-					case ch <- ref:
-						// do nothing
-					}
-				}
-			}
-		}
-		return nil
+	startHex := start.String()
+	topIndex := sort.Search(len(topLevel), func(n int) bool {
+		return topLevel[n].Name() >= startHex[:2]
 	})
+	for i := topIndex; i < len(topLevel); i++ {
+		topInfo := topLevel[i]
+		if !topInfo.IsDir() {
+			continue
+		}
+		topName := topInfo.Name()
+		if len(topName) != 2 {
+			continue
+		}
+		if _, err = strconv.ParseInt(topName, 16, 64); err != nil {
+			continue
+		}
 
-	return ch, g.Wait, nil
+		midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
+		if err != nil {
+			return errors.Wrapf(err, "reading dir %s/%s", s.blobroot(), topName)
+		}
+		midIndex := sort.Search(len(midLevel), func(n int) bool {
+			return midLevel[n].Name() >= startHex[:4]
+		})
+		for j := midIndex; j < len(midLevel); j++ {
+			midInfo := midLevel[j]
+			if !midInfo.IsDir() {
+				continue
+			}
+			midName := midInfo.Name()
+			if len(midName) != 4 {
+				continue
+			}
+			if _, err = strconv.ParseInt(midName, 16, 64); err != nil {
+				continue
+			}
+
+			blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
+			if err != nil {
+				return errors.Wrapf(err, "reading dir %s/%s/%s", s.blobroot(), topName, midName)
+			}
+
+			index := sort.Search(len(blobInfos), func(n int) bool {
+				return blobInfos[n].Name() > startHex
+			})
+			for k := index; k < len(blobInfos); k++ {
+				blobInfo := blobInfos[k]
+				if blobInfo.IsDir() {
+					continue
+				}
+
+				ref, err := bs.RefFromHex(blobInfo.Name())
+				if err != nil {
+					continue
+				}
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+
+				case ch <- ref:
+					// do nothing
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
-	var (
-		ch = make(chan bs.Anchor)
-		g  errgroup.Group
-	)
-	g.Go(func() error {
-		defer close(ch)
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
+	defer close(ch)
 
-		topLevel, err := ioutil.ReadDir(s.anchorroot())
+	topLevel, err := ioutil.ReadDir(s.anchorroot())
+	if err != nil {
+		return errors.Wrapf(err, "reading dir %s", s.anchorroot())
+	}
+	// xxx filter results
+
+	var anchors []bs.Anchor
+
+	for _, topInfo := range topLevel {
+		var (
+			topName = topInfo.Name()
+			topDir  = filepath.Join(s.anchorroot(), topName)
+		)
+		midLevel, err := ioutil.ReadDir(topDir)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "reading dir %s", topDir)
 		}
 		// xxx filter results
 
-		var anchors []bs.Anchor
-
-		for _, topInfo := range topLevel {
+		for _, midInfo := range midLevel {
 			var (
-				topName = topInfo.Name()
-				topDir  = filepath.Join(s.anchorroot(), topName)
+				midName = midInfo.Name()
+				midDir  = filepath.Join(topDir, midName)
 			)
-			midLevel, err := ioutil.ReadDir(topDir)
+			anchorLevel, err := ioutil.ReadDir(midDir)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "reading dir %s", midDir)
 			}
 			// xxx filter results
 
-			for _, midInfo := range midLevel {
-				var (
-					midName = midInfo.Name()
-					midDir  = filepath.Join(topDir, midName)
-				)
-				anchorLevel, err := ioutil.ReadDir(midDir)
-				if err != nil {
+			for _, anchorInfo := range anchorLevel {
+				if err = ctx.Err(); err != nil {
 					return err
 				}
-				// xxx filter results
-
-				for _, anchorInfo := range anchorLevel {
-					if err = ctx.Err(); err != nil {
-						return err
-					}
-					anchor, err := decodeAnchor(anchorInfo.Name())
-					if err != nil {
-						return err
-					}
-					if anchor <= start {
-						continue
-					}
-					anchors = append(anchors, anchor)
+				anchor, err := decodeAnchor(anchorInfo.Name())
+				if err != nil {
+					return errors.Wrapf(err, "decoding anchor %s", anchorInfo.Name())
 				}
+				if anchor <= start {
+					continue
+				}
+				anchors = append(anchors, anchor)
 			}
 		}
+	}
 
-		sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
+	sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
 
-		for _, anchor := range anchors {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case ch <- anchor:
-				// do nothing
-			}
+	for _, anchor := range anchors {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- anchor:
+			// do nothing
 		}
-		return nil
-	})
-
-	return ch, g.Wait, nil
+	}
+	return nil
 }
 
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
+	defer close(ch)
+
 	path := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(path)
 	if err != nil {
-		return nil, nil, err
+		return errors.Wrapf(err, "reading dir %s", path)
 	}
 	// xxx filter entries and sort by parsed time
-	ch := make(chan bs.TimeRef)
-	var g errgroup.Group
-	g.Go(func() error {
-		for _, entry := range entries {
-			name := entry.Name()
-			t, err := time.Parse(time.RFC3339Nano, name)
-			if err != nil {
-				return err
-			}
-			h, err := ioutil.ReadFile(filepath.Join(path, name))
-			if err != nil {
-				return err
-			}
-			ref, err := bs.RefFromHex(string(h))
-			if err != nil {
-				return err
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case ch <- bs.TimeRef{T: t, R: ref}:
-				// do nothing
-			}
+	for _, entry := range entries {
+		name := entry.Name()
+		t, err := time.Parse(time.RFC3339Nano, name)
+		if err != nil {
+			return errors.Wrapf(err, "parsing time from %s", name)
 		}
-		return nil
-	})
-	return ch, g.Wait, nil
+		h, err := ioutil.ReadFile(filepath.Join(path, name))
+		if err != nil {
+			return errors.Wrapf(err, "reading file %s/%s", path, name)
+		}
+		ref, err := bs.RefFromHex(string(h))
+		if err != nil {
+			return errors.Wrapf(err, "hex-decoding %s", string(h))
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- bs.TimeRef{T: t, R: ref}:
+			// do nothing
+		}
+	}
+	return nil
 }
 
 func encodeAnchor(a bs.Anchor) string {
@@ -349,7 +330,7 @@ func encodeAnchor(a bs.Anchor) string {
 
 func decodeAnchor(inp string) (bs.Anchor, error) {
 	out, err := url.PathUnescape(inp)
-	return bs.Anchor(out), err
+	return bs.Anchor(out), errors.Wrapf(err, "unescaping anchor %s", inp)
 }
 
 func init() {

@@ -121,106 +121,77 @@ func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Ti
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
+	defer close(ch)
 
+	s.mu.Lock()
 	refs := make([]bs.Ref, 0, len(s.blobs))
 	for ref := range s.blobs {
 		refs = append(refs, ref)
 	}
+	s.mu.Unlock()
 
-	var (
-		ch       = make(chan bs.Ref)
-		innerErr error
-	)
+	sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
+	index := sort.Search(len(refs), func(n int) bool {
+		return start.Less(refs[n])
+	})
 
-	go func() {
-		defer close(ch)
-
-		sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
-		index := sort.Search(len(refs), func(n int) bool {
-			return start.Less(refs[n])
-		})
-		for i := index; i < len(refs); i++ {
-			select {
-			case <-ctx.Done():
-				innerErr = ctx.Err()
-				return
-			case ch <- refs[i]:
-				// do nothing
-			}
+	for i := index; i < len(refs); i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- refs[i]:
+			// do nothing
 		}
-	}()
-
-	return ch, func() error { return innerErr }, nil
+	}
+	return nil
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
+	defer close(ch)
 
+	s.mu.Lock()
 	anchors := make([]bs.Anchor, 0, len(s.anchors))
 	for anchor := range s.anchors {
 		anchors = append(anchors, anchor)
 	}
+	s.mu.Unlock()
 
-	var (
-		ch       = make(chan bs.Anchor)
-		innerErr error
-	)
+	sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
+	index := sort.Search(len(anchors), func(n int) bool {
+		return anchors[n] > start
+	})
 
-	go func() {
-		defer close(ch)
-
-		sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
-		index := sort.Search(len(anchors), func(n int) bool {
-			return anchors[n] > start
-		})
-		for i := index; i < len(anchors); i++ {
-			select {
-			case <-ctx.Done():
-				innerErr = ctx.Err()
-				return
-			case ch <- anchors[i]:
-				// do nothing
-			}
+	for i := index; i < len(anchors); i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- anchors[i]:
+			// do nothing
 		}
-	}()
-
-	return ch, func() error { return innerErr }, nil
+	}
+	return nil
 }
 
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, ch chan<- bs.TimeRef) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Make a copy of s.anchors[anchor] that's safe to reference after s.mu.Unlock()
 	timeRefs := make([]bs.TimeRef, len(s.anchors[anchor]))
 	copy(timeRefs, s.anchors[anchor])
+	s.mu.Unlock()
 
-	var (
-		ch       = make(chan bs.TimeRef)
-		innerErr error
-	)
-
-	go func() {
-		for _, tr := range timeRefs {
-			select {
-			case <-ctx.Done():
-				innerErr = ctx.Err()
-				return
-			case ch <- tr:
-				// do nothing
-			}
+	for _, tr := range timeRefs {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case ch <- tr:
+			// do nothing
 		}
-	}()
-
-	return ch, func() error { return innerErr }, nil
+	}
+	return nil
 }
 
 func init() {

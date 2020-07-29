@@ -16,7 +16,7 @@ func TestStore(t *testing.T) {
 	}
 	defer os.RemoveAll(dirname)
 
-	data, err := ioutil.ReadFile("../testdata/yubnub.opus")
+	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}

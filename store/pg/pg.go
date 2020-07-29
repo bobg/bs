@@ -3,11 +3,11 @@ package pg
 import (
 	"context"
 	"database/sql"
-	"errors"
+	stderrs "errors"
 	"time"
 
 	_ "github.com/lib/pq"
-	"golang.org/x/sync/errgroup"
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
@@ -53,7 +53,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 
 	var result bs.Blob // xxx Scan/Value methods?
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(&result)
-	if errors.Is(err, sql.ErrNoRows) {
+	if stderrs.Is(err, sql.ErrNoRows) {
 		return nil, bs.ErrNotFound
 	}
 	return result, err
@@ -92,7 +92,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 
 	var result bs.Ref // xxx Scan/Value methods?
 	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result)
-	if errors.Is(err, sql.ErrNoRows) {
+	if stderrs.Is(err, sql.ErrNoRows) {
 		return bs.Ref{}, bs.ErrNotFound
 	}
 	return result, err
@@ -150,113 +150,95 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (<-chan bs.Ref, func() error, error) {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
+	defer close(ch)
+
 	const q = `SELECT ref FROM blobs WHERE ref > $1 ORDER BY ref`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
-		return nil, nil, err
+		return errors.Wrap(err, "querying starting position")
 	}
+	defer rows.Close()
 
-	ch := make(chan bs.Ref)
-	var g errgroup.Group
-	g.Go(func() error {
-		defer close(ch)
-		defer rows.Close()
-
-		for rows.Next() {
-			var ref bs.Ref
-			err := rows.Scan(&ref)
-			if err != nil {
-				return err
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-
-			case ch <- ref:
-				// do nothing
-			}
+	for rows.Next() {
+		var ref bs.Ref
+		err := rows.Scan(&ref)
+		if err != nil {
+			return errors.Wrap(err, "scanning query result")
 		}
-		return rows.Err()
-	})
 
-	return ch, g.Wait, nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case ch <- ref:
+			// do nothing
+		}
+	}
+	return errors.Wrap(rows.Err(), "iterating over result rows")
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor) (<-chan bs.Anchor, func() error, error) {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
+	defer close(ch)
+
 	const q = `SELECT DISTINCT(anchor) FROM anchors WHERE anchor > $1 ORDER BY anchor`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
-		return nil, nil, err
+		return errors.Wrap(err, "querying starting position")
 	}
+	defer rows.Close()
 
-	ch := make(chan bs.Anchor)
-	var g errgroup.Group
-	g.Go(func() error {
-		defer close(ch)
-		defer rows.Close()
-
-		for rows.Next() {
-			var anchor bs.Anchor
-			err := rows.Scan(&anchor)
-			if err != nil {
-				return err
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-
-			case ch <- anchor:
-				// do nothing
-			}
+	for rows.Next() {
+		var anchor bs.Anchor
+		err := rows.Scan(&anchor)
+		if err != nil {
+			return errors.Wrap(err, "scanning query result")
 		}
-		return rows.Err()
-	})
 
-	return ch, g.Wait, nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case ch <- anchor:
+			// do nothing
+		}
+	}
+	return errors.Wrap(rows.Err(), "iterating over result rows")
 }
 
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor) (<-chan bs.TimeRef, func() error, error) {
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
+	defer close(ch)
+
 	const q = `SELECT at, ref FROM anchors WHERE anchor = $1 ORDER BY at`
 	rows, err := s.db.QueryContext(ctx, q, a)
 	if err != nil {
-		return nil, nil, err
+		return errors.Wrapf(err, "querying anchor %s", a)
 	}
+	defer rows.Close()
 
-	ch := make(chan bs.TimeRef)
-	var g errgroup.Group
-	g.Go(func() error {
-		defer close(ch)
-		defer rows.Close()
-
-		for rows.Next() {
-			var (
-				t   time.Time
-				ref bs.Ref
-			)
-			err := rows.Scan(&t, &ref)
-			if err != nil {
-				return err
-			}
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-
-			case ch <- bs.TimeRef{T: t, R: ref}:
-				// do nothing
-			}
+	for rows.Next() {
+		var (
+			t   time.Time
+			ref bs.Ref
+		)
+		err = rows.Scan(&t, &ref)
+		if err != nil {
+			return errors.Wrap(err, "scanning query result")
 		}
-		return rows.Err()
-	})
 
-	return ch, g.Wait, nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case ch <- bs.TimeRef{T: t, R: ref}:
+			// do nothing
+		}
+	}
+	return errors.Wrap(rows.Err(), "iterating over result rows")
 }
 
 func init() {
