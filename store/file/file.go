@@ -337,7 +337,7 @@ func init() {
 	store.Register("file", func(_ context.Context, conf map[string]interface{}) (bs.Store, error) {
 		root, ok := conf["root"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "root" parameter`)
 		}
 		return New(root), nil
 	})

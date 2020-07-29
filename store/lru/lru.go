@@ -5,6 +5,7 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
@@ -120,19 +121,19 @@ func init() {
 	store.Register("lru", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
 		size, ok := conf["size"].(int)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "size" parameter`)
 		}
 		nested, ok := conf["nested"].(map[string]interface{})
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "nested" parameter`)
 		}
 		nestedType, ok := nested["type"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`"nested" parameter missing "type"`)
 		}
 		nestedStore, err := store.Create(ctx, nestedType, nested)
 		if err != nil {
-			// xxx
+			return nil, errors.Wrap(err, "creating nested store")
 		}
 		return New(nestedStore, size)
 	})

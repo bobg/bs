@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/bobg/bs"
 )
@@ -17,7 +18,7 @@ func Register(key string, f Factory) {
 func Create(ctx context.Context, key string, conf map[string]interface{}) (bs.Store, error) {
 	f, ok := registry[key]
 	if !ok {
-		// xxx
+		return nil, fmt.Errorf("key %s not found in registry", key)
 	}
 	return f(ctx, conf)
 }

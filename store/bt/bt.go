@@ -286,20 +286,20 @@ func init() {
 	store.Register("bt", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
 		project, ok := conf["project"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "project" parameter`)
 		}
 		instance, ok := conf["instance"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "instance" parameter`)
 		}
 		table, ok := conf["table"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "table" parameter`)
 		}
 		var options []option.ClientOption
 		c, err := bigtable.NewClient(ctx, project, instance, options...)
 		if err != nil {
-			// xxx
+			return nil, errors.Wrap(err, "creating bigtable client")
 		}
 		t := c.Open(table)
 		return New(t), nil

@@ -245,11 +245,11 @@ func init() {
 	store.Register("pg", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
 		conn, ok := conf["conn"].(string)
 		if !ok {
-			// xxx
+			return nil, errors.New(`missing "conn" parameter`)
 		}
 		db, err := sql.Open("postgres", conn)
 		if err != nil {
-			// xxx
+			return nil, errors.Wrap(err, "opening db")
 		}
 		return New(ctx, db)
 	})
