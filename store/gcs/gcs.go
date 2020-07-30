@@ -3,12 +3,15 @@ package gcs
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
-	"sort"
+	stderrs "errors"
+	"fmt"
+	"net/http"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/pkg/errors"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
@@ -22,28 +25,25 @@ var _ bs.Store = &Store{}
 
 // Store is a Google Cloud Storage-based implementation of a blob store.
 type Store struct {
-	anchors *storage.BucketHandle
-	blobs   *storage.BucketHandle
+	bucket *storage.BucketHandle
 }
 
-// New produces a new Store with blobs and anchors in the given buckets.
-func New(ctx context.Context, client *storage.Client, blobBucket, anchorBucket string) *Store {
-	return &Store{
-		anchors: client.Bucket(anchorBucket),
-		blobs:   client.Bucket(blobBucket),
-	}
+// New produces a new Store.
+func New(bucket *storage.BucketHandle) *Store {
+	return &Store{bucket: bucket}
 }
 
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
-	obj := s.blobs.Object(ref.String())
+	name := blobObjName(ref)
+	obj := s.bucket.Object(name)
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "reading info of object %s", name)
 	}
 	b := make([]byte, r.Size())
 	_, err = r.Read(b)
-	return b, err
+	return b, errors.Wrapf(err, "reading contents of object %s", name)
 }
 
 // GetMulti gets multiple blobs in one call.
@@ -73,28 +73,62 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
-	pairs, err := s.anchorPairs(ctx, a)
-	if err != nil {
-		return bs.Ref{}, err
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, error) {
+	var (
+		prefix = anchorPrefix(a)
+		iter   = s.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
+	)
+
+	// Anchors come back in reverse chronological order
+	// (since we usually want the latest one).
+	// Find the first one whose timestamp is `when` or earlier.
+	for {
+		attrs, err := iter.Next()
+		if stderrs.Is(err, iterator.Done) {
+			return bs.Ref{}, bs.ErrNotFound
+		}
+		if err != nil {
+			return bs.Ref{}, errors.Wrap(err, "iterating over anchor objects")
+		}
+		_, atime, err := anchorTimeFromObjName(attrs.Name)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "decoding object name %s", attrs.Name)
+		}
+		if atime.After(when) {
+			continue
+		}
+		obj := s.bucket.Object(attrs.Name)
+		r, err := obj.NewReader(ctx)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "reading info of object %s", attrs.Name)
+		}
+		var ref bs.Ref
+		if r.Size() != int64(len(ref)) {
+			return bs.Ref{}, errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Size(), len(ref))
+		}
+		_, err = r.Read(ref[:])
+		return ref, errors.Wrapf(err, "reading contents of object %s", attrs.Name)
 	}
-	return bs.FindAnchor(pairs, at)
 }
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
-	ref := b.Ref()
-	obj := s.blobs.Object(ref.String()).If(storage.Conditions{DoesNotExist: true})
-	w := obj.NewWriter(ctx)
+	var (
+		ref  = b.Ref()
+		name = blobObjName(ref)
+		obj  = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
+		w    = obj.NewWriter(ctx)
+	)
 	_, err := w.Write(b) // TODO: are partial writes a possibility?
-	if e, ok := err.(*googleapi.Error); ok && e.Code == 412 {
+	var e *googleapi.Error
+	if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
 		return ref, false, nil
 	}
 	if err != nil {
-		return ref, false, err
+		return ref, false, errors.Wrapf(err, "writing object %s", name)
 	}
 	err = w.Close()
-	return ref, true, err
+	return ref, true, errors.Wrapf(err, "closing object %s", name)
 }
 
 // PutMulti adds multiple blobs to the store in one call.
@@ -126,62 +160,18 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-// TODO: Need a different model for anchors.
-// Apart from the retry loop needed here,
-// an anchor with a lot of writes will get slower and slower without bound.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
+func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when time.Time) error {
 	var (
-		name  = anchorObjName(a)
-		obj   = s.anchors.Object(name)
-		bkoff = backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+		name = anchorObjName(a, when)
+		obj  = s.bucket.Object(name)
+		w    = obj.NewWriter(ctx)
 	)
-
-	// In case of multiple writers,
-	// retry until we can read and then write an anchor
-	// without the Generation changing in between.
-	return backoff.Retry(
-		func() error {
-			attrs, err := obj.Attrs(ctx)
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-
-			r, err := obj.NewReader(ctx)
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-
-			var pairs []bs.TimeRef
-			dec := json.NewDecoder(r)
-			err = dec.Decode(&pairs)
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-
-			pairs = append(pairs, bs.TimeRef{T: at, R: ref})
-			sort.Slice(pairs, func(i, j int) bool {
-				return pairs[i].T.Before(pairs[j].T)
-			})
-
-			obj = obj.If(storage.Conditions{GenerationMatch: attrs.Generation})
-			w := obj.NewWriter(ctx)
-			enc := json.NewEncoder(w)
-			err = enc.Encode(pairs)
-			if e, ok := err.(*googleapi.Error); ok && e.Code == 412 {
-				// This is the retryable error.
-				return e
-			}
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-			err = w.Close()
-			if err != nil {
-				return backoff.Permanent(err)
-			}
-			return nil
-		},
-		bkoff,
-	)
+	_, err := w.Write(ref[:])
+	if err != nil {
+		return errors.Wrap(err, "writing anchor")
+	}
+	err = w.Close()
+	return errors.Wrap(err, "closing anchor")
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
@@ -196,20 +186,17 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 	//   e68 e69 e6a e6b e6c e6d e6e e6f
 	//   e7 e8 e9 ea eb ec ed ee ef
 	//   f
-	for prefix := range hexPrefixes(ctx, start.String()) {
+	return eachHexPrefix(start.String(), false, func(prefix string) error {
 		err := s.listRefs(ctx, prefix, ch)
-		if err != nil {
-			return errors.Wrapf(err, "listing refs with prefix %s", prefix)
-		}
-	}
-	return ctx.Err() // in case the channel from hexPrefixes closed due to context cancellation
+		return errors.Wrapf(err, "listing refs with prefix %s", prefix)
+	})
 }
 
 func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) error {
-	iter := s.blobs.Objects(ctx, &storage.Query{Prefix: prefix})
+	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()
-		if err == iterator.Done {
+		if stderrs.Is(err, iterator.Done) {
 			return nil
 		}
 		if err != nil {
@@ -232,20 +219,18 @@ func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) e
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
 	defer close(ch)
 
-	for prefix := range hexPrefixes(ctx, anchorObjName(start)) {
+	startHex := hex.EncodeToString([]byte(start))
+	return eachHexPrefix(startHex+"0", true, func(prefix string) error {
 		err := s.listAnchors(ctx, prefix, ch)
-		if err != nil {
-			return errors.Wrapf(err, "listing anchors with hex prefix %s", prefix)
-		}
-	}
-	return ctx.Err() // in case the channel from hexPrefixes closed due to context cancellation
+		return errors.Wrapf(err, "listing anchors with hex prefix %s", prefix)
+	})
 }
 
 func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anchor) error {
-	iter := s.anchors.Objects(ctx, &storage.Query{Prefix: prefix})
+	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "a:" + prefix})
 	for {
 		obj, err := iter.Next()
-		if err == iterator.Done {
+		if stderrs.Is(err, iterator.Done) {
 			return nil
 		}
 		if err != nil {
@@ -270,59 +255,119 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anc
 func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
 	defer close(ch)
 
-	pairs, err := s.anchorPairs(ctx, a)
-	if err != nil {
-		return errors.Wrapf(err, "getting anchor pairs for %s", a)
+	var (
+		prefix = anchorPrefix(a)
+		iter   = s.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
+		pairs  []bs.TimeRef
+	)
+	for {
+		attrs, err := iter.Next()
+		if stderrs.Is(err, iterator.Done) {
+			break
+		}
+		got, atime, err := anchorTimeFromObjName(attrs.Name)
+		if err != nil {
+			return errors.Wrapf(err, "decoding object name %s", attrs.Name)
+		}
+		if got != a {
+			continue
+		}
+		obj := s.bucket.Object(attrs.Name)
+		r, err := obj.NewReader(ctx)
+		if err != nil {
+			return errors.Wrapf(err, "reading info of object %s", attrs.Name)
+		}
+		var ref bs.Ref
+		if r.Size() != int64(len(ref)) {
+			return errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Size(), len(ref))
+		}
+		_, err = r.Read(ref[:])
+		if err != nil {
+			return errors.Wrapf(err, "reading contents of object %s", attrs.Name)
+		}
+		pairs = append(pairs, bs.TimeRef{T: atime, R: ref})
 	}
-	for _, pair := range pairs {
+	for i := len(pairs) - 1; i >= 0; i-- {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case ch <- pair:
-			// do nothing
+
+		case ch <- pairs[i]:
+			// ok
 		}
 	}
 	return nil
 }
 
-func (s *Store) anchorPairs(ctx context.Context, a bs.Anchor) ([]bs.TimeRef, error) {
-	name := anchorObjName(a)
-	obj := s.anchors.Object(name)
-	r, err := obj.NewReader(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var pairs []bs.TimeRef
-	dec := json.NewDecoder(r)
-	err = dec.Decode(&pairs)
-	return pairs, err
-}
-
-func anchorObjName(a bs.Anchor) string {
-	return hex.EncodeToString([]byte(a))
-}
-
-func hexPrefixes(ctx context.Context, after string) <-chan string {
-	ch := make(chan string)
-	go func() {
-		defer close(ch)
-
-		for len(after) > 0 {
-			end := after[len(after)-1:][0]
-			after = after[:len(after)-1]
-
-			for c := end + 1; c <= 'f'; c++ { // assumes that `after` is lowercase!
-				select {
-				case <-ctx.Done():
-					return
-				case ch <- after + string(c):
-					// do nothing
-				}
+func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
+	prefix = strings.ToLower(prefix)
+	for len(prefix) > 0 {
+		end := hexval(prefix[len(prefix)-1:][0])
+		if !incl {
+			end++
+		}
+		prefix = prefix[:len(prefix)-1]
+		for c := end; c < 16; c++ {
+			err := f(prefix + string(hexdigit(c)))
+			if err != nil {
+				return err
 			}
 		}
-	}()
-	return ch
+	}
+	return nil
 }
+
+func hexval(b byte) int {
+	switch {
+	case '0' <= b && b <= '9':
+		return int(b - '0')
+	case 'a' <= b && b <= 'f':
+		return int(10 + b - 'a')
+	case 'A' <= b && b <= 'F':
+		return int(10 + b - 'A')
+	}
+	return 0
+}
+
+func hexdigit(n int) byte {
+	if n < 10 {
+		return byte(n + '0')
+	}
+	return byte(n - 10 + 'a')
+}
+
+func blobObjName(ref bs.Ref) string {
+	return "b:" + ref.String()
+}
+
+func anchorPrefix(a bs.Anchor) string {
+	return "a:" + hex.EncodeToString([]byte(a)) + ":"
+}
+
+func anchorObjName(a bs.Anchor, when time.Time) string {
+	return fmt.Sprintf("%s%020d", anchorPrefix(a), maxTime.Sub(when))
+}
+
+var anchorNameRegex = regexp.MustCompile(`^a:([0-9a-f]+):(\d{20})$`)
+
+func anchorTimeFromObjName(name string) (bs.Anchor, time.Time, error) {
+	m := anchorNameRegex.FindStringSubmatch(name)
+	if len(m) < 3 {
+		return "", time.Time{}, errors.New("malformed name")
+	}
+	a, err := hex.DecodeString(m[1])
+	if err != nil {
+		return "", time.Time{}, errors.Wrap(err, "hex-decoding anchor")
+	}
+	nanos, err := strconv.ParseInt(m[2], 10, 64)
+	if err != nil {
+		return "", time.Time{}, errors.Wrap(err, "parsing int64")
+	}
+	return bs.Anchor(a), maxTime.Add(time.Duration(-nanos)), nil
+}
+
+// This is from https://stackoverflow.com/a/32620397
+var maxTime = time.Unix(1<<63-1-int64((1969*365+1969/4-1969/100+1969/400)*24*60*60), 999999999)
 
 func init() {
 	store.Register("gcs", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
@@ -331,19 +376,15 @@ func init() {
 		if !ok {
 			return nil, errors.New(`missing "creds" parameter`)
 		}
-		anchors, ok := conf["anchors"].(string)
+		bucketName, ok := conf["bucket"].(string)
 		if !ok {
-			return nil, errors.New(`missing "anchors" parameter`)
-		}
-		blobs, ok := conf["blobs"].(string)
-		if !ok {
-			return nil, errors.New(`missing "blobs" parameter`)
+			return nil, errors.New(`missing "bucket" parameter`)
 		}
 		options = append(options, option.WithCredentialsFile(creds))
 		c, err := storage.NewClient(ctx, options...)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating cloud storage client")
 		}
-		return New(ctx, c, blobs, anchors), nil
+		return New(c.Bucket(bucketName)), nil
 	})
 }

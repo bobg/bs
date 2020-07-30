@@ -35,7 +35,7 @@ func New(t *bigtable.Table) *Store {
 }
 
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
-	row, err := s.t.ReadRow(ctx, s.blobKey(ref))
+	row, err := s.t.ReadRow(ctx, blobKey(ref))
 	if err != nil {
 		return nil, errors.Wrapf(err, "reading row %s", ref)
 	}
@@ -49,14 +49,14 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	rowKeys := make(bigtable.RowList, len(refs))
 	for i, ref := range refs {
-		rowKeys[i] = s.blobKey(ref)
+		rowKeys[i] = blobKey(ref)
 	}
 
 	result := make(bs.GetMultiResult)
 
 	err := s.t.ReadRows(ctx, rowKeys, func(row bigtable.Row) bool {
 		key := row.Key()
-		ref, err := s.refFromKey(key)
+		ref, err := refFromKey(key)
 		if err != nil {
 			result[ref] = func(context.Context) (bs.Blob, error) { return nil, err }
 			return true
@@ -85,7 +85,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 	// Find the first one whose timestamp is `when` or earlier.
 	err := s.eachAnchorRow(ctx, a, func(row bigtable.Row) bool {
 		key := row.Key()
-		_, atime, err := s.anchorTimeFromKey(key)
+		_, atime, err := anchorTimeFromKey(key)
 		if err != nil {
 			innerErr = errors.Wrapf(err, "parsing anchor/time from key %s", key)
 			return false
@@ -121,7 +121,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 	var innerErr error
 	rowFn := func(row bigtable.Row) bool {
 		key := row.Key()
-		ref, err := s.refFromKey(key)
+		ref, err := refFromKey(key)
 		if err != nil {
 			innerErr = errors.Wrapf(err, "extracting ref from key %s", key)
 			return false
@@ -134,7 +134,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 			return true
 		}
 	}
-	startKey := s.blobKey(start) + "0"
+	startKey := blobKey(start) + "0"
 	filter := bigtable.RowKeyFilter("^b:") // blobs only
 	err := s.t.ReadRows(ctx, bigtable.InfiniteRange(startKey), rowFn, bigtable.RowFilter(filter))
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 
 	rowFn := func(row bigtable.Row) bool {
 		key := row.Key()
-		a, _, err := s.anchorTimeFromKey(key)
+		a, _, err := anchorTimeFromKey(key)
 		if err != nil {
 			innerErr = errors.Wrapf(err, "parsing anchor/time from key %s", key)
 			return false
@@ -169,7 +169,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 		}
 		return true
 	}
-	startKey := s.anchorKey(start, maxTime)
+	startKey := anchorKey(start, maxTime)
 	filter := bigtable.RowKeyFilter("^a:") // anchors only
 	err := s.t.ReadRows(ctx, bigtable.InfiniteRange(startKey), rowFn, bigtable.RowFilter(filter))
 	if err != nil {
@@ -187,7 +187,7 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 	)
 	err := s.eachAnchorRow(ctx, a, func(row bigtable.Row) bool {
 		key := row.Key()
-		_, atime, err := s.anchorTimeFromKey(key)
+		_, atime, err := anchorTimeFromKey(key)
 		if err != nil {
 			innerErr = errors.Wrapf(err, "parsing anchor/time from key %s", key)
 			return false
@@ -223,7 +223,7 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 
 func (s *Store) eachAnchorRow(ctx context.Context, a bs.Anchor, f func(bigtable.Row) bool) error {
 	filter := bigtable.RowKeyFilter(fmt.Sprintf("^a:%s:\\d{20}$", regexp.QuoteMeta(string(a))))
-	return s.t.ReadRows(ctx, s.anchorRange(a), f, bigtable.RowFilter(filter))
+	return s.t.ReadRows(ctx, anchorRange(a), f, bigtable.RowFilter(filter))
 }
 
 func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
@@ -234,7 +234,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 
 	var alreadyPresent bool
 	ref := blob.Ref()
-	err := s.t.Apply(ctx, s.blobKey(ref), cmut, bigtable.GetCondMutationResult(&alreadyPresent))
+	err := s.t.Apply(ctx, blobKey(ref), cmut, bigtable.GetCondMutationResult(&alreadyPresent))
 	return ref, !alreadyPresent, err
 }
 
@@ -246,28 +246,28 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when time.Time) error {
 	mut := bigtable.NewMutation()
 	mut.Set(anchorfam, anchorcol, bigtable.Time(when), ref[:])
-	return s.t.Apply(ctx, s.anchorKey(a, when), mut)
+	return s.t.Apply(ctx, anchorKey(a, when), mut)
 }
 
-func (s *Store) blobKey(ref bs.Ref) string {
+func blobKey(ref bs.Ref) string {
 	return fmt.Sprintf("b:%x", ref[:])
 }
 
-func (s *Store) refFromKey(key string) (bs.Ref, error) {
+func refFromKey(key string) (bs.Ref, error) {
 	return bs.RefFromHex(key[2:])
 }
 
-func (s *Store) anchorKey(a bs.Anchor, when time.Time) string {
+func anchorKey(a bs.Anchor, when time.Time) string {
 	return fmt.Sprintf("a:%s:%020d", a, maxTime.Sub(when))
 }
 
-func (s *Store) anchorRange(a bs.Anchor) bigtable.RowSet {
+func anchorRange(a bs.Anchor) bigtable.RowSet {
 	return bigtable.PrefixRange("a:" + string(a) + ":")
 }
 
 var anchorKeyRegex = regexp.MustCompile(`^a:(.+):(\d{20})$`)
 
-func (s *Store) anchorTimeFromKey(key string) (bs.Anchor, time.Time, error) {
+func anchorTimeFromKey(key string) (bs.Anchor, time.Time, error) {
 	m := anchorKeyRegex.FindStringSubmatch(key)
 	if len(m) < 3 {
 		return "", time.Time{}, errors.New("malformed key")
