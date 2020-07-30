@@ -17,6 +17,7 @@ import (
 	"github.com/bobg/bs/store"
 )
 
+// Store is a Google Cloud Bigtable-backed implementation of bs.Store.
 type Store struct {
 	t *bigtable.Table
 }
@@ -30,10 +31,12 @@ const (
 
 var errEmptyItems = errors.New("empty items")
 
+// New produces a new Store.
 func New(t *bigtable.Table) *Store {
 	return &Store{t: t}
 }
 
+// Get implements bs.Store.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	row, err := s.t.ReadRow(ctx, blobKey(ref))
 	if err != nil {
@@ -46,6 +49,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return bs.Blob(items[0].Value), nil
 }
 
+// GetMulti implements bs.Store.
 func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
 	rowKeys := make(bigtable.RowList, len(refs))
 	for i, ref := range refs {
@@ -74,6 +78,7 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 	return result, err
 }
 
+// GetAnchor implements bs.Store.
 func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, error) {
 	var (
 		found    *bs.Ref
@@ -114,6 +119,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 	return *found, nil
 }
 
+// ListRefs implements bs.Store.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	var innerErr error
 	rowFn := func(row bigtable.Row) bool {
@@ -139,6 +145,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return innerErr
 }
 
+// ListAnchors implements bs.Store.
 func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	var (
 		lastAnchor bs.Anchor
@@ -170,6 +177,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 	return innerErr
 }
 
+// ListAnchorRefs implements bs.Store.
 func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
 	var (
 		timeRefs []bs.TimeRef
@@ -213,6 +221,7 @@ func (s *Store) eachAnchorRow(ctx context.Context, a bs.Anchor, f func(bigtable.
 	return s.t.ReadRows(ctx, anchorRange(a), f, bigtable.RowFilter(filter))
 }
 
+// Put implements bs.Store.
 func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	mut := bigtable.NewMutation()
 	mut.Set(blobfam, blobcol, bigtable.Now(), blob)
@@ -225,11 +234,13 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	return ref, !alreadyPresent, err
 }
 
+// PutMulti implements bs.Store.
 func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
 	// "Conditional mutations cannot be applied in bulk and providing one will result in an error."
 	return bs.PutMulti(ctx, s, blobs)
 }
 
+// PutAnchor implements bs.Store.
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when time.Time) error {
 	mut := bigtable.NewMutation()
 	mut.Set(anchorfam, anchorcol, bigtable.Time(when), ref[:])

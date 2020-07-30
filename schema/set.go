@@ -8,10 +8,16 @@ import (
 	"github.com/bobg/bs"
 )
 
+// NewSet produces a new, empty Set,
+// not yet written to a blob store.
 func NewSet() *Set {
 	return &Set{Node: new(TreeNode)}
 }
 
+// Add adds a Ref to a Set.
+// It returns the Set's own possibly-updated Ref,
+// and a boolean indicating whether the Set was changed,
+// which will be false if the input Ref was already present.
 func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
 	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
 		if !insert {

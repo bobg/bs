@@ -1,3 +1,5 @@
+// Package split implements reading and writing of hashsplit trees in a blob store.
+// See github.com/bobg/hashsplit for more information.
 package split
 
 import (

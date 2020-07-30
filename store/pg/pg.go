@@ -6,7 +6,6 @@ import (
 	stderrs "errors"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
