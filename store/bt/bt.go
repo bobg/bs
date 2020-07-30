@@ -296,7 +296,14 @@ func init() {
 		if !ok {
 			return nil, errors.New(`missing "table" parameter`)
 		}
+
 		var options []option.ClientOption
+
+		creds, ok := conf["creds"].(string)
+		if !ok {
+			return nil, errors.New(`missing "creds" parameter`)
+		}
+		options = append(options, option.WithCredentialsFile(creds))
 		c, err := bigtable.NewClient(ctx, project, instance, options...)
 		if err != nil {
 			return nil, errors.Wrap(err, "creating bigtable client")

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/split"
 	"github.com/bobg/bs/store"
 	_ "github.com/bobg/bs/store/bt"
 	_ "github.com/bobg/bs/store/file"
@@ -66,110 +64,10 @@ func main() {
 
 func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 	return map[string]subcmd.Subcmd{
-		"get": c.get,
-		"put": c.put,
+		"get":    c.get,
+		"ingest": c.ingest,
+		"put":    c.put,
 	}
-}
-
-func (c maincmd) get(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	var (
-		anchor  = fs.String("anchor", "", "anchor of blob or tree to get")
-		refstr  = fs.String("ref", "", "ref of blob or tree to get")
-		dosplit = fs.Bool("split", false, "get a split tree instead of a single blob")
-		atstr   = fs.String("at", "", "timestamp for anchor (default: now)")
-	)
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
-	if (*anchor == "" && *refstr == "") || (*anchor != "" && *refstr != "") {
-		return errors.New("must supply one of -anchor or -ref")
-	}
-
-	var ref bs.Ref
-
-	if *anchor != "" {
-		at := time.Now()
-		if *atstr != "" {
-			at, err = parsetime(*atstr)
-			if err != nil {
-				return errors.Wrap(err, "parsing -at")
-			}
-		}
-
-		ref, err = c.s.GetAnchor(ctx, bs.Anchor(*anchor), at)
-		if err != nil {
-			return errors.Wrapf(err, "getting anchor %s at time %s", *anchor, at)
-		}
-	} else {
-		ref, err = bs.RefFromHex(*refstr)
-		if err != nil {
-			return errors.Wrapf(err, "decoding ref %s", *refstr)
-		}
-	}
-
-	if *dosplit {
-		return split.Read(ctx, c.s, ref, os.Stdout)
-	}
-
-	blob, err := c.s.Get(ctx, ref)
-	if err != nil {
-		return errors.Wrapf(err, "getting blob %s", ref)
-	}
-	_, err = os.Stdout.Write(blob)
-	return errors.Wrap(err, "writing blob to stdout")
-}
-
-func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	var (
-		anchor  = fs.String("anchor", "", "anchor of blob or tree to get")
-		dosplit = fs.Bool("split", false, "get a split tree instead of a single blob")
-		atstr   = fs.String("at", "", "timestamp for anchor (default: now)")
-	)
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
-	var (
-		ref   bs.Ref
-		added bool
-	)
-	if *dosplit {
-		ref, err = split.Write(ctx, c.s, os.Stdin, nil)
-		if err != nil {
-			return errors.Wrap(err, "splitting stdin to store")
-		}
-	} else {
-		blob, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return errors.Wrap(err, "reading stdin")
-		}
-		ref, added, err = c.s.Put(ctx, blob)
-		if err != nil {
-			return errors.Wrap(err, "storing blob")
-		}
-	}
-
-	if *anchor != "" {
-		at := time.Now()
-		if *atstr != "" {
-			at, err = parsetime(*atstr)
-			if err != nil {
-				return errors.Wrap(err, "parsing -at")
-			}
-		}
-
-		err = c.s.PutAnchor(ctx, ref, bs.Anchor(*anchor), at)
-		if err != nil {
-			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *anchor, ref, at)
-		}
-	}
-
-	log.Printf("ref %s (added: %v)", ref, added)
-
-	return nil
 }
 
 var layouts = []string{
