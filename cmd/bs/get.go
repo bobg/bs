@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"time"
 
@@ -60,4 +61,35 @@ func (c maincmd) get(ctx context.Context, fs *flag.FlagSet, args []string) error
 	}
 	_, err = os.Stdout.Write(blob)
 	return errors.Wrap(err, "writing blob to stdout")
+}
+
+func (c maincmd) getAnchor(ctx context.Context, fs *flag.FlagSet, args []string) error {
+	atstr := fs.String("at", "", "timestamp for anchor (default: now)")
+	err := fs.Parse(args)
+	if err != nil {
+		return errors.Wrap(err, "parsing args")
+	}
+
+	args = fs.Args()
+	if len(args) == 0 {
+		return errors.New("missing anchor")
+	}
+
+	anchor := bs.Anchor(args[0])
+
+	at := time.Now()
+	if *atstr != "" {
+		at, err = parsetime(*atstr)
+		if err != nil {
+			return errors.Wrap(err, "parsing -at")
+		}
+	}
+
+	ref, err := c.s.GetAnchor(ctx, anchor, at)
+	if err != nil {
+		return errors.Wrapf(err, "getting anchor %s at time %s", anchor, at)
+	}
+
+	fmt.Printf("%s\n", ref)
+	return nil
 }

@@ -65,9 +65,11 @@ func main() {
 
 func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 	return map[string]subcmd.Subcmd{
-		"get":    c.get,
-		"ingest": c.ingest,
-		"put":    c.put,
+		"get":        c.get,
+		"get-anchor": c.getAnchor,
+		"ls":         c.ls,
+		"ingest":     c.ingest,
+		"put":        c.put,
 	}
 }
 
