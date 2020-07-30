@@ -18,32 +18,41 @@ type Getter interface {
 	// not later than the given timestamp.
 	GetAnchor(context.Context, Anchor, time.Time) (Ref, error)
 
-	// ListRefs lists all blob refs in the store in lexical order,
+	// ListRefs calls a function for each blob ref in the store in lexical order,
 	// beginning with the first ref _after_ the specified one.
 	//
-	// The contents of the channel must reflect at least the set of refs known at the moment ListRefs was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	// The calls reflect at least the set of refs known at the moment ListRefs was called.
+	// It is unspecified whether later changes,
+	// that happen concurrently with ListRefs,
+	// are reflected.
 	//
-	// On exit ListRefs must close the channel.
-	ListRefs(context.Context, Ref, chan<- Ref) error
+	// If the callback function returns an error,
+	// ListRefs exits with that error.
+	ListRefs(context.Context, Ref, func(Ref) error) error
 
-	// ListAnchors lists all anchors in the store in lexical order,
+	// ListAnchors calls a function for each anchor in the store in lexical order,
 	// beginning with the first anchor _after_ the specified one.
 	//
-	// The contents of the channel must reflect at least the set of anchors known at the moment ListAnchors was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	// The calls reflect at least the set of anchors known at the moment ListAnchors was called.
+	// It is unspecified whether later changes,
+	// that happen concurrently with ListAnchors,
+	// are reflected.
 	//
-	// On exit ListAnchors must close the channel.
-	ListAnchors(context.Context, Anchor, chan<- Anchor) error
+	// If the callback function returns an error,
+	// ListAnchors exits with that error.
+	ListAnchors(context.Context, Anchor, func(Anchor) error) error
 
-	// ListAnchorRefs lists all TimeRefs for the given anchor,
+	// ListAnchorRefs calls a function for each TimeRef of the given anchor,
 	// in time order.
 	//
-	// The contents of the channel must reflect at least the set of time/ref pairs known at the moment ListAnchorRefs was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
+	// The calls reflect at least the set of time/ref pairs known at the moment ListAnchorRefs was called.
+	// It is unspecified whether later changes,
+	// that happen concurrently with ListAnchorRefs,
+	// are reflected.
 	//
-	// On exit ListAnchorRefs must close the channel.
-	ListAnchorRefs(context.Context, Anchor, chan<- TimeRef) error
+	// If the callback function returns an error,
+	// ListAnchorRefs exits with that error.
+	ListAnchorRefs(context.Context, Anchor, func(TimeRef) error) error
 }
 
 // Store is a blob store.

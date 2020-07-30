@@ -148,9 +148,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	defer close(ch)
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	topLevel, err := ioutil.ReadDir(s.blobroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.blobroot())
@@ -212,12 +210,9 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 					continue
 				}
 
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-
-				case ch <- ref:
-					// do nothing
+				err = f(ref)
+				if err != nil {
+					return err
 				}
 			}
 		}
@@ -226,9 +221,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	defer close(ch)
-
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	topLevel, err := ioutil.ReadDir(s.anchorroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.anchorroot())
@@ -278,11 +271,9 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 	sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
 
 	for _, anchor := range anchors {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- anchor:
-			// do nothing
+		err = f(anchor)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -291,9 +282,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
-	defer close(ch)
-
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
 	path := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(path)
 	if err != nil {
@@ -314,11 +303,9 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 		if err != nil {
 			return errors.Wrapf(err, "hex-decoding %s", string(h))
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- bs.TimeRef{T: t, R: ref}:
-			// do nothing
+		err = f(bs.TimeRef{T: t, R: ref})
+		if err != nil {
+			return err
 		}
 	}
 	return nil

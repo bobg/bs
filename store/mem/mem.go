@@ -121,9 +121,7 @@ func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Ti
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	defer close(ch)
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	s.mu.Lock()
 	refs := make([]bs.Ref, 0, len(s.blobs))
 	for ref := range s.blobs {
@@ -137,20 +135,16 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 	})
 
 	for i := index; i < len(refs); i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- refs[i]:
-			// do nothing
+		err := f(refs[i])
+		if err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	defer close(ch)
-
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	s.mu.Lock()
 	anchors := make([]bs.Anchor, 0, len(s.anchors))
 	for anchor := range s.anchors {
@@ -164,11 +158,9 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 	})
 
 	for i := index; i < len(anchors); i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- anchors[i]:
-			// do nothing
+		err := f(anchors[i])
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -177,18 +169,16 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, ch chan<- bs.TimeRef) error {
+func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, f func(bs.TimeRef) error) error {
 	s.mu.Lock()
 	timeRefs := make([]bs.TimeRef, len(s.anchors[anchor]))
 	copy(timeRefs, s.anchors[anchor])
 	s.mu.Unlock()
 
 	for _, tr := range timeRefs {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- tr:
-			// do nothing
+		err := f(tr)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

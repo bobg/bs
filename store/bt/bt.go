@@ -114,10 +114,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 	return *found, nil
 }
 
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-
-	defer close(ch)
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	var innerErr error
 	rowFn := func(row bigtable.Row) bool {
 		key := row.Key()
@@ -126,13 +123,12 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 			innerErr = errors.Wrapf(err, "extracting ref from key %s", key)
 			return false
 		}
-		select {
-		case <-ctx.Done():
-			innerErr = ctx.Err()
+		err = f(ref)
+		if err != nil {
+			innerErr = err
 			return false
-		case ch <- ref:
-			return true
 		}
+		return true
 	}
 	startKey := blobKey(start) + "0"
 	filter := bigtable.RowKeyFilter("^b:") // blobs only
@@ -143,9 +139,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 	return innerErr
 }
 
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	defer close(ch)
-
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	var (
 		lastAnchor bs.Anchor
 		innerErr   error
@@ -159,12 +153,10 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 			return false
 		}
 		if a != lastAnchor {
-			select {
-			case <-ctx.Done():
-				innerErr = ctx.Err()
+			err = f(a)
+			if err != nil {
+				innerErr = err
 				return false
-			case ch <- a:
-				lastAnchor = a
 			}
 		}
 		return true
@@ -178,9 +170,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 	return innerErr
 }
 
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
-	defer close(ch)
-
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
 	var (
 		timeRefs []bs.TimeRef
 		innerErr error
@@ -209,12 +199,9 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 	}
 
 	for i := len(timeRefs) - 1; i >= 0; i-- {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- timeRefs[i]:
-			// ok
+		err = f(timeRefs[i])
+		if err != nil {
+			return err
 		}
 	}
 

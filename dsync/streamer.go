@@ -56,18 +56,18 @@ func (s *Streamer) GetAnchor(ctx context.Context, a bs.Anchor, t time.Time) (bs.
 }
 
 // ListRefs implements bs.Store.ListRefs.
-func (s *Streamer) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	return s.s.ListRefs(ctx, start, ch)
+func (s *Streamer) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+	return s.s.ListRefs(ctx, start, f)
 }
 
 // ListAnchors implements bs.Store.ListAnchors.
-func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	return s.s.ListAnchors(ctx, start, ch)
+func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+	return s.s.ListAnchors(ctx, start, f)
 }
 
 // ListAnchorRefs implements bs.Store.ListAnchorRefs.
-func (s *Streamer) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
-	return s.s.ListAnchorRefs(ctx, a, ch)
+func (s *Streamer) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
+	return s.s.ListAnchorRefs(ctx, a, f)
 }
 
 // Put implements bs.Store.Put.

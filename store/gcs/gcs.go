@@ -175,9 +175,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when tim
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	defer close(ch)
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
 	// But they can filter by object-name prefix.
 	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
@@ -187,12 +185,11 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 	//   e7 e8 e9 ea eb ec ed ee ef
 	//   f
 	return eachHexPrefix(start.String(), false, func(prefix string) error {
-		err := s.listRefs(ctx, prefix, ch)
-		return errors.Wrapf(err, "listing refs with prefix %s", prefix)
+		return s.listRefs(ctx, prefix, f)
 	})
 }
 
-func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) error {
+func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()
@@ -206,27 +203,22 @@ func (s *Store) listRefs(ctx context.Context, prefix string, ch chan<- bs.Ref) e
 		if err != nil {
 			return err
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- ref:
-			// do nothing
+		err = f(ref)
+		if err != nil {
+			return err
 		}
 	}
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	defer close(ch)
-
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	startHex := hex.EncodeToString([]byte(start))
 	return eachHexPrefix(startHex+"0", true, func(prefix string) error {
-		err := s.listAnchors(ctx, prefix, ch)
-		return errors.Wrapf(err, "listing anchors with hex prefix %s", prefix)
+		return s.listAnchors(ctx, prefix, f)
 	})
 }
 
-func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anchor) error {
+func (s *Store) listAnchors(ctx context.Context, prefix string, f func(bs.Anchor) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "a:" + prefix})
 	for {
 		obj, err := iter.Next()
@@ -240,11 +232,9 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anc
 		if err != nil {
 			return err
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case ch <- bs.Anchor(anchor):
-			// do nothing
+		err = f(bs.Anchor(anchor))
+		if err != nil {
+			return err
 		}
 	}
 }
@@ -252,9 +242,7 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, ch chan<- bs.Anc
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
-	defer close(ch)
-
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
 	var (
 		prefix = anchorPrefix(a)
 		iter   = s.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
@@ -288,12 +276,9 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 		pairs = append(pairs, bs.TimeRef{T: atime, R: ref})
 	}
 	for i := len(pairs) - 1; i >= 0; i-- {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- pairs[i]:
-			// ok
+		err := f(pairs[i])
+		if err != nil {
+			return err
 		}
 	}
 	return nil

@@ -101,20 +101,20 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	return s.s.ListRefs(ctx, start, ch)
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+	return s.s.ListRefs(ctx, start, f)
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	return s.s.ListAnchors(ctx, start, ch)
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+	return s.s.ListAnchors(ctx, start, f)
 }
 
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, ch chan<- bs.TimeRef) error {
-	return s.s.ListAnchorRefs(ctx, anchor, ch)
+func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, f func(bs.TimeRef) error) error {
+	return s.s.ListAnchorRefs(ctx, anchor, f)
 }
 
 func init() {

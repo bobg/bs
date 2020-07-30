@@ -150,9 +150,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) error {
-	defer close(ch)
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	const q = `SELECT ref FROM blobs WHERE ref > $1 ORDER BY ref`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
@@ -167,21 +165,16 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, ch chan<- bs.Ref) er
 			return errors.Wrap(err, "scanning query result")
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- ref:
-			// do nothing
+		err = f(ref)
+		if err != nil {
+			return err
 		}
 	}
 	return errors.Wrap(rows.Err(), "iterating over result rows")
 }
 
 // ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.Anchor) error {
-	defer close(ch)
-
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
 	const q = `SELECT DISTINCT(anchor) FROM anchors WHERE anchor > $1 ORDER BY anchor`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
@@ -196,12 +189,9 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 			return errors.Wrap(err, "scanning query result")
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- anchor:
-			// do nothing
+		err = f(anchor)
+		if err != nil {
+			return err
 		}
 	}
 	return errors.Wrap(rows.Err(), "iterating over result rows")
@@ -210,9 +200,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, ch chan<- bs.A
 // ListAnchorRefs lists all blob refs for a given anchor,
 // together with their timestamps,
 // in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.TimeRef) error {
-	defer close(ch)
-
+func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
 	const q = `SELECT at, ref FROM anchors WHERE anchor = $1 ORDER BY at`
 	rows, err := s.db.QueryContext(ctx, q, a)
 	if err != nil {
@@ -230,12 +218,9 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, ch chan<- bs.Ti
 			return errors.Wrap(err, "scanning query result")
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- bs.TimeRef{T: t, R: ref}:
-			// do nothing
+		err = f(bs.TimeRef{T: t, R: ref})
+		if err != nil {
+			return err
 		}
 	}
 	return errors.Wrap(rows.Err(), "iterating over result rows")
