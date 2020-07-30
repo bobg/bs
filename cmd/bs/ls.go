@@ -60,20 +60,11 @@ func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) erro
 	}
 
 	var (
-		ch       = make(chan *schema.MapPair)
-		innerErr error
-	)
-
-	go func() {
-		innerErr = (*schema.Map)(&d).Each(ctx, c.s, ch)
-		close(ch)
-	}()
-
-	var (
 		names   sort.StringSlice
 		dirents = make(map[string]*fs.Dirent)
 	)
-	for pair := range ch {
+
+	err = (*schema.Map)(&d).Each(ctx, c.s, func(pair *schema.MapPair) error {
 		name := string(pair.Key)
 		var dirent fs.Dirent
 		err = proto.Unmarshal(pair.Payload, &dirent)
@@ -82,9 +73,10 @@ func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) erro
 		}
 		names = append(names, name)
 		dirents[name] = &dirent
-	}
-	if innerErr != nil {
-		return errors.Wrap(innerErr, "iterating over dir contents")
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "iterating over dir contents")
 	}
 	names.Sort()
 	for _, name := range names {

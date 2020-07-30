@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pkg/errors"
+
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store/mem"
 )
@@ -83,27 +85,19 @@ func TestMap(t *testing.T) {
 	}
 
 	// Check that every ref in the map is an eligible one in refs.
-	ch := make(chan *MapPair)
-	go func() {
-		defer close(ch)
-
-		for pair := range ch {
-			linenum, err := strconv.Atoi(string(pair.Key))
-			if err != nil {
-				t.Errorf("key %s does not parse", string(pair.Key))
-				continue
-			}
-			if linenum%2 != 0 {
-				t.Errorf("key %d is not even", linenum)
-				continue
-			}
-			if !bytes.Equal(pair.Payload, refs[linenum][:]) {
-				t.Errorf("got ref %x for key %d, want %s", pair.Payload, linenum, refs[linenum])
-			}
+	err = m.Each(ctx, store, func(pair *MapPair) error {
+		linenum, err := strconv.Atoi(string(pair.Key))
+		if err != nil {
+			return errors.Wrapf(err, "key %s does not parse", string(pair.Key))
 		}
-	}()
-
-	err = m.Each(ctx, store, ch)
+		if linenum%2 != 0 {
+			return fmt.Errorf("key %d is not even", linenum)
+		}
+		if !bytes.Equal(pair.Payload, refs[linenum][:]) {
+			return fmt.Errorf("got ref %x for key %d, want %s", pair.Payload, linenum, refs[linenum])
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

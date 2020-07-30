@@ -69,22 +69,15 @@ func TestSet(t *testing.T) {
 	}
 
 	// Check that every ref in the set is an eligible one in refs.
-	ch := make(chan bs.Ref)
-	go func() {
-		defer close(ch)
-
-		for ref := range ch {
-			if ref[0]&1 == 0 {
-				t.Errorf("ineligible ref %s in set", ref)
-				continue
-			}
-			if _, ok := refs[ref]; !ok {
-				t.Errorf("did not find ref %s in set", ref)
-			}
+	err = s.Each(ctx, store, func(ref bs.Ref) error {
+		if ref[0]&1 == 0 {
+			return fmt.Errorf("ineligible ref %s in set", ref)
 		}
-	}()
-
-	err = s.Each(ctx, store, ch)
+		if _, ok := refs[ref]; !ok {
+			return fmt.Errorf("did not find ref %s in set", ref)
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

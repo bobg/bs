@@ -295,7 +295,7 @@ func treeEach(ctx context.Context, t tree, g bs.Getter, f func(tree, int32) erro
 	for i := int32(0); i < t.numMembers(); i++ {
 		err := f(t, i)
 		if err != nil {
-			return errors.Wrapf(err, "operating on member %d at depth %d", i, tn.Depth)
+			return err
 		}
 	}
 

@@ -88,10 +88,9 @@ func (m *Map) Remove(ctx context.Context, store bs.Store, key []byte) (bs.Ref, b
 	return treeRemove(ctx, m, store, hashKey(key))
 }
 
-func (m *Map) Each(ctx context.Context, g bs.Getter, ch chan<- *MapPair) error {
+func (m *Map) Each(ctx context.Context, g bs.Getter, f func(*MapPair) error) error {
 	return treeEach(ctx, m, g, func(t tree, i int32) error {
 		m := t.(*Map)
-		ch <- m.Members[i]
-		return nil
+		return f(m.Members[i])
 	})
 }

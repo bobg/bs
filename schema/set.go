@@ -85,15 +85,9 @@ func (s *Set) Remove(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, b
 // Each sends all the members of s on ch.
 // It blocks until all members are sent,
 // so you'll probably want a separate goroutine to consume ch.
-func (s *Set) Each(ctx context.Context, g bs.Getter, ch chan<- bs.Ref) error {
+func (s *Set) Each(ctx context.Context, g bs.Getter, f func(bs.Ref) error) error {
 	return treeEach(ctx, s, g, func(ml tree, i int32) error {
 		m := ml.(*Set)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-
-		case ch <- bs.RefFromBytes(m.Members[i]):
-			return nil
-		}
+		return f(bs.RefFromBytes(m.Members[i]))
 	})
 }
