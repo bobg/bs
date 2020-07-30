@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -71,5 +72,61 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 				t.Fatalf("got %s, want %s", got, c.want)
 			}
 		})
+	}
+
+	var (
+		wantAnchors = []bs.Anchor{a1, a2}
+		gotAnchors  []bs.Anchor
+	)
+	gotAnchorFn := func(a bs.Anchor) error {
+		gotAnchors = append(gotAnchors, a)
+		return nil
+	}
+
+	err = store.ListAnchors(ctx, "", gotAnchorFn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotAnchors, wantAnchors) {
+		t.Fatalf("got anchor list %v, want %v", gotAnchors, wantAnchors)
+	}
+
+	wantAnchors = []bs.Anchor{a2}
+	gotAnchors = nil
+	err = store.ListAnchors(ctx, a1, gotAnchorFn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotAnchors, wantAnchors) {
+		t.Fatalf("got anchor list %v, want %v", gotAnchors, wantAnchors)
+	}
+
+	var (
+		wantTimeRefs = []bs.TimeRef{
+			{T: t1, R: r1a},
+			{T: t2, R: r1b},
+		}
+		gotTimeRefs []bs.TimeRef
+	)
+
+	err = store.ListAnchorRefs(ctx, a1, func(tr bs.TimeRef) error {
+		gotTimeRefs = append(gotTimeRefs, tr)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Can't use reflect.DeepEqual here because the time objects are not "eq" (but they are Time.Equal).
+	if len(gotTimeRefs) != len(wantTimeRefs) {
+		t.Fatalf("got %d timerefs, want %d", len(gotTimeRefs), len(wantTimeRefs))
+	}
+	for i, gotTimeRef := range gotTimeRefs {
+		wantTimeRef := wantTimeRefs[i]
+		if !gotTimeRef.T.Equal(wantTimeRef.T) {
+			t.Fatalf("got time %s, want %s in position %d", gotTimeRef.T, wantTimeRef.T, i)
+		}
+		if gotTimeRef.R != wantTimeRef.R {
+			t.Fatalf("got ref %s, want %s in position %d", gotTimeRef.R, wantTimeRef.R, i)
+		}
 	}
 }
