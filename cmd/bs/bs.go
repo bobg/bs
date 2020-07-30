@@ -15,6 +15,7 @@ import (
 	"github.com/bobg/bs/store"
 	_ "github.com/bobg/bs/store/bt"
 	_ "github.com/bobg/bs/store/file"
+	_ "github.com/bobg/bs/store/gcs"
 	_ "github.com/bobg/bs/store/lru"
 	_ "github.com/bobg/bs/store/mem"
 	_ "github.com/bobg/bs/store/pg"
