@@ -79,8 +79,9 @@ func TestMap(t *testing.T) {
 		if !ok {
 			t.Fatalf("key %d not found in map", i)
 		}
-		if got != refs[i] {
-			t.Fatalf("got ref %s at key %d, want %s", got, i, ref)
+		gotRef := bs.RefFromBytes(got)
+		if gotRef != refs[i] {
+			t.Fatalf("got ref %s at key %d, want %s", gotRef, i, ref)
 		}
 	}
 

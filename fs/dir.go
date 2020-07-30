@@ -23,16 +23,20 @@ import (
 // and each payload a serialized Dirent.
 type Dir schema.Map
 
+// NewDir produces a new, blank Dir,
+// not yet written to a blob store.
 func NewDir() *Dir {
 	return (*Dir)(schema.NewMap())
 }
 
+// Load loads the directory at ref into d.
 func (d *Dir) Load(ctx context.Context, g bs.Getter, ref bs.Ref) error {
 	return bs.GetProto(ctx, g, ref, (*schema.Map)(d))
 }
 
 // Ingest adds the directory hierarchy rooted at path to d.
 // Each new file, dir, or symlink encountered gets a new "inode" anchor.
+// It returns the possibly-updated Ref for d.
 func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, error) {
 	infos, err := ioutil.ReadDir(path)
 	if err != nil {

@@ -41,11 +41,17 @@ type tree interface {
 
 const maxNode = 128
 
+// Outcome is the outcome of a Map.Set operation.
 type Outcome int
 
 const (
+	// ONone means no change was needed.
 	ONone Outcome = iota
+
+	// OAdded means a key was not present, and was added.
 	OAdded
+
+	// OUpdated means a key was present but its payload was changed.
 	OUpdated
 )
 
