@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/bobg/hashsplit"
+	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
@@ -35,29 +36,41 @@ func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Spl
 		}
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	var (
+		ch   = make(chan hashsplit.Chunk)
+		done = make(chan struct{})
+		root *hashsplit.Node
+	)
 
-	chunks := splitter.Split(ctx, r)
-	chunks, errfn := hashsplit.Filter(chunks, func(chunk hashsplit.Chunk) (hashsplit.Chunk, error) {
-		ref, _, err := s.Put(ctx, chunk.Bytes)
-		if err != nil {
-			return chunk, err
-		}
+	go func() {
+		root = hashsplit.Tree(ch)
+		close(done)
+	}()
 
-		chunk2 := chunk
-		chunk2.Bytes = ref[:]
-		chunk2.Level /= 2 // xxx ?
-		return chunk2, nil
-	})
+	err := func() error {
+		defer close(ch)
+		return splitter.Split(ctx, r, func(chunk hashsplit.Chunk) error {
+			ref, _, err := s.Put(ctx, chunk.Bytes)
+			if err != nil {
+				return errors.Wrap(err, "writing split chunk to store")
+			}
 
-	root := hashsplit.Tree(chunks)
-	if err := splitter.E; err != nil {
-		return bs.Ref{}, err
+			chunk.Bytes = ref[:]
+			chunk.Level /= 2 // TODO: Does this produce the best fan-out?
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case ch <- chunk:
+				return nil
+			}
+		})
+	}()
+	if err != nil {
+		return bs.Ref{}, errors.Wrap(err, "splitting input")
 	}
-	if err := errfn(); err != nil {
-		return bs.Ref{}, err
-	}
+
+	<-done
 
 	return splitWrite(ctx, s, root)
 }

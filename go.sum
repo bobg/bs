@@ -42,6 +42,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/bobg/hashsplit v0.0.0-20200612133620-8d12abff8c50 h1:Gu9EpG/ES4rKZhMMGsES68ciasPSGBGZ0Egb59FNF9Q=
 github.com/bobg/hashsplit v0.0.0-20200612133620-8d12abff8c50/go.mod h1:xAwCurk7Umk+n4k5wfYrZ5TEqDbA1rU1ks0Bz2ekwC4=
+github.com/bobg/hashsplit v0.0.0-20200731135043-a5c105c9337f h1:OF+qKV2p/a7Sgu1TikJwudnynHI5+VjvadHPZX6n3II=
+github.com/bobg/hashsplit v0.0.0-20200731135043-a5c105c9337f/go.mod h1:xAwCurk7Umk+n4k5wfYrZ5TEqDbA1rU1ks0Bz2ekwC4=
 github.com/bobg/subcmd v0.0.0-20200729150342-0548cf7c21bc h1:Eddszt9LT0T+8Tiul+GwB3/oZlopjkSx9Xx5lAmtqhA=
 github.com/bobg/subcmd v0.0.0-20200729150342-0548cf7c21bc/go.mod h1:G+sAPkAEME5bAHFVJ5Y1186UmE6eOZiBw2D0ImP48TY=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
