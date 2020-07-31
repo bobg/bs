@@ -1,3 +1,4 @@
+// Package pg implements a blob store in a Postgresql relational database schema.
 package pg
 
 import (

@@ -1,3 +1,4 @@
+// Package gcs implements a blob store on Google Cloud Storage.
 package gcs
 
 import (

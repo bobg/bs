@@ -1,3 +1,4 @@
+// Package mem implements an in-memory blob store.
 package mem
 
 import (

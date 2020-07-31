@@ -1,3 +1,4 @@
+// Package lru implements a blob store that acts as a least-recently-used cache for a nested blob store.
 package lru
 
 import (

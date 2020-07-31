@@ -1,3 +1,4 @@
+// Package store is a registry for Store factories.
 package store
 
 import (

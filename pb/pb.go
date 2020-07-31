@@ -1,3 +1,4 @@
+// Package pb reads and writes self-describing protobuf blobs.
 package pb
 
 import (

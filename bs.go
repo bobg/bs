@@ -1,4 +1,3 @@
-// Package bs describes a content-addressable blob store.
 package bs
 
 import (

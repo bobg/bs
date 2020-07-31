@@ -1,3 +1,4 @@
+// Package schema implements miscellaneous data structures that can be converted to and from blobs.
 package schema
 
 import (
@@ -18,6 +19,7 @@ func NewSet() *Set {
 // It returns the Set's own possibly-updated Ref,
 // and a boolean indicating whether the Set was changed,
 // which will be false if the input Ref was already present.
+// If the Set is changed, it is written to the Store.
 func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
 	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
 		if !insert {
@@ -78,13 +80,12 @@ func (s *Set) Check(ctx context.Context, g bs.Getter, ref bs.Ref) (bool, error) 
 // It returns the set's new root ref,
 // and a boolean indicating whether the ref was removed.
 // (If false, the ref was not present in the set, and the root ref is unchanged.)
+// If s is changed, it is written to the Store.
 func (s *Set) Remove(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
 	return treeRemove(ctx, s, store, ref[:])
 }
 
-// Each sends all the members of s on ch.
-// It blocks until all members are sent,
-// so you'll probably want a separate goroutine to consume ch.
+// Each calls a function for each member of the Set.
 func (s *Set) Each(ctx context.Context, g bs.Getter, f func(bs.Ref) error) error {
 	return treeEach(ctx, s, g, func(ml tree, i int32) error {
 		m := ml.(*Set)

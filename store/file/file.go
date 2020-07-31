@@ -1,3 +1,4 @@
+// Package file implements a blob store as a file hierarchy.
 package file
 
 import (

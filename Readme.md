@@ -28,19 +28,20 @@ Content addressability has some desirable properties,
 but it does mean that if some data changes,
 so does its ref,
 which can make it tricky to keep track of a piece of data over its lifetime.
-So a BS blob store also stores _anchors_,
-which maps an arbitrary string
+So a blob store also stores _anchors_.
+These are mappings from an arbitrary string
 (such as a filename)
 to a ref and a timestamp.
 At a later timestamp,
 the same anchor may map to a different ref.
 
-BS works best when blobs are not too big,
+Blob stores work best when blobs are not too big,
 so when storing potentially large bytestreams,
-use the SplitWrite function.
+use the split.Write function
+(in the split subpackage).
 This splits the input into multiple blobs organized as a tree,
 and it returns the ref of the tree’s root.
-The bytestream can be reassembled with SplitRead.
+The bytestream can be reassembled with split.Read.
 
 When splitting,
 blob boundaries are determined not by position or size but by content,
@@ -54,9 +55,10 @@ If the blobs were organized as a list,
 the whole list would have to change any time a blob is added, removed, or replaced.
 But as a tree, only the subtree with the affected blob has to change.
 
-Subpackages of this module implement different versions of blob stores:
+The bs package describes an abstract Store interface.
+The store subpackage contains a registry for different concrete types of blob store:
 a memory-based one, a file-based one, a Postgresql-based one,
-and a Google Cloud Storage one.
+a Google Cloud Storage one, and a Google Cloud Bigtable one.
 There is also a blob store that is an LRU cache for an underlying blob store.
 
 BS is inspired by, and a simplification of,

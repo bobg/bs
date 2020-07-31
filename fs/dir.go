@@ -1,3 +1,4 @@
+// Package fs implements blob store structures for representing files and directories.
 package fs
 
 import (

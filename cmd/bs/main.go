@@ -1,3 +1,4 @@
+// Command bs is a general purpose CLI interface to blob stores.
 package main
 
 import (
@@ -70,6 +71,7 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 		"ls":         c.ls,
 		"ingest":     c.ingest,
 		"put":        c.put,
+		"tree":       c.tree,
 	}
 }
 

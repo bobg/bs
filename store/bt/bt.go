@@ -1,4 +1,4 @@
-// Package bt implements a blob store on Google BigTable.
+// Package bt implements a blob store on Google Cloud BigTable.
 package bt
 
 import (
