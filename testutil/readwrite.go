@@ -27,7 +27,11 @@ func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	got := buf.Bytes()
 	if len(got) != len(data) {
 		t.Errorf("got length %d, want %d", len(got), len(data))
-	} else if !bytes.Equal(got, data) {
-		t.Error("mismatch")
+	} else {
+		for i := 0; i < len(got); i++ {
+			if got[i] != data[i] {
+				t.Fatalf("mismatch at position %d (of %d)", i, len(got))
+			}
+		}
 	}
 }

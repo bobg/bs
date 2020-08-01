@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	stderrs "errors"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -42,9 +43,15 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "reading info of object %s", name)
 	}
-	b := make([]byte, r.Size())
-	_, err = r.Read(b)
-	return b, errors.Wrapf(err, "reading contents of object %s", name)
+
+	b := make([]byte, r.Attrs.Size)
+	err = func() error {
+		defer r.Close()
+
+		_, err := io.ReadFull(r, b)
+		return errors.Wrapf(err, "reading contents of object %s", name)
+	}()
+	return b, err
 }
 
 // GetMulti gets multiple blobs in one call.
@@ -103,33 +110,44 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 		if err != nil {
 			return bs.Ref{}, errors.Wrapf(err, "reading info of object %s", attrs.Name)
 		}
+
 		var ref bs.Ref
-		if r.Size() != int64(len(ref)) {
-			return bs.Ref{}, errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Size(), len(ref))
-		}
-		_, err = r.Read(ref[:])
-		return ref, errors.Wrapf(err, "reading contents of object %s", attrs.Name)
+		err = func() error {
+			defer r.Close()
+
+			if r.Attrs.Size != int64(len(ref)) {
+				return errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Attrs.Size, len(ref))
+			}
+			_, err = io.ReadFull(r, ref[:])
+			return errors.Wrapf(err, "reading contents of object %s", attrs.Name)
+		}()
+		return ref, err
 	}
 }
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
-		ref  = b.Ref()
-		name = blobObjName(ref)
-		obj  = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
-		w    = obj.NewWriter(ctx)
+		ref   = b.Ref()
+		name  = blobObjName(ref)
+		obj   = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
+		w     = obj.NewWriter(ctx)
+		added bool
 	)
-	_, err := w.Write(b) // TODO: are partial writes a possibility?
-	var e *googleapi.Error
-	if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
-		return ref, false, nil
-	}
-	if err != nil {
-		return ref, false, errors.Wrapf(err, "writing object %s", name)
-	}
-	err = w.Close()
-	return ref, true, errors.Wrapf(err, "closing object %s", name)
+	err := func() error {
+		defer w.Close()
+
+		_, err := w.Write(b) // TODO: are partial writes a possibility?
+		var e *googleapi.Error
+		if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
+			return nil
+		}
+		if err == nil { // sic
+			added = true
+		}
+		return errors.Wrapf(err, "writing object %s", name)
+	}()
+	return ref, added, err
 }
 
 // PutMulti adds multiple blobs to the store in one call.
@@ -167,12 +185,10 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when tim
 		obj  = s.bucket.Object(name)
 		w    = obj.NewWriter(ctx)
 	)
+	defer w.Close()
+
 	_, err := w.Write(ref[:])
-	if err != nil {
-		return errors.Wrap(err, "writing anchor")
-	}
-	err = w.Close()
-	return errors.Wrap(err, "closing anchor")
+	return errors.Wrap(err, "writing anchor")
 }
 
 // ListRefs produces all blob refs in the store, in lexical order.
@@ -266,14 +282,22 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeR
 		if err != nil {
 			return errors.Wrapf(err, "reading info of object %s", attrs.Name)
 		}
+
 		var ref bs.Ref
-		if r.Size() != int64(len(ref)) {
-			return errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Size(), len(ref))
-		}
-		_, err = r.Read(ref[:])
-		if err != nil {
+		err = func() error {
+			defer r.Close()
+
+			if r.Attrs.Size != int64(len(ref)) {
+				return errors.Wrapf(err, "object %s has wrong size %d (want %d)", attrs.Name, r.Attrs.Size, len(ref))
+			}
+
+			_, err = io.ReadFull(r, ref[:])
 			return errors.Wrapf(err, "reading contents of object %s", attrs.Name)
+		}()
+		if err != nil {
+			return err
 		}
+
 		pairs = append(pairs, bs.TimeRef{T: atime, R: ref})
 	}
 	for i := len(pairs) - 1; i >= 0; i-- {
