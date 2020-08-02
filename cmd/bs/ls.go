@@ -64,13 +64,7 @@ func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) erro
 		dirents = make(map[string]*fs.Dirent)
 	)
 
-	err = (*schema.Map)(&d).Each(ctx, c.s, func(pair *schema.MapPair) error {
-		name := string(pair.Key)
-		var dirent fs.Dirent
-		err = proto.Unmarshal(pair.Payload, &dirent)
-		if err != nil {
-			return errors.Wrapf(err, "unmarshaling dirent %s", name)
-		}
+	err = d.Each(ctx, c.s, func(name string, dirent *fs.Dirent) error {
 		names = append(names, name)
 		dirents[name] = &dirent
 		return nil

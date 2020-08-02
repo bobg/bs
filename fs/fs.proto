@@ -3,6 +3,8 @@ package fs;
 
 option go_package = ".;fs";
 
+import "google/protobuf/timestamp.proto";
+
 message Dirent {
   uint32 mode = 1;
 
@@ -13,4 +15,6 @@ message Dirent {
   // If it's a plain file,
   // then item is a bs.Anchor pointing to the root of a split.Write tree of its contents.
   string item = 2;
+
+  google.protobuf.Timestamp mod_time = 3;
 }

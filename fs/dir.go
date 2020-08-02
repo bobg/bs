@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/schema"
@@ -33,6 +34,17 @@ func NewDir() *Dir {
 // Load loads the directory at ref into d.
 func (d *Dir) Load(ctx context.Context, g bs.Getter, ref bs.Ref) error {
 	return bs.GetProto(ctx, g, ref, (*schema.Map)(d))
+}
+
+func (d *Dir) Each(ctx context.Context, g bs.Getter, f func(name string, dirent *Dirent) error) error {
+	return (*schema.Map)(d).Each(ctx, g, func(pair *schema.MapPair) error {
+		var dirent Dirent
+		err := proto.Unmarshal(pair.Payload, &dirent)
+		if err != nil {
+			return err
+		}
+		return f(string(pair.Key), &dirent)
+	})
 }
 
 // Ingest adds the directory hierarchy rooted at path to d.
@@ -61,8 +73,9 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 			}
 
 			dirent, err := proto.Marshal(&Dirent{
-				Mode: uint32(info.Mode()),
-				Item: string(subdirAnchor),
+				Mode:    uint32(info.Mode()),
+				Item:    string(subdirAnchor),
+				ModTime: timestamppb.New(info.ModTime()),
 			})
 			if err != nil {
 				return bs.Ref{}, errors.Wrapf(err, "marshaling dirent for new dir %s/%s", path, info.Name())
@@ -85,7 +98,7 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 			return bs.Ref{}, errors.Wrapf(err, "%s/%s has unsupported file type %v", path, info.Name(), info.Mode()&os.ModeType)
 		} else {
 			// Regular file.
-			dref, err = d.ingestFile(ctx, store, path, info.Name(), uint32(info.Mode()))
+			dref, err = d.ingestFile(ctx, store, path, info)
 			if err != nil {
 				return bs.Ref{}, errors.Wrapf(err, "ingesting file %s/%s", path, info.Name())
 			}
@@ -98,7 +111,8 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 	return dref, errors.Wrap(err, "computing self ref")
 }
 
-func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath, name string, mode uint32) (bs.Ref, error) {
+func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, info os.FileInfo) (bs.Ref, error) {
+	name := info.Name()
 	f, err := os.Open(filepath.Join(dirpath, name))
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "opening %s/%s", dirpath, name)
@@ -117,8 +131,9 @@ func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath, name stri
 	}
 
 	dirent, err := proto.Marshal(&Dirent{
-		Mode: mode,
-		Item: string(fileAnchor),
+		Mode:    uint32(info.Mode()),
+		Item:    string(fileAnchor),
+		ModTime: timestamppb.New(info.ModTime()),
 	})
 	if err != nil {
 		return bs.Ref{}, errors.Wrap(err, "marshaling dirent proto")
