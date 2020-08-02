@@ -36,6 +36,10 @@ func (d *Dir) Load(ctx context.Context, g bs.Getter, ref bs.Ref) error {
 	return bs.GetProto(ctx, g, ref, (*schema.Map)(d))
 }
 
+// Each calls a callback on each name/Dirent pair in d
+// (in an indeterminate order).
+// If the callback returns an error,
+// Each exits with that error.
 func (d *Dir) Each(ctx context.Context, g bs.Getter, f func(name string, dirent *Dirent) error) error {
 	return (*schema.Map)(d).Each(ctx, g, func(pair *schema.MapPair) error {
 		var dirent Dirent
