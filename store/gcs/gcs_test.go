@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	stderrs "errors"
 	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/bobg/bs/testutil"
@@ -75,7 +77,29 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer bucket.Delete(ctx)
+	defer func() {
+		iter := bucket.Objects(ctx, nil)
+		for {
+			attrs, err := iter.Next()
+			if stderrs.Is(err, iterator.Done) {
+				break
+			}
+			if err != nil {
+				t.Logf("could not delete bucket %s (%s)", bucketName, err)
+				return
+			}
+			obj := bucket.Object(attrs.Name)
+			err = obj.Delete(ctx)
+			if err != nil {
+				t.Logf("could not delete bucket %s (%s)", bucketName, err)
+				return
+			}
+		}
+		err = bucket.Delete(ctx)
+		if err != nil {
+			t.Logf("could not delete bucket %s (%s)", bucketName, err)
+		}
+	}()
 
 	testutil.ReadWrite(ctx, t, New(bucket), data)
 }

@@ -68,6 +68,7 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 	return map[string]subcmd.Subcmd{
 		"get":        c.get,
 		"get-anchor": c.getAnchor,
+		"list-refs":  c.listRefs,
 		"ls":         c.ls,
 		"ingest":     c.ingest,
 		"put":        c.put,

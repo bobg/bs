@@ -46,6 +46,8 @@ github.com/bobg/hashsplit v0.0.0-20200731135043-a5c105c9337f h1:OF+qKV2p/a7Sgu1T
 github.com/bobg/hashsplit v0.0.0-20200731135043-a5c105c9337f/go.mod h1:xAwCurk7Umk+n4k5wfYrZ5TEqDbA1rU1ks0Bz2ekwC4=
 github.com/bobg/subcmd v0.0.0-20200729150342-0548cf7c21bc h1:Eddszt9LT0T+8Tiul+GwB3/oZlopjkSx9Xx5lAmtqhA=
 github.com/bobg/subcmd v0.0.0-20200729150342-0548cf7c21bc/go.mod h1:G+sAPkAEME5bAHFVJ5Y1186UmE6eOZiBw2D0ImP48TY=
+github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a h1:pPPyLHxa+IDPuGOozhpR+jdvh6iCzd7JyDGgCX0oLns=
+github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a/go.mod h1:f2Q3XIILD4YqoNmbTffa/j4NPDdj5s88TqLokML8AvY=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
@@ -128,6 +130,8 @@ github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
+github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/rjeczalik/notify v0.9.2 h1:MiTWrPj55mNDHEiIX5YUSKefw/+lCQVoAFmD6oQm5w8=
