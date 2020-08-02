@@ -85,7 +85,7 @@ func TestFS(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-		
+
 	go func() {
 		defer close(ch2)
 		err := filepath.Walk(tmpdir, f(ch2))

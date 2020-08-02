@@ -9,11 +9,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/fs"
-	"github.com/bobg/bs/schema"
 )
 
 func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) error {
@@ -66,7 +64,7 @@ func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) erro
 
 	err = d.Each(ctx, c.s, func(name string, dirent *fs.Dirent) error {
 		names = append(names, name)
-		dirents[name] = &dirent
+		dirents[name] = dirent
 		return nil
 	})
 	if err != nil {
