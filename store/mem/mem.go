@@ -62,7 +62,7 @@ func (s *Store) GetMulti(_ context.Context, refs []bs.Ref) (bs.GetMultiResult, e
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
+func (s *Store) GetAnchor(_ context.Context, a bs.Anchor, at time.Time) (bs.Ref, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

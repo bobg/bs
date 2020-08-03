@@ -61,7 +61,7 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case_%02d", i+1), func(t *testing.T) {
-			got, err := store.GetAnchor(ctx, c.a, c.tm)
+			got, _, err := store.GetAnchor(ctx, c.a, c.tm)
 			if c.wantErr != nil && errors.Is(err, c.wantErr) {
 				// ok
 				return

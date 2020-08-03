@@ -79,10 +79,11 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 // GetAnchor implements bs.Store.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, error) {
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, time.Time, error) {
 	var (
-		found    *bs.Ref
-		innerErr error
+		found     *bs.Ref
+		foundTime time.Time
+		innerErr  error
 	)
 
 	// Anchors come back in reverse chronological order
@@ -105,18 +106,19 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 		}
 		ref := bs.RefFromBytes(items[0].Value)
 		found = &ref
+		foundTime = atime
 		return false
 	})
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "iterating over anchor rows")
+		return bs.Ref{}, time.Time{}, errors.Wrap(err, "iterating over anchor rows")
 	}
 	if innerErr != nil {
-		return bs.Ref{}, errors.Wrap(innerErr, "processing anchor row")
+		return bs.Ref{}, time.Time{}, errors.Wrap(innerErr, "processing anchor row")
 	}
 	if found == nil {
-		return bs.Ref{}, bs.ErrNotFound
+		return bs.Ref{}, time.Time{}, bs.ErrNotFound
 	}
-	return *found, nil
+	return *found, foundTime, nil
 }
 
 // ListRefs implements bs.Store.

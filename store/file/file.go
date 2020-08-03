@@ -68,14 +68,14 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, time.Time, error) {
 	dir := s.anchorpath(a)
 	entries, err := ioutil.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return bs.Ref{}, bs.ErrNotFound
+		return bs.Ref{}, time.Time{}, bs.ErrNotFound
 	}
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", dir)
+		return bs.Ref{}, time.Time{}, errors.Wrapf(err, "reading dir %s", dir)
 	}
 
 	// We might use sort.Search here (since ReadDir returns entries sorted by name),
@@ -83,7 +83,10 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 	// but we want to be robust in the face of filenames that time.Parse fails to parse,
 	// so O(N) it is.
 	// Oh, also: filenames are times that may be expressed in different timezones.
-	var best string
+	var (
+		best     string
+		bestTime time.Time
+	)
 	for _, entry := range entries {
 		name := entry.Name()
 		parsed, err := time.Parse(time.RFC3339Nano, name)
@@ -94,17 +97,19 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 			break
 		}
 		best = name
+		bestTime = parsed
 	}
 	if best == "" {
-		return bs.Ref{}, bs.ErrNotFound
+		return bs.Ref{}, time.Time{}, bs.ErrNotFound
 	}
 
 	h, err := ioutil.ReadFile(filepath.Join(dir, best))
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading file %s/%s", dir, best)
+		return bs.Ref{}, time.Time{}, errors.Wrapf(err, "reading file %s/%s", dir, best)
 	}
 
-	return bs.RefFromHex(string(h))
+	ref, err := bs.RefFromHex(string(h))
+	return ref, bestTime, errors.Wrapf(err, "parsing ref %s", string(h))
 }
 
 // Put adds a blob to the store if it wasn't already present.

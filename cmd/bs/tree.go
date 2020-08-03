@@ -39,7 +39,7 @@ func (c maincmd) tree(ctx context.Context, fs *flag.FlagSet, args []string) erro
 			}
 		}
 
-		ref, err = c.s.GetAnchor(ctx, bs.Anchor(*anchor), at)
+		ref, _, err = c.s.GetAnchor(ctx, bs.Anchor(*anchor), at)
 		if err != nil {
 			return errors.Wrapf(err, "getting anchor %s at time %s", *anchor, at)
 		}

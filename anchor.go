@@ -15,18 +15,18 @@ type TimeRef struct {
 // FindAnchor is a helper for finding the latest blob reference
 // in a list of TimeRefs, sorted by time,
 // whose timestamp is not later than `at`.
-func FindAnchor(pairs []TimeRef, at time.Time) (Ref, error) {
+func FindAnchor(pairs []TimeRef, at time.Time) (Ref, time.Time, error) {
 	if len(pairs) == 0 {
-		return Ref{}, ErrNotFound
+		return Ref{}, time.Time{}, ErrNotFound
 	}
 	index := sort.Search(len(pairs), func(n int) bool {
 		return !pairs[n].T.Before(at)
 	})
 	if index < len(pairs) && pairs[index].T.Equal(at) {
-		return pairs[index].R, nil
+		return pairs[index].R, pairs[index].T, nil
 	}
 	if index == 0 {
-		return Ref{}, ErrNotFound
+		return Ref{}, time.Time{}, ErrNotFound
 	}
-	return pairs[index-1].R, nil
+	return pairs[index-1].R, pairs[index-1].T, nil
 }

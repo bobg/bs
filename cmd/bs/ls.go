@@ -40,7 +40,7 @@ func (c maincmd) ls(ctx context.Context, fset *flag.FlagSet, args []string) erro
 			}
 		}
 
-		ref, err = c.s.GetAnchor(ctx, bs.Anchor(*anchor), at)
+		ref, _, err = c.s.GetAnchor(ctx, bs.Anchor(*anchor), at)
 		if err != nil {
 			return errors.Wrapf(err, "getting anchor %s at time %s", *anchor, at)
 		}

@@ -51,7 +51,7 @@ func (s *Streamer) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResu
 }
 
 // GetAnchor implements bs.Store.GetAnchor.
-func (s *Streamer) GetAnchor(ctx context.Context, a bs.Anchor, t time.Time) (bs.Ref, error) {
+func (s *Streamer) GetAnchor(ctx context.Context, a bs.Anchor, t time.Time) (bs.Ref, time.Time, error) {
 	return s.s.GetAnchor(ctx, a, t)
 }
 

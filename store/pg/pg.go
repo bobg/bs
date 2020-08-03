@@ -87,15 +87,18 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, error) {
-	const q = `SELECT ref FROM anchors WHERE anchor = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, time.Time, error) {
+	const q = `SELECT ref, at FROM anchors WHERE anchor = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
 
-	var result bs.Ref // xxx Scan/Value methods?
-	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result)
+	var (
+		result bs.Ref // xxx Scan/Value methods?
+		atime  time.Time
+	)
+	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result, &atime)
 	if stderrs.Is(err, sql.ErrNoRows) {
-		return bs.Ref{}, bs.ErrNotFound
+		return bs.Ref{}, time.Time{}, bs.ErrNotFound
 	}
-	return result, err
+	return result, atime, err
 }
 
 // Put adds a blob to the store if it wasn't already present.

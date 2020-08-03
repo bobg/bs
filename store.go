@@ -16,7 +16,7 @@ type Getter interface {
 
 	// GetAnchor gets the latest ref with the given anchor
 	// not later than the given timestamp.
-	GetAnchor(context.Context, Anchor, time.Time) (Ref, error)
+	GetAnchor(context.Context, Anchor, time.Time) (Ref, time.Time, error)
 
 	// ListRefs calls a function for each blob ref in the store in lexical order,
 	// beginning with the first ref _after_ the specified one.

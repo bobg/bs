@@ -165,7 +165,7 @@ func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 				return errors.Wrapf(err, "making subdir %s", subdirName)
 			}
 
-			subdirRef, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
+			subdirRef, _, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
 			if err != nil {
 				return errors.Wrapf(err, "resolving anchor %s for subdir %s", dirent.Item, subdirName)
 			}
@@ -185,7 +185,7 @@ func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 			return errors.Wrapf(err, "creating symlink %s/%s -> %s", dest, name, dirent.Item)
 		}
 
-		ref, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
+		ref, _, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
 		if err != nil {
 			return errors.Wrapf(err, "resolving anchor %s for file %s/%s", dirent.Item, dest, name)
 		}

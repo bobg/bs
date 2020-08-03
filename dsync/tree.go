@@ -108,7 +108,7 @@ func (t *Tree) infosToDirProto(ctx context.Context, dir string, infos []os.FileI
 					return nil, errors.Wrapf(err, "computing file anchor for %s/%s", dir, info.Name())
 				}
 			}
-			ref, err := t.S.GetAnchor(ctx, a, now)
+			ref, _, err := t.S.GetAnchor(ctx, a, now)
 			if err != nil {
 				return nil, errors.Wrapf(err, "getting ref for %s at %s", a, now)
 			}
@@ -193,7 +193,7 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 
 	var doParent bool
 
-	oldRef, err := t.S.GetAnchor(ctx, fa, time.Now())
+	oldRef, _, err := t.S.GetAnchor(ctx, fa, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps file was added, which means its dir has (also) changed.
 		doParent = true
@@ -257,7 +257,7 @@ func (t *Tree) dirChanged(ctx context.Context, dir string, because map[string]*D
 
 	var doParent bool
 
-	oldRef, err := t.S.GetAnchor(ctx, da, time.Now())
+	oldRef, _, err := t.S.GetAnchor(ctx, da, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps dir was added, which means its containing dir has (also) changed.
 		log.Printf("GetAnchor(%s) -> empty", da)

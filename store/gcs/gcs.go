@@ -81,7 +81,7 @@ func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult,
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, error) {
+func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.Ref, time.Time, error) {
 	var (
 		prefix = anchorPrefix(a)
 		iter   = s.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
@@ -93,14 +93,14 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 	for {
 		attrs, err := iter.Next()
 		if stderrs.Is(err, iterator.Done) {
-			return bs.Ref{}, bs.ErrNotFound
+			return bs.Ref{}, time.Time{}, bs.ErrNotFound
 		}
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "iterating over anchor objects")
+			return bs.Ref{}, time.Time{}, errors.Wrap(err, "iterating over anchor objects")
 		}
 		_, atime, err := anchorTimeFromObjName(attrs.Name)
 		if err != nil {
-			return bs.Ref{}, errors.Wrapf(err, "decoding object name %s", attrs.Name)
+			return bs.Ref{}, time.Time{}, errors.Wrapf(err, "decoding object name %s", attrs.Name)
 		}
 		if atime.After(when) {
 			continue
@@ -108,7 +108,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 		obj := s.bucket.Object(attrs.Name)
 		r, err := obj.NewReader(ctx)
 		if err != nil {
-			return bs.Ref{}, errors.Wrapf(err, "reading info of object %s", attrs.Name)
+			return bs.Ref{}, time.Time{}, errors.Wrapf(err, "reading info of object %s", attrs.Name)
 		}
 
 		var ref bs.Ref
@@ -121,7 +121,7 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, when time.Time) (bs.
 			_, err = io.ReadFull(r, ref[:])
 			return errors.Wrapf(err, "reading contents of object %s", attrs.Name)
 		}()
-		return ref, err
+		return ref, atime, err
 	}
 }
 

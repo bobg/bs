@@ -69,7 +69,7 @@ func (t *Tree) Full(ctx context.Context, r Receiver) error {
 
 	now := time.Now()
 
-	rootRef, err := t.S.GetAnchor(ctx, rootAnchor, now)
+	rootRef, _, err := t.S.GetAnchor(ctx, rootAnchor, now)
 	if err != nil {
 		return errors.Wrapf(err, "getting anchor for root anchor %s", rootAnchor)
 	}
@@ -134,7 +134,7 @@ func (t *Tree) Full(ctx context.Context, r Receiver) error {
 						subAnchor += "/"
 						typ = dirRef
 					}
-					subref, err := t.S.GetAnchor(ctx, subAnchor, now)
+					subref, _, err := t.S.GetAnchor(ctx, subAnchor, now)
 					if err != nil {
 						return errors.Wrapf(err, "getting anchor %s", subAnchor)
 					}
