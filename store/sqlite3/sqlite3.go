@@ -1,5 +1,4 @@
-// Package pg implements a blob store in a Postgresql relational database schema.
-package pg
+package sqlite3
 
 import (
 	"context"
@@ -7,7 +6,7 @@ import (
 	stderrs "errors"
 	"time"
 
-	_ "github.com/lib/pq" // register the postgres type for sql.Open
+	_ "github.com/mattn/go-sqlite3" // register the sqlite3 type for sql.Open
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
@@ -16,7 +15,7 @@ import (
 
 var _ bs.Store = &Store{}
 
-// Store is a Postgresql-based blob store.
+// Store is a Sqlite-based blob store.
 type Store struct {
 	db *sql.DB
 }
@@ -26,17 +25,17 @@ type Store struct {
 // (If they do exist, they must have the columns, constraints, and indexing described here.)
 const Schema = `
 CREATE TABLE IF NOT EXISTS blobs (
-  ref BYTEA PRIMARY KEY NOT NULL,
-  data BYTEA NOT NULL
+  ref BLOB PRIMARY KEY NOT NULL,
+  data BLOB NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS anchors (
   anchor TEXT NOT NULL,
-  at TIMESTAMP WITH TIME ZONE NOT NULL,
-  ref BYTEA NOT NULL
+  at TEXT NOT NULL,
+  ref BLOB NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ON anchors (anchor, at);
+CREATE UNIQUE INDEX IF NOT EXISTS anchor_idx ON anchors (anchor, at);
 `
 
 // New produces a new Store using `db` for storage.
@@ -93,13 +92,14 @@ func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Re
 
 	var (
 		result bs.Ref
-		atime  time.Time
+		atstr  string
 	)
-	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result, &atime)
+	err := s.db.QueryRowContext(ctx, q, a, at.UTC().Format(time.RFC3339Nano)).Scan(&result, &atstr)
 	if stderrs.Is(err, sql.ErrNoRows) {
 		return bs.Ref{}, time.Time{}, bs.ErrNotFound
 	}
-	return result, atime, err
+	at, err = time.Parse(time.RFC3339Nano, atstr)
+	return result, at, errors.Wrapf(err, "parsing time %s", atstr)
 }
 
 // Put adds a blob to the store if it wasn't already present.
@@ -149,7 +149,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
 	const q = `INSERT INTO anchors (anchor, at, ref) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
 
-	_, err := s.db.ExecContext(ctx, q, a, at, ref)
+	_, err := s.db.ExecContext(ctx, q, a, at.UTC().Format(time.RFC3339Nano), ref)
 	return err
 }
 
@@ -189,12 +189,16 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 	for rows.Next() {
 		var (
 			anchor bs.Anchor
-			at     time.Time
+			atstr  string
 			ref    bs.Ref
 		)
-		err := rows.Scan(&anchor, &at, &ref)
+		err := rows.Scan(&anchor, &atstr, &ref)
 		if err != nil {
 			return errors.Wrap(err, "scanning query result")
+		}
+		at, err := time.Parse(time.RFC3339Nano, atstr)
+		if err != nil {
+			return errors.Wrapf(err, "parsing time %s", atstr)
 		}
 
 		err = f(anchor, bs.TimeRef{T: at, R: ref})
@@ -206,12 +210,12 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 }
 
 func init() {
-	store.Register("pg", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
+	store.Register("sqlite3", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
 		conn, ok := conf["conn"].(string)
 		if !ok {
 			return nil, errors.New(`missing "conn" parameter`)
 		}
-		db, err := sql.Open("postgres", conn)
+		db, err := sql.Open("sqlite3", conn)
 		if err != nil {
 			return nil, errors.Wrap(err, "opening db")
 		}

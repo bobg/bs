@@ -3,8 +3,10 @@ package bs
 import (
 	"bytes"
 	"crypto/sha256"
+	"database/sql/driver"
 	"encoding/hex"
 	"errors"
+	"fmt"
 )
 
 type (
@@ -54,4 +56,18 @@ func RefFromHex(s string) (Ref, error) {
 	var out Ref
 	err := out.FromHex(s)
 	return out, err
+}
+
+// Value implements the Valuer interface for database/sql.
+func (r Ref) Value() (driver.Value, error) {
+	return r[:], nil
+}
+
+// Scan implements the Scanner interface for database/sql.
+func (r *Ref) Scan(src interface{}) error {
+	if b, ok := src.([]byte); ok {
+		copy((*r)[:], b)
+		return nil
+	}
+	return fmt.Errorf("cannot scan %T into *Ref", src)
 }

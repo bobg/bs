@@ -18,7 +18,7 @@ type Getter interface {
 	// not later than the given timestamp.
 	GetAnchor(context.Context, Anchor, time.Time) (Ref, time.Time, error)
 
-	// ListRefs calls a function for each blob ref in the store in lexical order,
+	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
 	//
 	// The calls reflect at least the set of refs known at the moment ListRefs was called.
@@ -30,8 +30,11 @@ type Getter interface {
 	// ListRefs exits with that error.
 	ListRefs(context.Context, Ref, func(Ref) error) error
 
-	// ListAnchors calls a function for each anchor in the store in lexical order,
+	// ListAnchors calls a function for each anchor/timestamp/ref in the store,
 	// beginning with the first anchor _after_ the specified one.
+	// These triples are passed to the callback in ascending order,
+	// sorted lexicographically by anchor name,
+	// and by time within a given anchor name.
 	//
 	// The calls reflect at least the set of anchors known at the moment ListAnchors was called.
 	// It is unspecified whether later changes,
@@ -40,19 +43,7 @@ type Getter interface {
 	//
 	// If the callback function returns an error,
 	// ListAnchors exits with that error.
-	ListAnchors(context.Context, Anchor, func(Anchor) error) error
-
-	// ListAnchorRefs calls a function for each TimeRef of the given anchor,
-	// in time order.
-	//
-	// The calls reflect at least the set of time/ref pairs known at the moment ListAnchorRefs was called.
-	// It is unspecified whether later changes,
-	// that happen concurrently with ListAnchorRefs,
-	// are reflected.
-	//
-	// If the callback function returns an error,
-	// ListAnchorRefs exits with that error.
-	ListAnchorRefs(context.Context, Anchor, func(TimeRef) error) error
+	ListAnchors(context.Context, Anchor, func(Anchor, TimeRef) error) error
 }
 
 // Store is a blob store.

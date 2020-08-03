@@ -153,7 +153,7 @@ func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.
 	)
 }
 
-// ListRefs produces all blob refs in the store, in lexical order.
+// ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	topLevel, err := ioutil.ReadDir(s.blobroot())
 	if err != nil {
@@ -226,8 +226,8 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return nil
 }
 
-// ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+// ListAnchors lists all anchors in the store, in lexicographic and time order.
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
 	topLevel, err := ioutil.ReadDir(s.anchorroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.anchorroot())
@@ -277,41 +277,29 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 	sort.Slice(anchors, func(i, j int) bool { return anchors[i] < anchors[j] })
 
 	for _, anchor := range anchors {
-		err = f(anchor)
+		path := s.anchorpath(anchor)
+		entries, err := ioutil.ReadDir(path)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "reading dir %s", path)
 		}
-	}
-	return nil
-}
-
-// ListAnchorRefs lists all blob refs for a given anchor,
-// together with their timestamps,
-// in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
-	path := s.anchorpath(a)
-	entries, err := ioutil.ReadDir(path)
-	if err != nil {
-		return errors.Wrapf(err, "reading dir %s", path)
-	}
-	// xxx filter entries and sort by parsed time
-	for _, entry := range entries {
-		name := entry.Name()
-		t, err := time.Parse(time.RFC3339Nano, name)
-		if err != nil {
-			return errors.Wrapf(err, "parsing time from %s", name)
-		}
-		h, err := ioutil.ReadFile(filepath.Join(path, name))
-		if err != nil {
-			return errors.Wrapf(err, "reading file %s/%s", path, name)
-		}
-		ref, err := bs.RefFromHex(string(h))
-		if err != nil {
-			return errors.Wrapf(err, "hex-decoding %s", string(h))
-		}
-		err = f(bs.TimeRef{T: t, R: ref})
-		if err != nil {
-			return err
+		for _, entry := range entries {
+			name := entry.Name()
+			t, err := time.Parse(time.RFC3339Nano, name)
+			if err != nil {
+				return errors.Wrapf(err, "parsing time from %s", name)
+			}
+			h, err := ioutil.ReadFile(filepath.Join(path, name))
+			if err != nil {
+				return errors.Wrapf(err, "reading file %s/%s", path, name)
+			}
+			ref, err := bs.RefFromHex(string(h))
+			if err != nil {
+				return errors.Wrapf(err, "hex-decoding %s", string(h))
+			}
+			err = f(anchor, bs.TimeRef{T: t, R: ref})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

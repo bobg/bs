@@ -121,7 +121,7 @@ func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Ti
 	return nil
 }
 
-// ListRefs produces all blob refs in the store, in lexical order.
+// ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	s.mu.Lock()
 	refs := make([]bs.Ref, 0, len(s.blobs))
@@ -144,8 +144,8 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return nil
 }
 
-// ListAnchors lists all anchors in the store, in lexical order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+// ListAnchors lists all anchors in the store, in lexicographic order.
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
 	s.mu.Lock()
 	anchors := make([]bs.Anchor, 0, len(s.anchors))
 	for anchor := range s.anchors {
@@ -159,27 +159,16 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 	})
 
 	for i := index; i < len(anchors); i++ {
-		err := f(anchors[i])
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ListAnchorRefs lists all blob refs for a given anchor,
-// together with their timestamps,
-// in chronological order.
-func (s *Store) ListAnchorRefs(ctx context.Context, anchor bs.Anchor, f func(bs.TimeRef) error) error {
-	s.mu.Lock()
-	timeRefs := make([]bs.TimeRef, len(s.anchors[anchor]))
-	copy(timeRefs, s.anchors[anchor])
-	s.mu.Unlock()
-
-	for _, tr := range timeRefs {
-		err := f(tr)
-		if err != nil {
-			return err
+		a := anchors[i]
+		s.mu.Lock()
+		trs := make([]bs.TimeRef, len(s.anchors[a]))
+		copy(trs, s.anchors[a])
+		s.mu.Unlock()
+		for _, tr := range trs {
+			err := f(a, tr)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -148,49 +148,38 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors implements bs.Store.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
 	var (
 		lastAnchor bs.Anchor
+		timeRefs   []bs.TimeRef
 		innerErr   error
 	)
 
+	dump := func() error {
+		for i := len(timeRefs) - 1; i >= 0; i-- {
+			err := f(lastAnchor, timeRefs[i])
+			if err != nil {
+				return err
+			}
+		}
+		timeRefs = nil
+		return nil
+	}
+
 	rowFn := func(row bigtable.Row) bool {
 		key := row.Key()
-		a, _, err := anchorTimeFromKey(key)
+		a, atime, err := anchorTimeFromKey(key)
 		if err != nil {
 			innerErr = errors.Wrapf(err, "parsing anchor/time from key %s", key)
 			return false
 		}
 		if a != lastAnchor {
-			err = f(a)
+			err = dump()
 			if err != nil {
 				innerErr = err
 				return false
 			}
-		}
-		return true
-	}
-	startKey := anchorKey(start, maxTime)
-	filter := bigtable.RowKeyFilter("^a:") // anchors only
-	err := s.t.ReadRows(ctx, bigtable.InfiniteRange(startKey), rowFn, bigtable.RowFilter(filter))
-	if err != nil {
-		return err
-	}
-	return innerErr
-}
-
-// ListAnchorRefs implements bs.Store.
-func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
-	var (
-		timeRefs []bs.TimeRef
-		innerErr error
-	)
-	err := s.eachAnchorRow(ctx, a, func(row bigtable.Row) bool {
-		key := row.Key()
-		_, atime, err := anchorTimeFromKey(key)
-		if err != nil {
-			innerErr = errors.Wrapf(err, "parsing anchor/time from key %s", key)
-			return false
+			lastAnchor = a
 		}
 		items := row[anchorfam]
 		if len(items) == 0 {
@@ -200,22 +189,18 @@ func (s *Store) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeR
 		ref := bs.RefFromBytes(items[0].Value)
 		timeRefs = append(timeRefs, bs.TimeRef{T: atime, R: ref})
 		return true
-	})
+	}
+
+	startKey := anchorKey(start, maxTime)
+	filter := bigtable.RowKeyFilter("^a:") // anchors only
+	err := s.t.ReadRows(ctx, bigtable.InfiniteRange(startKey), rowFn, bigtable.RowFilter(filter))
 	if err != nil {
-		return errors.Wrap(err, "iterating over anchor rows")
+		return err
 	}
 	if innerErr != nil {
-		return errors.Wrap(err, "processing anchor row")
+		return innerErr
 	}
-
-	for i := len(timeRefs) - 1; i >= 0; i-- {
-		err = f(timeRefs[i])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return dump()
 }
 
 func (s *Store) eachAnchorRow(ctx context.Context, a bs.Anchor, f func(bigtable.Row) bool) error {

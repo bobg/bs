@@ -61,13 +61,8 @@ func (s *Streamer) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) er
 }
 
 // ListAnchors implements bs.Store.ListAnchors.
-func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor) error) error {
+func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
 	return s.s.ListAnchors(ctx, start, f)
-}
-
-// ListAnchorRefs implements bs.Store.ListAnchorRefs.
-func (s *Streamer) ListAnchorRefs(ctx context.Context, a bs.Anchor, f func(bs.TimeRef) error) error {
-	return s.s.ListAnchorRefs(ctx, a, f)
 }
 
 // Put implements bs.Store.Put.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -75,12 +74,21 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 		})
 	}
 
+	type anchorTimeRef struct {
+		a  bs.Anchor
+		tr bs.TimeRef
+	}
+
 	var (
-		wantAnchors = []bs.Anchor{a1, a2}
-		gotAnchors  []bs.Anchor
+		wantAnchorTimeRefs = []anchorTimeRef{
+			{a: a1, tr: bs.TimeRef{T: t1, R: r1a}},
+			{a: a1, tr: bs.TimeRef{T: t2, R: r1b}},
+			{a: a2, tr: bs.TimeRef{T: t1, R: r2}},
+		}
+		gotAnchorTimeRefs []anchorTimeRef
 	)
-	gotAnchorFn := func(a bs.Anchor) error {
-		gotAnchors = append(gotAnchors, a)
+	gotAnchorFn := func(a bs.Anchor, tr bs.TimeRef) error {
+		gotAnchorTimeRefs = append(gotAnchorTimeRefs, anchorTimeRef{a: a, tr: tr})
 		return nil
 	}
 
@@ -88,46 +96,15 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(gotAnchors, wantAnchors) {
-		t.Fatalf("got anchor list %v, want %v", gotAnchors, wantAnchors)
+	if len(gotAnchorTimeRefs) != len(wantAnchorTimeRefs) {
+		t.Fatalf("got %d anchors, want %d", len(gotAnchorTimeRefs), len(wantAnchorTimeRefs))
 	}
-
-	wantAnchors = []bs.Anchor{a2}
-	gotAnchors = nil
-	err = store.ListAnchors(ctx, a1, gotAnchorFn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(gotAnchors, wantAnchors) {
-		t.Fatalf("got anchor list %v, want %v", gotAnchors, wantAnchors)
-	}
-
-	var (
-		wantTimeRefs = []bs.TimeRef{
-			{T: t1, R: r1a},
-			{T: t2, R: r1b},
-		}
-		gotTimeRefs []bs.TimeRef
-	)
-
-	err = store.ListAnchorRefs(ctx, a1, func(tr bs.TimeRef) error {
-		gotTimeRefs = append(gotTimeRefs, tr)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Can't use reflect.DeepEqual here because the time objects are not "eq" (but they are Time.Equal).
-	if len(gotTimeRefs) != len(wantTimeRefs) {
-		t.Fatalf("got %d timerefs, want %d", len(gotTimeRefs), len(wantTimeRefs))
-	}
-	for i, gotTimeRef := range gotTimeRefs {
-		wantTimeRef := wantTimeRefs[i]
-		if !gotTimeRef.T.Equal(wantTimeRef.T) {
-			t.Fatalf("got time %s, want %s in position %d", gotTimeRef.T, wantTimeRef.T, i)
-		}
-		if gotTimeRef.R != wantTimeRef.R {
-			t.Fatalf("got ref %s, want %s in position %d", gotTimeRef.R, wantTimeRef.R, i)
+	for i, gotAnchorTimeRef := range gotAnchorTimeRefs {
+		wantAnchorTimeRef := wantAnchorTimeRefs[i]
+		if gotAnchorTimeRef.a != wantAnchorTimeRef.a ||
+			gotAnchorTimeRef.tr.R != wantAnchorTimeRef.tr.R ||
+			!gotAnchorTimeRef.tr.T.Equal(wantAnchorTimeRef.tr.T) {
+			t.Fatalf("got %+v, want %+v", gotAnchorTimeRefs, wantAnchorTimeRefs)
 		}
 	}
 }
