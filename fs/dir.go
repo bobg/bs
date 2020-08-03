@@ -12,7 +12,6 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/schema"
@@ -77,9 +76,8 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 			}
 
 			dirent, err := proto.Marshal(&Dirent{
-				Mode:    uint32(info.Mode()),
-				Item:    string(subdirAnchor),
-				ModTime: timestamppb.New(info.ModTime()),
+				Mode: uint32(info.Mode()),
+				Item: string(subdirAnchor),
 			})
 			if err != nil {
 				return bs.Ref{}, errors.Wrapf(err, "marshaling dirent for new dir %s/%s", path, info.Name())
@@ -135,9 +133,8 @@ func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, in
 	}
 
 	dirent, err := proto.Marshal(&Dirent{
-		Mode:    uint32(info.Mode()),
-		Item:    string(fileAnchor),
-		ModTime: timestamppb.New(info.ModTime()),
+		Mode: uint32(info.Mode()),
+		Item: string(fileAnchor),
 	})
 	if err != nil {
 		return bs.Ref{}, errors.Wrap(err, "marshaling dirent proto")
