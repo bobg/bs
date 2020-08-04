@@ -158,7 +158,7 @@ func WatchRefsAnchors(ctx context.Context, refs <-chan bs.Ref, anchors <-chan An
 // provided the tree of blobs rooted at `ref` are already present.
 // (If they are not, an error will be returned, and t's file tree may be partially updated.)
 func (t *Tree) ReplicaAnchor(ctx context.Context, a bs.Anchor, ref bs.Ref) error {
-	err := t.S.PutAnchor(ctx, ref, a, time.Now())
+	err := t.S.PutAnchor(ctx, a, time.Now(), ref)
 	if err != nil {
 		return errors.Wrapf(err, "storing anchor %s (ref %s)", a, ref)
 	}

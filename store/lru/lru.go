@@ -97,8 +97,8 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
-	return s.s.PutAnchor(ctx, ref, a, at)
+func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
+	return s.s.PutAnchor(ctx, a, at, ref)
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
@@ -107,7 +107,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	return s.s.ListAnchors(ctx, start, f)
 }
 

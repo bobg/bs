@@ -54,7 +54,7 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 			}
 		}
 
-		err = c.s.PutAnchor(ctx, ref, bs.Anchor(*anchor), at)
+		err = c.s.PutAnchor(ctx, bs.Anchor(*anchor), at, ref)
 		if err != nil {
 			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *anchor, ref, at)
 		}

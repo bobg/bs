@@ -182,7 +182,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when time.Time) error {
+func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, when time.Time, ref bs.Ref) error {
 	var (
 		name = anchorObjName(a, when)
 		obj  = s.bucket.Object(name)
@@ -231,14 +231,14 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) erro
 }
 
 // ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	startHex := hex.EncodeToString([]byte(start))
 	return eachHexPrefix(startHex+"0", true, func(prefix string) error {
 		return s.listAnchors(ctx, prefix, f)
 	})
 }
 
-func (s *Store) listAnchors(ctx context.Context, prefix string, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) listAnchors(ctx context.Context, prefix string, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "a:" + prefix})
 
 	var (
@@ -248,7 +248,7 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, f func(bs.Anchor
 
 	dump := func() error {
 		for i := len(timeRefs) - 1; i >= 0; i-- {
-			err := f(lastAnchor, timeRefs[i])
+			err := f(lastAnchor, timeRefs[i].T, timeRefs[i].R)
 			if err != nil {
 				return err
 			}

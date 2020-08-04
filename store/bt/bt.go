@@ -148,7 +148,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors implements bs.Store.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	var (
 		lastAnchor bs.Anchor
 		timeRefs   []bs.TimeRef
@@ -157,7 +157,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 
 	dump := func() error {
 		for i := len(timeRefs) - 1; i >= 0; i-- {
-			err := f(lastAnchor, timeRefs[i])
+			err := f(lastAnchor, timeRefs[i].T, timeRefs[i].R)
 			if err != nil {
 				return err
 			}
@@ -228,7 +228,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor implements bs.Store.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, when time.Time) error {
+func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, when time.Time, ref bs.Ref) error {
 	mut := bigtable.NewMutation()
 	mut.Set(anchorfam, anchorcol, bigtable.Time(when), ref[:])
 	return s.t.Apply(ctx, anchorKey(a, when), mut)

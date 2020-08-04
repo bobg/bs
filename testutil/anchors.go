@@ -25,15 +25,15 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 		t2 = t1.Add(time.Hour)
 	)
 
-	err := store.PutAnchor(ctx, r1a, a1, t1)
+	err := store.PutAnchor(ctx, a1, t1, r1a)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = store.PutAnchor(ctx, r1b, a1, t2)
+	err = store.PutAnchor(ctx, a1, t2, r1b)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = store.PutAnchor(ctx, r2, a2, t1)
+	err = store.PutAnchor(ctx, a2, t1, r2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,20 +75,21 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 	}
 
 	type anchorTimeRef struct {
-		a  bs.Anchor
-		tr bs.TimeRef
+		a bs.Anchor
+		t time.Time
+		r bs.Ref
 	}
 
 	var (
 		wantAnchorTimeRefs = []anchorTimeRef{
-			{a: a1, tr: bs.TimeRef{T: t1, R: r1a}},
-			{a: a1, tr: bs.TimeRef{T: t2, R: r1b}},
-			{a: a2, tr: bs.TimeRef{T: t1, R: r2}},
+			{a: a1, t: t1, r: r1a},
+			{a: a1, t: t2, r: r1b},
+			{a: a2, t: t1, r: r2},
 		}
 		gotAnchorTimeRefs []anchorTimeRef
 	)
-	gotAnchorFn := func(a bs.Anchor, tr bs.TimeRef) error {
-		gotAnchorTimeRefs = append(gotAnchorTimeRefs, anchorTimeRef{a: a, tr: tr})
+	gotAnchorFn := func(a bs.Anchor, t time.Time, r bs.Ref) error {
+		gotAnchorTimeRefs = append(gotAnchorTimeRefs, anchorTimeRef{a: a, t: t, r: r})
 		return nil
 	}
 
@@ -102,8 +103,8 @@ func Anchors(ctx context.Context, t *testing.T, store bs.Store) {
 	for i, gotAnchorTimeRef := range gotAnchorTimeRefs {
 		wantAnchorTimeRef := wantAnchorTimeRefs[i]
 		if gotAnchorTimeRef.a != wantAnchorTimeRef.a ||
-			gotAnchorTimeRef.tr.R != wantAnchorTimeRef.tr.R ||
-			!gotAnchorTimeRef.tr.T.Equal(wantAnchorTimeRef.tr.T) {
+			gotAnchorTimeRef.r != wantAnchorTimeRef.r ||
+			!gotAnchorTimeRef.t.Equal(wantAnchorTimeRef.t) {
 			t.Fatalf("got %+v, want %+v", gotAnchorTimeRefs, wantAnchorTimeRefs)
 		}
 	}

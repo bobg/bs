@@ -146,7 +146,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
+func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
 	const q = `INSERT INTO anchors (anchor, at, ref) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
 
 	_, err := s.db.ExecContext(ctx, q, a, at, ref)
@@ -178,7 +178,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	const q = `SELECT anchor, at, ref FROM anchors WHERE anchor > $1 ORDER BY anchor, at`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
@@ -197,7 +197,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 			return errors.Wrap(err, "scanning query result")
 		}
 
-		err = f(anchor, bs.TimeRef{T: at, R: ref})
+		err = f(anchor, at, ref)
 		if err != nil {
 			return err
 		}

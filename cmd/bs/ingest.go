@@ -42,7 +42,7 @@ func (c maincmd) ingest(ctx context.Context, fset *flag.FlagSet, args []string) 
 			}
 		}
 
-		err = c.s.PutAnchor(ctx, ref, bs.Anchor(*anchor), at)
+		err = c.s.PutAnchor(ctx, bs.Anchor(*anchor), at, ref)
 		if err != nil {
 			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *anchor, ref, at)
 		}

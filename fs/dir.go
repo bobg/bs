@@ -70,7 +70,7 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 			}
 
 			subdirAnchor := newAnchor()
-			err = store.PutAnchor(ctx, subdirRef, subdirAnchor, time.Now())
+			err = store.PutAnchor(ctx, subdirAnchor, time.Now(), subdirRef)
 			if err != nil {
 				return bs.Ref{}, errors.Wrapf(err, "storing anchor for new dir %s/%s", path, info.Name())
 			}
@@ -127,7 +127,7 @@ func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, in
 	}
 
 	fileAnchor := newAnchor()
-	err = store.PutAnchor(ctx, fref, fileAnchor, time.Now())
+	err = store.PutAnchor(ctx, fileAnchor, time.Now(), fref)
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing new file anchor %s", fileAnchor)
 	}

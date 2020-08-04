@@ -43,7 +43,7 @@ type Getter interface {
 	//
 	// If the callback function returns an error,
 	// ListAnchors exits with that error.
-	ListAnchors(context.Context, Anchor, func(Anchor, TimeRef) error) error
+	ListAnchors(context.Context, Anchor, func(Anchor, time.Time, Ref) error) error
 }
 
 // Store is a blob store.
@@ -61,7 +61,7 @@ type Store interface {
 	PutMulti(context.Context, []Blob) (PutMultiResult, error)
 
 	// PutAnchor associates an anchor and a timestamp with a ref.
-	PutAnchor(context.Context, Ref, Anchor, time.Time) error
+	PutAnchor(context.Context, Anchor, time.Time, Ref) error
 }
 
 type (

@@ -140,7 +140,7 @@ func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResul
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
+func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
 	dir := s.anchorpath(a)
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
@@ -227,7 +227,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors lists all anchors in the store, in lexicographic and time order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	topLevel, err := ioutil.ReadDir(s.anchorroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.anchorroot())
@@ -296,7 +296,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 			if err != nil {
 				return errors.Wrapf(err, "hex-decoding %s", string(h))
 			}
-			err = f(anchor, bs.TimeRef{T: t, R: ref})
+			err = f(anchor, t, ref)
 			if err != nil {
 				return err
 			}

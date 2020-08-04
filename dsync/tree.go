@@ -75,7 +75,7 @@ func (t *Tree) Ingest(ctx context.Context, dir string) (bs.Ref, error) {
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing blob for dir %s", dir)
 	}
-	err = t.S.PutAnchor(ctx, dirRef, da, time.Now())
+	err = t.S.PutAnchor(ctx, da, time.Now(), dirRef)
 	return dirRef, errors.Wrapf(err, "storing anchor for dir %s", dir)
 }
 
@@ -152,7 +152,7 @@ func (t *Tree) ingestFile(ctx context.Context, fpath string) (bs.Ref, error) {
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "computing anchor for file %s", fpath)
 	}
-	err = t.S.PutAnchor(ctx, ref, fa, time.Now())
+	err = t.S.PutAnchor(ctx, fa, time.Now(), ref)
 	return ref, errors.Wrapf(err, "storing anchor for file %s", fpath)
 }
 
@@ -213,7 +213,7 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	}
 
 	if oldRef != newRef {
-		err = t.S.PutAnchor(ctx, newRef, fa, time.Now())
+		err = t.S.PutAnchor(ctx, fa, time.Now(), newRef)
 		if err != nil {
 			return errors.Wrapf(err, "updating anchor for file %s", file)
 		}
@@ -285,7 +285,7 @@ func (t *Tree) dirChanged(ctx context.Context, dir string, because map[string]*D
 	}
 
 	if newRef != oldRef {
-		err = t.S.PutAnchor(ctx, newRef, da, time.Now())
+		err = t.S.PutAnchor(ctx, da, time.Now(), newRef)
 		if err != nil {
 			return errors.Wrapf(err, "updating anchor for dir %s", dir)
 		}

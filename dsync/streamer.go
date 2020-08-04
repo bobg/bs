@@ -61,7 +61,7 @@ func (s *Streamer) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) er
 }
 
 // ListAnchors implements bs.Store.ListAnchors.
-func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Streamer) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	return s.s.ListAnchors(ctx, start, f)
 }
 
@@ -102,8 +102,8 @@ func (s *Streamer) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiRe
 }
 
 // PutAnchor implements bs.Store.PutAnchor.
-func (s *Streamer) PutAnchor(ctx context.Context, ref bs.Ref, a bs.Anchor, t time.Time) error {
-	err := s.s.PutAnchor(ctx, ref, a, t)
+func (s *Streamer) PutAnchor(ctx context.Context, a bs.Anchor, t time.Time, ref bs.Ref) error {
+	err := s.s.PutAnchor(ctx, a, t, ref)
 	if err == nil && s.anchors != nil {
 		info := AnchorTuple{
 			A:   a,

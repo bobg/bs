@@ -109,7 +109,7 @@ func (s *Store) PutMulti(_ context.Context, blobs []bs.Blob) (bs.PutMultiResult,
 }
 
 // PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(_ context.Context, ref bs.Ref, a bs.Anchor, at time.Time) error {
+func (s *Store) PutAnchor(_ context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -145,7 +145,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 }
 
 // ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, bs.TimeRef) error) error {
+func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
 	s.mu.Lock()
 	anchors := make([]bs.Anchor, 0, len(s.anchors))
 	for anchor := range s.anchors {
@@ -165,7 +165,7 @@ func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anch
 		copy(trs, s.anchors[a])
 		s.mu.Unlock()
 		for _, tr := range trs {
-			err := f(a, tr)
+			err := f(a, tr.T, tr.R)
 			if err != nil {
 				return err
 			}
