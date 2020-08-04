@@ -15,6 +15,7 @@ import (
 	"github.com/rjeczalik/notify"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // RunPrimary causes t to act as the primary for file-tree synchronization.
@@ -157,7 +158,7 @@ func WatchRefsAnchors(ctx context.Context, refs <-chan bs.Ref, anchors <-chan An
 // provided the tree of blobs rooted at `ref` are already present.
 // (If they are not, an error will be returned, and t's file tree may be partially updated.)
 func (t *Tree) ReplicaAnchor(ctx context.Context, a bs.Anchor, ref bs.Ref) error {
-	err := t.S.PutAnchor(ctx, ref, a, time.Now())
+	err := t.S.PutAnchor(ctx, a, time.Now(), ref)
 	if err != nil {
 		return errors.Wrapf(err, "storing anchor %s (ref %s)", a, ref)
 	}
@@ -194,7 +195,7 @@ func (t *Tree) constitute(ctx context.Context, a string, ref bs.Ref) error {
 
 	var innerErr error
 	go func() {
-		innerErr = bs.SplitRead(ctx, t.S, ref, pw)
+		innerErr = split.Read(ctx, t.S, ref, pw)
 		pw.Close()
 	}()
 

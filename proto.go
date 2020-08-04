@@ -23,3 +23,12 @@ func GetProto(ctx context.Context, g Getter, ref Ref, p proto.Message) error {
 	}
 	return proto.Unmarshal(b, p)
 }
+
+// ProtoRef computes the ref of a protocol buffer (by marshaling it as a blob).
+func ProtoRef(p proto.Message) (Ref, error) {
+	m, err := proto.Marshal(p)
+	if err != nil {
+		return Ref{}, err
+	}
+	return Blob(m).Ref(), nil
+}

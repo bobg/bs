@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // Tree represents a synchronizable tree of files and directories.
@@ -74,7 +75,7 @@ func (t *Tree) Ingest(ctx context.Context, dir string) (bs.Ref, error) {
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing blob for dir %s", dir)
 	}
-	err = t.S.PutAnchor(ctx, dirRef, da, time.Now())
+	err = t.S.PutAnchor(ctx, da, time.Now(), dirRef)
 	return dirRef, errors.Wrapf(err, "storing anchor for dir %s", dir)
 }
 
@@ -107,7 +108,7 @@ func (t *Tree) infosToDirProto(ctx context.Context, dir string, infos []os.FileI
 					return nil, errors.Wrapf(err, "computing file anchor for %s/%s", dir, info.Name())
 				}
 			}
-			ref, err := t.S.GetAnchor(ctx, a, now)
+			ref, _, err := t.S.GetAnchor(ctx, a, now)
 			if err != nil {
 				return nil, errors.Wrapf(err, "getting ref for %s at %s", a, now)
 			}
@@ -142,7 +143,7 @@ func (t *Tree) ingestFile(ctx context.Context, fpath string) (bs.Ref, error) {
 	}
 	defer f.Close()
 
-	ref, err := bs.SplitWrite(ctx, t.S, f, nil)
+	ref, err := split.Write(ctx, t.S, f, nil)
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing blobs for file %s", fpath)
 	}
@@ -151,7 +152,7 @@ func (t *Tree) ingestFile(ctx context.Context, fpath string) (bs.Ref, error) {
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "computing anchor for file %s", fpath)
 	}
-	err = t.S.PutAnchor(ctx, ref, fa, time.Now())
+	err = t.S.PutAnchor(ctx, fa, time.Now(), ref)
 	return ref, errors.Wrapf(err, "storing anchor for file %s", fpath)
 }
 
@@ -192,7 +193,7 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 
 	var doParent bool
 
-	oldRef, err := t.S.GetAnchor(ctx, fa, time.Now())
+	oldRef, _, err := t.S.GetAnchor(ctx, fa, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps file was added, which means its dir has (also) changed.
 		doParent = true
@@ -206,13 +207,13 @@ func (t *Tree) FileChanged(ctx context.Context, file string) error {
 	}
 	defer f.Close()
 
-	newRef, err := bs.SplitWrite(ctx, t.S, f, nil)
+	newRef, err := split.Write(ctx, t.S, f, nil)
 	if err != nil {
 		return errors.Wrapf(err, "storing blobtree for file %s", file)
 	}
 
 	if oldRef != newRef {
-		err = t.S.PutAnchor(ctx, newRef, fa, time.Now())
+		err = t.S.PutAnchor(ctx, fa, time.Now(), newRef)
 		if err != nil {
 			return errors.Wrapf(err, "updating anchor for file %s", file)
 		}
@@ -256,7 +257,7 @@ func (t *Tree) dirChanged(ctx context.Context, dir string, because map[string]*D
 
 	var doParent bool
 
-	oldRef, err := t.S.GetAnchor(ctx, da, time.Now())
+	oldRef, _, err := t.S.GetAnchor(ctx, da, time.Now())
 	if stderrs.Is(err, bs.ErrNotFound) {
 		// Perhaps dir was added, which means its containing dir has (also) changed.
 		log.Printf("GetAnchor(%s) -> empty", da)
@@ -284,7 +285,7 @@ func (t *Tree) dirChanged(ctx context.Context, dir string, because map[string]*D
 	}
 
 	if newRef != oldRef {
-		err = t.S.PutAnchor(ctx, newRef, da, time.Now())
+		err = t.S.PutAnchor(ctx, da, time.Now(), newRef)
 		if err != nil {
 			return errors.Wrapf(err, "updating anchor for dir %s", dir)
 		}

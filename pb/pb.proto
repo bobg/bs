@@ -1,0 +1,16 @@
+syntax = "proto3";
+package pb;
+
+option go_package = ".;pb";
+
+// Blob is a typed blob.
+message Blob {
+  // Type is the bs.Ref of a DescriptorProto.
+  // (See https://godoc.org/google.golang.org/protobuf/types/descriptorpb#DescriptorProto.)
+  // It describes a type of protobuf message.
+  bytes type = 1;
+
+  // Blob is the serialized content of a protobuf message
+  // whose type matches Type.
+  bytes blob = 2;
+}

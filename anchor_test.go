@@ -70,7 +70,7 @@ func TestFindAnchor(t *testing.T) {
 
 	for i, tc := range cases {
 		t.Run(fmt.Sprintf("case_%02d", i+1), func(t *testing.T) {
-			got, err := FindAnchor(tc.pairs, tc.at)
+			got, _, err := FindAnchor(tc.pairs, tc.at)
 			switch {
 			case tc.wantErr && err == nil:
 				t.Error("got no error, want one")

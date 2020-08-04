@@ -16,28 +16,34 @@ type Getter interface {
 
 	// GetAnchor gets the latest ref with the given anchor
 	// not later than the given timestamp.
-	GetAnchor(context.Context, Anchor, time.Time) (Ref, error)
+	GetAnchor(context.Context, Anchor, time.Time) (Ref, time.Time, error)
 
-	// ListRefs lists all blob refs in the store in lexical order,
+	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
 	//
-	// The contents of the channel must reflect at least the set of refs known at the moment ListRefs was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
-	ListRefs(context.Context, Ref) (<-chan Ref, func() error, error)
+	// The calls reflect at least the set of refs known at the moment ListRefs was called.
+	// It is unspecified whether later changes,
+	// that happen concurrently with ListRefs,
+	// are reflected.
+	//
+	// If the callback function returns an error,
+	// ListRefs exits with that error.
+	ListRefs(context.Context, Ref, func(Ref) error) error
 
-	// ListAnchors lists all anchors in the store in lexical order,
+	// ListAnchors calls a function for each anchor/timestamp/ref in the store,
 	// beginning with the first anchor _after_ the specified one.
+	// These triples are passed to the callback in ascending order,
+	// sorted lexicographically by anchor name,
+	// and by time within a given anchor name.
 	//
-	// The contents of the channel must reflect at least the set of anchors known at the moment ListAnchors was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
-	ListAnchors(context.Context, Anchor) (<-chan Anchor, func() error, error)
-
-	// ListAnchorRefs lists all TimeRefs for the given anchor,
-	// in time order.
+	// The calls reflect at least the set of anchors known at the moment ListAnchors was called.
+	// It is unspecified whether later changes,
+	// that happen concurrently with ListAnchors,
+	// are reflected.
 	//
-	// The contents of the channel must reflect at least the set of time/ref pairs known at the moment ListAnchorRefs was called.
-	// It is unspecified whether later changes to that set are reflected in the channel while it is being consumed.
-	ListAnchorRefs(context.Context, Anchor) (<-chan TimeRef, func() error, error)
+	// If the callback function returns an error,
+	// ListAnchors exits with that error.
+	ListAnchors(context.Context, Anchor, func(Anchor, time.Time, Ref) error) error
 }
 
 // Store is a blob store.
@@ -55,7 +61,7 @@ type Store interface {
 	PutMulti(context.Context, []Blob) (PutMultiResult, error)
 
 	// PutAnchor associates an anchor and a timestamp with a ref.
-	PutAnchor(context.Context, Ref, Anchor, time.Time) error
+	PutAnchor(context.Context, Anchor, time.Time, Ref) error
 }
 
 type (

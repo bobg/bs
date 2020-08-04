@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/mem"
+	"github.com/bobg/bs/store/mem"
 )
 
 func TestDsync(t *testing.T) {

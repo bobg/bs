@@ -1,0 +1,38 @@
+syntax = "proto3";
+package schema;
+
+option go_package = ".;schema";
+
+message TreeNode {
+  int32 depth = 1;
+  int32 size  = 2;
+
+  SubNode left  = 3;
+  SubNode right = 4;
+}
+
+message SubNode {
+  bytes ref  = 1;
+  int32 size = 2;
+}
+
+// Set is a set of refs, represented as a tree.
+// The shape of the tree is insensitive to the order of Add and Remove calls.
+message Set {
+  TreeNode node = 1;
+
+  // Mutually exclusive with node.left and node.right.
+  repeated bytes members = 2;
+}
+
+message MapPair {
+  bytes key     = 1;
+  bytes payload = 2;
+}
+
+message Map {
+  TreeNode node = 1;
+
+  // Mutually exclusive with node.left and node.right.
+  repeated MapPair members = 2;
+}

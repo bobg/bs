@@ -1,0 +1,16 @@
+syntax = "proto3";
+package split;
+
+option go_package = ".;split";
+
+// Node is a node in a hashsplit tree created with split.Write.
+message Node {
+  // Refs of other Nodes.
+  repeated bytes nodes = 1;
+
+  // Refs of leaf blobs.
+  repeated bytes leaves = 2;
+
+  // Number of bytes represented by this node.
+  uint64 size = 3;
+}
