@@ -6,6 +6,9 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
 )
@@ -30,7 +33,7 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.TBlob, error) {
 	if b, ok := s.tblobs[ref]; ok {
 		return b, nil
 	}
-	return nil, bs.ErrNotFound
+	return bs.TBlob{}, bs.ErrNotFound
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
@@ -72,7 +75,7 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 // Caller must obtain a lock.
 func (s *Store) put(ref bs.Ref, b bs.Blob) bool {
-	if _, ok := s.tblobs[r]; !ok {
+	if _, ok := s.tblobs[ref]; !ok {
 		s.tblobs[ref] = bs.TBlob{Blob: b}
 		return true
 	}
@@ -84,7 +87,7 @@ func (s *Store) PutProto(_ context.Context, m proto.Message) (bs.Ref, bool, erro
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "marshaling protobuf")
 	}
-	ref := b.Ref()
+	ref := bs.Blob(b).Ref()
 	added := s.put(ref, b)
 
 	typ, err := bs.Type(m)

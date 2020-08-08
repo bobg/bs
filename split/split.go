@@ -88,7 +88,7 @@ func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, err
 			tn.Nodes = append(tn.Nodes, childRef[:])
 		}
 	}
-	ref, _, err := bs.PutProto(ctx, s, tn)
+	ref, _, err := s.PutProto(ctx, tn)
 	return ref, err
 }
 
@@ -123,21 +123,12 @@ func splitRead(ctx context.Context, g bs.Getter, n *Node, w io.Writer) error {
 }
 
 func splitReadHelper(ctx context.Context, g bs.Getter, subrefsBytes [][]byte, do func([]byte) error) error {
-	subrefs := make([]bs.Ref, len(subrefsBytes))
-	for i, b := range subrefsBytes {
-		copy(subrefs[i][:], b)
-	}
-	blobs, err := g.GetMulti(ctx, subrefs)
-	if err != nil {
-		return err
-	}
-	for _, subref := range subrefs {
-		f := blobs[subref]
-		m, err := f(ctx)
+	for _, s := range subrefsBytes {
+		tb, err := g.Get(ctx, bs.RefFromBytes(s))
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "getting %x", s)
 		}
-		err = do(m)
+		err = do(tb.Blob)
 		if err != nil {
 			return err
 		}
