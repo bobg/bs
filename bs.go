@@ -13,11 +13,17 @@ type (
 	// Blob is the type of a blob.
 	Blob []byte
 
-	// Ref is a reference of a blob: its sha256 hash.
+	// Ref is the reference of a blob: its sha256 hash.
 	Ref [sha256.Size]byte
 
-	// Anchor maps an arbitrary string to one or more blob references.
-	Anchor string
+	// TBlob is a typed blob:
+	// a pair of a blob produced by serializing a protobuf,
+	// and the type of that protobuf
+	// expressed as the ref of the protobuf's descriptor.
+	TBlob struct {
+		Blob Blob
+		Type Ref
+	}
 )
 
 // Ref computes the Ref of a blob.
@@ -45,6 +51,7 @@ func (r *Ref) FromHex(s string) error {
 }
 
 // RefFromBytes produces a Ref from a byte slice.
+// The length of the byte slice is not checked.
 func RefFromBytes(b []byte) Ref {
 	var out Ref
 	copy(out[:], b)

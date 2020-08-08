@@ -4,16 +4,8 @@ import (
 	"context"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
 )
-
-// PutProto adds the serialization of a protocol buffer as a single blob to a blob store.
-func PutProto(ctx context.Context, s Store, p proto.Message) (ref Ref, added bool, err error) {
-	m, err := proto.Marshal(p)
-	if err != nil {
-		return Ref{}, false, err
-	}
-	return s.Put(ctx, m)
-}
 
 // GetProto reads a blob from a blob store and parses it into the given protocol buffer.
 func GetProto(ctx context.Context, g Getter, ref Ref, p proto.Message) error {
@@ -21,14 +13,10 @@ func GetProto(ctx context.Context, g Getter, ref Ref, p proto.Message) error {
 	if err != nil {
 		return err
 	}
-	return proto.Unmarshal(b, p)
+	return proto.Unmarshal(b.Blob, p)
 }
 
-// ProtoRef computes the ref of a protocol buffer (by marshaling it as a blob).
-func ProtoRef(p proto.Message) (Ref, error) {
-	m, err := proto.Marshal(p)
-	if err != nil {
-		return Ref{}, err
-	}
-	return Blob(m).Ref(), nil
+// Type produces the type of a protobuf message (its descriptor) as a Blob.
+func Type(m proto.Message) (Blob, error) {
+	return proto.Marshal(protodesc.ToDescriptorProto(m.ProtoReflect().Descriptor()))
 }

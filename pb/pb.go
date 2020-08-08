@@ -16,11 +16,6 @@ import (
 	"github.com/bobg/bs"
 )
 
-// Type produces the type of the protobuf message (its descriptor) as a Blob.
-func Type(m proto.Message) (bs.Blob, error) {
-	return proto.Marshal(protodesc.ToDescriptorProto(m.ProtoReflect().Descriptor()))
-}
-
 // Put stores a protobuf as a blob together with its type information.
 //
 // The type is turned into a bs.Blob with Type and stored separately.

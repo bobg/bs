@@ -3,10 +3,10 @@ package lru
 
 import (
 	"context"
-	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
@@ -30,55 +30,16 @@ func New(s bs.Store, size int) (*Store, error) {
 
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
-	if got, ok := s.c.Get(ref); ok {
-		return got.(bs.Blob), nil
+	if gotPair, ok := s.c.Get(ref); ok {
+		p := gotPair.(bs.TBlob)
+		return p.Blob, p.Type, nil
 	}
-	got, err := s.s.Get(ctx, ref)
+	blob, typ, err := s.s.Get(ctx, ref)
 	if err != nil {
 		return nil, err
 	}
-	s.c.Add(ref, got)
-	return got, nil
-}
-
-// GetMulti gets multiple blobs in one call.
-func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
-	m := make(bs.GetMultiResult)
-
-	var misses []bs.Ref
-	for _, ref := range refs {
-		ref := ref
-		if got, ok := s.c.Get(ref); ok {
-			m[ref] = func(_ context.Context) (bs.Blob, error) { return got.(bs.Blob), nil }
-		} else {
-			misses = append(misses, ref)
-		}
-	}
-
-	if len(misses) > 0 {
-		m2, err := s.s.GetMulti(ctx, misses)
-		if err != nil {
-			return nil, err
-		}
-		for ref, fn := range m2 {
-			ref, fn := ref, fn
-			m[ref] = func(ctx context.Context) (bs.Blob, error) {
-				b, err := fn(ctx)
-				if err != nil {
-					return nil, err
-				}
-				s.c.Add(ref, b)
-				return b, nil
-			}
-		}
-	}
-
-	return m, nil
-}
-
-// GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, time.Time, error) {
-	return s.s.GetAnchor(ctx, a, at)
+	s.c.Add(ref, bs.TBlob{Blob: blob, Type: typ})
+	return blob, typ, nil
 }
 
 // Put adds a blob to the store if it wasn't already present.
@@ -87,28 +48,31 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	if err != nil {
 		return ref, added, err
 	}
-	s.c.Add(ref, b)
+	s.c.Add(ref, bs.TBlob{Blob: b})
 	return ref, added, nil
 }
 
-// PutMulti adds multiple blobs to the store in one call.
-func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
-	return bs.PutMulti(ctx, s, blobs)
-}
-
-// PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
-	return s.s.PutAnchor(ctx, a, at, ref)
+func (s *Store) PutProto(ctx context.Context, m proto.Message) (bs.Ref, bool, error) {
+	ref, added, err := s.s.PutProto(ctx, m)
+	if err != nil {
+		return bs.Ref{}, false, err
+	}
+	blob, err := proto.Marshal(m)
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "remarshaling protobuf")
+	}
+	typ, err := bs.Type(m)
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "getting protobuf type")
+	}
+	typRef := typ.Ref()
+	s.c.Add(ref, bs.TBlob{Blob: blob, Type: typRef})
+	return ref, added, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
 	return s.s.ListRefs(ctx, start, f)
-}
-
-// ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
-	return s.s.ListAnchors(ctx, start, f)
 }
 
 func init() {
