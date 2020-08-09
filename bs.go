@@ -15,15 +15,6 @@ type (
 
 	// Ref is the reference of a blob: its sha256 hash.
 	Ref [sha256.Size]byte
-
-	// TBlob is a typed blob:
-	// a pair of a blob produced by serializing a protobuf,
-	// and the type of that protobuf
-	// expressed as the ref of the protobuf's descriptor.
-	TBlob struct {
-		Blob Blob
-		Type Ref
-	}
 )
 
 // Ref computes the Ref of a blob.

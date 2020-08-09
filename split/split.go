@@ -50,7 +50,7 @@ func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Spl
 	err := func() error {
 		defer close(ch)
 		return splitter.Split(ctx, r, func(chunk hashsplit.Chunk) error {
-			ref, _, err := s.Put(ctx, chunk.Bytes)
+			ref, _, err := s.Put(ctx, chunk.Bytes, nil)
 			if err != nil {
 				return errors.Wrap(err, "writing split chunk to store")
 			}
@@ -88,7 +88,7 @@ func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, err
 			tn.Nodes = append(tn.Nodes, childRef[:])
 		}
 	}
-	ref, _, err := s.PutProto(ctx, tn)
+	ref, _, err := bs.PutProto(ctx, s, tn)
 	return ref, err
 }
 
@@ -124,11 +124,11 @@ func splitRead(ctx context.Context, g bs.Getter, n *Node, w io.Writer) error {
 
 func splitReadHelper(ctx context.Context, g bs.Getter, subrefsBytes [][]byte, do func([]byte) error) error {
 	for _, s := range subrefsBytes {
-		tb, err := g.Get(ctx, bs.RefFromBytes(s))
+		b, _, err := g.Get(ctx, bs.RefFromBytes(s))
 		if err != nil {
 			return errors.Wrapf(err, "getting %x", s)
 		}
-		err = do(tb.Blob)
+		err = do(b)
 		if err != nil {
 			return err
 		}

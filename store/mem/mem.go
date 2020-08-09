@@ -6,9 +6,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
 )
@@ -16,46 +13,53 @@ import (
 var _ bs.Store = &Store{}
 
 // Store is a memory-based implementation of a blob store.
-type Store struct {
-	mu     sync.Mutex
-	tblobs map[bs.Ref]bs.TBlob
-}
+type (
+	Store struct {
+		mu     sync.Mutex
+		tblobs map[bs.Ref]tblob
+	}
+
+	tblob struct {
+		blob bs.Blob
+		typ  bs.Ref
+	}
+)
 
 // New produces a new Store.
 func New() *Store {
-	return &Store{tblobs: make(map[bs.Ref]bs.TBlob)}
+	return &Store{tblobs: make(map[bs.Ref]tblob)}
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.TBlob, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if b, ok := s.tblobs[ref]; ok {
-		return b, nil
+	if p, ok := s.tblobs[ref]; ok {
+		return p.blob, p.typ, nil
 	}
-	return bs.TBlob{}, bs.ErrNotFound
+	return bs.Blob{}, bs.Ref{}, bs.ErrNotFound
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
-	type pair struct {
+	type tref struct {
 		r, typ bs.Ref
 	}
 
 	s.mu.Lock()
-	var pairs []pair
-	for ref, tb := range s.tblobs {
+	var trefs []tref
+	for ref, rt := range s.tblobs {
 		if ref.Less(start) || ref == start {
 			continue
 		}
-		pairs = append(pairs, pair{r: ref, typ: tb.Type})
+		trefs = append(trefs, tref{r: ref, typ: rt.typ})
 	}
 	s.mu.Unlock()
 
-	sort.Slice(pairs, func(i, j int) bool { return pairs[i].r.Less(pairs[j].r) })
+	sort.Slice(trefs, func(i, j int) bool { return trefs[i].r.Less(trefs[j].r) })
 
-	for _, p := range pairs {
-		err := f(p.r, p.typ)
+	for _, tr := range trefs {
+		err := f(tr.r, tr.typ)
 		if err != nil {
 			return err
 		}
@@ -64,42 +68,20 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
+func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	ref := b.Ref()
-	added := s.put(ref, b)
-	return ref, added, nil
-}
-
-// Caller must obtain a lock.
-func (s *Store) put(ref bs.Ref, b bs.Blob) bool {
 	if _, ok := s.tblobs[ref]; !ok {
-		s.tblobs[ref] = bs.TBlob{Blob: b}
-		return true
+		tb := tblob{blob: b}
+		if typ != nil {
+			tb.typ = *typ
+		}
+		s.tblobs[ref] = tb
+		return ref, true, nil
 	}
-	return false
-}
-
-func (s *Store) PutProto(_ context.Context, m proto.Message) (bs.Ref, bool, error) {
-	b, err := proto.Marshal(m)
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "marshaling protobuf")
-	}
-	ref := bs.Blob(b).Ref()
-	added := s.put(ref, b)
-
-	typ, err := bs.Type(m)
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "marshaling protobuf descriptor")
-	}
-	typRef := typ.Ref()
-	if ref != typRef { // prevent infinite regress when m is a descriptor proto
-		s.put(typRef, typ)
-	}
-
-	return ref, added, nil
+	return ref, false, nil
 }
 
 func init() {

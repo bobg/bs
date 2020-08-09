@@ -3,8 +3,6 @@ package bs
 import (
 	"context"
 	"errors"
-
-	"google.golang.org/protobuf/proto"
 )
 
 // Getter is a read-only Store (qv).
@@ -14,7 +12,7 @@ type Getter interface {
 	// then the returned object includes the type of the protobuf,
 	// expressed as the ref of the protobuf's descriptor.
 	// Otherwise the type is the zero ref.
-	Get(context.Context, Ref) (TBlob, error)
+	Get(context.Context, Ref) (Blob, Ref, error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
@@ -41,14 +39,7 @@ type Store interface {
 
 	// Put adds a blob to the store if it was not already present.
 	// It returns the blob's ref and a boolean that is true iff the blob had to be added.
-	Put(context.Context, Blob) (ref Ref, added bool, err error)
-
-	// PutProto serializes a protobuf and adds it to the store as a blob.
-	// It also stores the blob's "protobuf type" like this:
-	// it serializes the protobuf's "descriptor,"
-	// adds that as a blob,
-	// and adds a mapping between the descriptor blob's ref and the data blob's ref.
-	PutProto(context.Context, proto.Message) (ref Ref, added bool, err error)
+	Put(context.Context, Blob, *Ref) (ref Ref, added bool, err error)
 }
 
 // ErrNotFound is the error returned
