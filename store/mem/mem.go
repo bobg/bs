@@ -5,29 +5,44 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
+
+	"google.golang.org/protobuf/proto"
+
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 )
 
-var _ bs.Store = &Store{}
+var _ anchor.Store = &Store{}
 
 // Store is a memory-based implementation of a blob store.
 type (
 	Store struct {
-		mu     sync.Mutex
-		tblobs map[bs.Ref]tblob
+		mu      sync.Mutex
+		tblobs  map[bs.Ref]tblob
+		anchors map[string][]timeref
 	}
 
 	tblob struct {
 		blob bs.Blob
 		typ  bs.Ref
 	}
+
+	timeref struct {
+		r bs.Ref
+		t time.Time
+	}
 )
 
 // New produces a new Store.
 func New() *Store {
-	return &Store{tblobs: make(map[bs.Ref]tblob)}
+	return &Store{
+		tblobs:  make(map[bs.Ref]tblob),
+		anchors: make(map[string][]timeref),
+	}
 }
 
 // Get gets the blob with hash `ref`.
@@ -79,9 +94,48 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 			tb.typ = *typ
 		}
 		s.tblobs[ref] = tb
+
+		if typ != nil && *typ == anchor.TypeRef() {
+			var a anchor.Anchor
+			err := proto.Unmarshal(b, &a)
+			if err != nil {
+				return bs.Ref{}, false, errors.Wrap(err, "unmarshaling Anchor protobuf")
+			}
+
+			at := a.At.AsTime()
+			tr := timeref{r: bs.RefFromBytes(a.Ref), t: at}
+
+			anchors := s.anchors[a.Name]
+			anchors = append(anchors, tr)
+			sort.Slice(anchors, func(i, j int) bool {
+				return anchors[i].t.Before(anchors[j].t)
+			})
+			s.anchors[a.Name] = anchors
+		}
+
 		return ref, true, nil
 	}
 	return ref, false, nil
+}
+
+func (s *Store) GetAnchor(_ context.Context, name string, at time.Time) (bs.Ref, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	anchors := s.anchors[name]
+	if len(anchors) == 0 {
+		return bs.Ref{}, bs.ErrNotFound
+	}
+	index := sort.Search(len(anchors), func(n int) bool {
+		return !anchors[n].t.Before(at)
+	})
+	if index < len(anchors) && anchors[index].t.Equal(at) {
+		return anchors[index].r, nil
+	}
+	if index == 0 {
+		return bs.Ref{}, bs.ErrNotFound
+	}
+	return anchors[index-1].r, nil
 }
 
 func init() {

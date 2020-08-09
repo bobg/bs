@@ -15,3 +15,7 @@ func TestStore(t *testing.T) {
 	}
 	testutil.ReadWrite(context.Background(), t, New(), data)
 }
+
+func TestAnchors(t *testing.T) {
+	testutil.Anchors(context.Background(), t, New())
+}

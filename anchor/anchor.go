@@ -20,8 +20,6 @@ type Store interface {
 	Getter
 }
 
-var TypeRef bs.Ref
-
 func Init(ctx context.Context, s Store) error {
 	err := bs.Init(ctx, s)
 	if err != nil {
@@ -31,14 +29,20 @@ func Init(ctx context.Context, s Store) error {
 	if err != nil {
 		return errors.Wrap(err, "computing Anchor type blob")
 	}
-	_, _, err = s.Put(ctx, b, &TypeRef)
+	tr := TypeRef()
+	_, _, err = s.Put(ctx, b, &tr)
 	return errors.Wrap(err, "storing Anchor type")
 }
 
-func init() {
-	var err error
-	TypeRef, err = bs.TypeRef(&Anchor{})
-	if err != nil {
-		panic(err)
+var typeRef *bs.Ref
+
+func TypeRef() bs.Ref {
+	if typeRef == nil {
+		tr, err := bs.TypeRef(&Anchor{})
+		if err != nil {
+			panic(err)
+		}
+		typeRef = &tr
 	}
+	return *typeRef
 }
