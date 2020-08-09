@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
 )
@@ -24,21 +22,19 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 		r1b = bs.Ref{0x1b}
 		r2  = bs.Ref{0x2}
 
-		t1Time = time.Date(1977, 8, 5, 12, 0, 0, 0, time.FixedZone("UTC-4", -4*60*60))
-		t2Time = t1Time.Add(time.Hour)
-		t1     = timestamppb.New(t1Time)
-		t2     = timestamppb.New(t2Time)
+		t1 = time.Date(1977, 8, 5, 12, 0, 0, 0, time.FixedZone("UTC-4", -4*60*60))
+		t2 = t1.Add(time.Hour)
 	)
 
-	_, _, err := bs.PutProto(ctx, store, &anchor.Anchor{Name: a1, Ref: r1a[:], At: t1})
+	_, _, err := anchor.Put(ctx, store, a1, r1a, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = bs.PutProto(ctx, store, &anchor.Anchor{Name: a1, Ref: r1b[:], At: t2})
+	_, _, err = anchor.Put(ctx, store, a1, r1b, t2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = bs.PutProto(ctx, store, &anchor.Anchor{Name: a2, Ref: r2[:], At: t1})
+	_, _, err = anchor.Put(ctx, store, a2, r2, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,18 +45,18 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 		want    bs.Ref
 		wantErr error
 	}{
-		{a: a1, tm: t1Time, want: r1a},
-		{a: a1, tm: t1Time.Add(time.Minute), want: r1a},
-		{a: a1, tm: t2Time, want: r1b},
-		{a: a1, tm: t2Time.Add(time.Minute), want: r1b},
-		{a: a1, tm: t1Time.Add(-time.Minute), wantErr: bs.ErrNotFound},
-		{a: a1, tm: t2Time.Add(-time.Minute), want: r1a},
+		{a: a1, tm: t1, want: r1a},
+		{a: a1, tm: t1.Add(time.Minute), want: r1a},
+		{a: a1, tm: t2, want: r1b},
+		{a: a1, tm: t2.Add(time.Minute), want: r1b},
+		{a: a1, tm: t1.Add(-time.Minute), wantErr: bs.ErrNotFound},
+		{a: a1, tm: t2.Add(-time.Minute), want: r1a},
 
-		{a: a2, tm: t1Time, want: r2},
-		{a: a2, tm: t1Time.Add(time.Minute), want: r2},
-		{a: a2, tm: t1Time.Add(-time.Minute), wantErr: bs.ErrNotFound},
+		{a: a2, tm: t1, want: r2},
+		{a: a2, tm: t1.Add(time.Minute), want: r2},
+		{a: a2, tm: t1.Add(-time.Minute), wantErr: bs.ErrNotFound},
 
-		{a: a3, tm: t2Time, wantErr: bs.ErrNotFound},
+		{a: a3, tm: t2, wantErr: bs.ErrNotFound},
 	}
 
 	for i, c := range cases {
