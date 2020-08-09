@@ -1,0 +1,12 @@
+syntax = "proto3";
+package anchor;
+
+option go_package = ".;anchor";
+
+import "google/protobuf/timestamp.proto";
+
+message Anchor {
+  string                    name = 1;
+  bytes                     ref  = 2;
+  google.protobuf.Timestamp at   = 3;
+}

@@ -19,14 +19,18 @@ func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
 }
 
 func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) {
-	typeProto := ProtoType(m)
-	typeBytes, err := proto.Marshal(typeProto)
-	if err != nil {
-		return Ref{}, false, errors.Wrap(err, "marshaling protobuf type")
-	}
-	typeRef, _, err := s.Put(ctx, typeBytes, &typeTypeRef)
-	if err != nil {
-		return Ref{}, false, errors.Wrap(err, "storing protobuf type")
+	typeProto := Type(m)
+
+	var typeRef Ref
+	if _, ok := m.(*descriptorpb.DescriptorProto); ok {
+		typeRef = TypeTypeRef
+	} else {
+		var err error
+
+		typeRef, _, err = PutProto(ctx, s, typeProto)
+		if err != nil {
+			return Ref{}, false, errors.Wrap(err, "storing protobuf type")
+		}
 	}
 
 	b, err := proto.Marshal(m)
@@ -37,25 +41,37 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 	return s.Put(ctx, b, &typeRef)
 }
 
-func ProtoType(m proto.Message) proto.Message {
+func Type(m proto.Message) proto.Message {
 	return protodesc.ToDescriptorProto(m.ProtoReflect().Descriptor())
 }
 
+func TypeBlob(m proto.Message) (Blob, error) {
+	t := Type(m)
+	b, err := proto.Marshal(t)
+	return Blob(b), err
+}
+
+func TypeRef(m proto.Message) (Ref, error) {
+	b, err := TypeBlob(m)
+	if err != nil {
+		return Ref{}, err
+	}
+	return b.Ref(), nil
+}
+
 var (
-	typeTypeRef  Ref
-	typeTypeBlob Blob
+	TypeTypeRef  Ref
+	TypeTypeBlob Blob
 )
 
 func init() {
-	var (
-		dp descriptorpb.DescriptorProto
-		p  = ProtoType(&dp)
-	)
+	t := Type(&descriptorpb.DescriptorProto{})
 
-	typeTypeBytes, err := proto.Marshal(p)
+	var err error
+	TypeTypeBlob, err = TypeBlob(t)
 	if err != nil {
 		panic(err)
 	}
-	typeTypeBlob = Blob(typeTypeBytes)
-	typeTypeRef = typeTypeBlob.Ref()
+
+	TypeTypeRef = TypeTypeBlob.Ref()
 }

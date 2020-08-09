@@ -45,3 +45,8 @@ type Store interface {
 // ErrNotFound is the error returned
 // when a Getter tries to access a non-existent ref.
 var ErrNotFound = errors.New("not found")
+
+func Init(ctx context.Context, s Store) error {
+	_, _, err := s.Put(ctx, TypeTypeBlob, &TypeTypeRef)
+	return err
+}
