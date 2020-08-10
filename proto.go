@@ -2,15 +2,19 @@ package bs
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 // GetProto reads a blob from a blob store and parses it into the given protocol buffer.
 func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
+	// TODO: check type info?
 	b, _, err := g.Get(ctx, ref)
 	if err != nil {
 		return err
@@ -82,4 +86,58 @@ func init() {
 	}
 
 	TypeTypeRef = TypeTypeBlob.Ref()
+}
+
+// Experimental! See:
+// https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!msg/protobuf/xRWSIyQ3Qyg/YcuGve18BAAJ.
+
+// DynGetProto retrieves the pb.Blob (typed blob) at ref,
+// constructs a new *dynamicpb.Message from the described type,
+// and loads the nested Blob into it.
+// This serializes the same as the original protobuf
+// but is not convertible (or type-assertable) to the original protobuf's Go type.
+func DynGetProto(ctx context.Context, g Getter, ref Ref) (*dynamicpb.Message, error) {
+	b, typ, err := g.Get(ctx, ref)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting %s", ref)
+	}
+
+	var dp descriptorpb.DescriptorProto
+	err = GetProto(ctx, g, typ, &dp)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting descriptor proto at %s", typ)
+	}
+
+	md, err := descriptorProtoToMessageDescriptor(&dp)
+	if err != nil {
+		return nil, errors.Wrapf(err, "manifesting descriptor proto at %s", typ)
+	}
+
+	dm := dynamicpb.NewMessage(md)
+	err = proto.Unmarshal(b, dm)
+	return dm, errors.Wrapf(err, "unmarshaling %s into protobuf manifested from descriptor proto at %s", ref, typ)
+}
+
+func descriptorProtoToMessageDescriptor(dp *descriptorpb.DescriptorProto) (protoreflect.MessageDescriptor, error) {
+	name := "x"
+	f, err := protodesc.NewFiles(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{{Name: &name, MessageType: []*descriptorpb.DescriptorProto{dp}}}})
+	if err != nil {
+		return nil, errors.Wrap(err, "creating Files object")
+	}
+	if n := f.NumFiles(); n != 1 {
+		return nil, fmt.Errorf("created Files object has %d files (want 1)", n)
+	}
+
+	var md protoreflect.MessageDescriptor
+	f.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+		mds := fd.Messages()
+		if n := mds.Len(); n != 1 {
+			err = fmt.Errorf("got %d messages in created Files object (want 1)", n)
+			return false
+		}
+		md = mds.Get(0)
+		return true
+	})
+
+	return md, err
 }
