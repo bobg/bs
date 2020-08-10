@@ -4,15 +4,18 @@ import (
 	"context"
 	"database/sql"
 	stderrs "errors"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3" // register the sqlite3 type for sql.Open
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 )
 
-var _ bs.Store = &Store{}
+var _ anchor.Store = &Store{}
 
 // Store is a Sqlite-based blob store.
 type Store struct {
@@ -20,8 +23,8 @@ type Store struct {
 }
 
 // Schema is the SQL that New executes.
-// It creates the `blobs` table if it does not exist.
-// (If it does exist, it must have the columns, constraints, and indexing described here.)
+// It creates the `blobs` and `anchors` tables if they do not exist.
+// (If they do exist, they must have the columns, constraints, and indexing described here.)
 const Schema = `
 CREATE TABLE IF NOT EXISTS blobs (
   ref BLOB PRIMARY KEY NOT NULL,
@@ -29,12 +32,18 @@ CREATE TABLE IF NOT EXISTS blobs (
   typ BLOB
 );
 
-CREATE INDEX IF NOT EXISTS typ_idx ON blobs (typ);
+CREATE TABLE IF NOT EXISTS anchors (
+  name TEXT NOT NULL,
+  ref BLOB NOT NULL,
+  at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS anchor_idx ON anchors (name, at);
 `
 
 // New produces a new Store using `db` for storage.
-// It expects to create the table `blobs`,
-// or for that table already to exist with the correct schema.
+// It expects to create tables `blobs` and `anchors`,
+// or for those tables already to exist with the correct schema.
 // (See variable Schema.)
 func New(ctx context.Context, db *sql.DB) (*Store, error) {
 	_, err := db.ExecContext(ctx, Schema)
@@ -58,21 +67,46 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	const q = `INSERT INTO blobs (ref, data, typ) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	ref := b.Ref()
 
-	var typRef bs.Ref
-	if typ != nil {
-		typRef = *typ
+	args := []interface{}{ref, b}
+
+	var q string
+	if typ == nil {
+		q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	} else {
+		q = `INSERT INTO blobs (ref, data, typ) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+		args = append(args, *typ)
 	}
 
-	ref := b.Ref()
-	res, err := s.db.ExecContext(ctx, q, ref, b, typRef)
+	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrapf(err, "inserting %s", ref)
 	}
 
 	aff, err := res.RowsAffected()
-	return ref, aff > 0, errors.Wrap(err, "counting affected rows")
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+	}
+	added := aff > 0
+
+	if typ != nil && added && *typ == anchor.TypeRef() {
+		var a anchor.Anchor
+		err := proto.Unmarshal(b, &a)
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "unmarshaling Anchor protobuf")
+		}
+
+		at := a.At.AsTime()
+
+		const q2 = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+		_, err = s.db.ExecContext(ctx, q2, a.Name, bs.RefFromBytes(a.Ref), at.UTC().Format(time.RFC3339Nano))
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
+		}
+	}
+
+	return ref, added, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
@@ -98,6 +132,17 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref
 		}
 	}
 	return errors.Wrap(rows.Err(), "iterating over result rows")
+}
+
+func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
+	const q = `SELECT ref FROM anchors WHERE name = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
+
+	var result bs.Ref
+	err := s.db.QueryRowContext(ctx, q, name, at.UTC().Format(time.RFC3339Nano)).Scan(&result)
+	if stderrs.Is(err, sql.ErrNoRows) {
+		return bs.Ref{}, bs.ErrNotFound
+	}
+	return result, errors.Wrapf(err, "querying anchor %s", name)
 }
 
 func init() {

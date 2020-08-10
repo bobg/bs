@@ -63,6 +63,9 @@ func (r Ref) Value() (driver.Value, error) {
 
 // Scan implements the Scanner interface for database/sql.
 func (r *Ref) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
 	if b, ok := src.([]byte); ok {
 		copy((*r)[:], b)
 		return nil

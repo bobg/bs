@@ -26,6 +26,17 @@ func TestStore(t *testing.T) {
 	}
 }
 
+func TestAnchors(t *testing.T) {
+	ctx := context.Background()
+	err := withTestStore(ctx, func(s *Store) error {
+		testutil.Anchors(ctx, t, s)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func withTestStore(ctx context.Context, fn func(*Store) error) error {
 	f, err := ioutil.TempFile("", "bssqlite3test")
 	if err != nil {
