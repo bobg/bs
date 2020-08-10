@@ -8,14 +8,14 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/fs"
 )
 
 func (c maincmd) ingest(ctx context.Context, fset *flag.FlagSet, args []string) error {
 	var (
-		anchor = fset.String("anchor", "", "anchor to assign to ingested ref")
-		atstr  = fset.String("at", "", "timestamp for anchor (default: now)")
+		a     = fset.String("anchor", "", "anchor to assign to ingested ref")
+		atstr = fset.String("at", "", "timestamp for anchor (default: now)")
 	)
 	err := fset.Parse(args)
 	if err != nil {
@@ -33,7 +33,7 @@ func (c maincmd) ingest(ctx context.Context, fset *flag.FlagSet, args []string) 
 		return errors.Wrapf(err, "ingesting %s", args[0])
 	}
 
-	if *anchor != "" {
+	if *a != "" {
 		at := time.Now()
 		if *atstr != "" {
 			at, err = parsetime(*atstr)
@@ -42,9 +42,9 @@ func (c maincmd) ingest(ctx context.Context, fset *flag.FlagSet, args []string) 
 			}
 		}
 
-		err = c.s.PutAnchor(ctx, bs.Anchor(*anchor), at, ref)
+		_, _, err = anchor.Put(ctx, c.s, *a, ref, at)
 		if err != nil {
-			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *anchor, ref, at)
+			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *a, ref, at)
 		}
 	}
 

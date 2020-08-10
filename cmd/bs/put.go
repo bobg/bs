@@ -11,12 +11,13 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/split"
 )
 
 func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error {
 	var (
-		anchor  = fs.String("anchor", "", "anchor to assign to added ref")
+		a       = fs.String("anchor", "", "anchor to assign to added ref")
 		dosplit = fs.Bool("split", false, "get a split tree instead of a single blob")
 		atstr   = fs.String("at", "", "timestamp for anchor (default: now)")
 	)
@@ -39,13 +40,13 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 		if err != nil {
 			return errors.Wrap(err, "reading stdin")
 		}
-		ref, added, err = c.s.Put(ctx, blob)
+		ref, added, err = c.s.Put(ctx, blob, nil)
 		if err != nil {
 			return errors.Wrap(err, "storing blob")
 		}
 	}
 
-	if *anchor != "" {
+	if *a != "" {
 		at := time.Now()
 		if *atstr != "" {
 			at, err = parsetime(*atstr)
@@ -54,9 +55,9 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 			}
 		}
 
-		err = c.s.PutAnchor(ctx, bs.Anchor(*anchor), at, ref)
+		_, _, err = anchor.Put(ctx, c.s, *a, ref, at)
 		if err != nil {
-			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *anchor, ref, at)
+			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *a, ref, at)
 		}
 	}
 
