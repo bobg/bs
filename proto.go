@@ -59,6 +59,14 @@ func TypeRef(m proto.Message) (Ref, error) {
 	return b.Ref(), nil
 }
 
+func ProtoRef(m proto.Message) (Ref, error) {
+	b, err := proto.Marshal(m)
+	if err != nil {
+		return Ref{}, err
+	}
+	return Blob(b).Ref(), nil
+}
+
 var (
 	TypeTypeRef  Ref
 	TypeTypeBlob Blob

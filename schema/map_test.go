@@ -40,7 +40,7 @@ func TestMap(t *testing.T) {
 		lines = append(lines, text)
 
 		blob := bs.Blob(sc.Text())
-		ref, _, err := store.Put(ctx, blob)
+		ref, _, err := store.Put(ctx, blob, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
