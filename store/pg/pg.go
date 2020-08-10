@@ -11,10 +11,11 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 )
 
-var _ bs.Store = &Store{}
+var _ anchor.Store = &Store{}
 
 // Store is a Postgresql-based blob store.
 type Store struct {
@@ -27,16 +28,17 @@ type Store struct {
 const Schema = `
 CREATE TABLE IF NOT EXISTS blobs (
   ref BYTEA PRIMARY KEY NOT NULL,
-  data BYTEA NOT NULL
+  data BYTEA NOT NULL,
+  typ BYTEA
 );
 
 CREATE TABLE IF NOT EXISTS anchors (
-  anchor TEXT NOT NULL,
-  at TIMESTAMP WITH TIME ZONE NOT NULL,
-  ref BYTEA NOT NULL
+  name TEXT NOT NULL,
+  ref BYTEA NOT NULL,
+  at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ON anchors (anchor, at);
+CREATE INDEX IF NOT EXISTS ON anchors (name, at);
 `
 
 // New produces a new Store using `db` for storage.
@@ -49,113 +51,71 @@ func New(ctx context.Context, db *sql.DB) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
-	const q = `SELECT data FROM blobs WHERE ref = $1`
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
+	const q = `SELECT data, typ FROM blobs WHERE ref = $1`
 
-	var result bs.Blob
-	err := s.db.QueryRowContext(ctx, q, ref).Scan(&result)
+	var (
+		b   bs.Blob
+		typ bs.Ref
+	)
+	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b, &typ)
 	if stderrs.Is(err, sql.ErrNoRows) {
-		return nil, bs.ErrNotFound
+		return nil, bs.Ref{}, bs.ErrNotFound
 	}
-	return result, err
-}
-
-// GetMulti gets multiple blobs in one call.
-// TODO: refactor; this matches the implementation in gcs.
-func (s *Store) GetMulti(ctx context.Context, refs []bs.Ref) (bs.GetMultiResult, error) {
-	result := make(bs.GetMultiResult)
-	for _, ref := range refs {
-		var (
-			ref = ref
-			ch  = make(chan struct{})
-			b   []byte
-			err error
-		)
-		go func() {
-			b, err = s.Get(ctx, ref)
-			close(ch)
-		}()
-		result[ref] = func(ctx context.Context) (bs.Blob, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-ch:
-				return b, err
-			}
-		}
-	}
-	return result, nil
+	return b, typ, errors.Wrapf(err, "getting %s", ref)
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a bs.Anchor, at time.Time) (bs.Ref, time.Time, error) {
-	const q = `SELECT ref, at FROM anchors WHERE anchor = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
+func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
+	const q = `SELECT ref FROM anchors WHERE name = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
 
-	var (
-		result bs.Ref
-		atime  time.Time
-	)
-	err := s.db.QueryRowContext(ctx, q, a, at).Scan(&result, &atime)
+	var result bs.Ref
+	err := s.db.QueryRowContext(ctx, q, name, at).Scan(&result)
 	if stderrs.Is(err, sql.ErrNoRows) {
-		return bs.Ref{}, time.Time{}, bs.ErrNotFound
+		return bs.Ref{}, bs.ErrNotFound
 	}
-	return result, atime, err
+	return result, errors.Wrapf(err, "getting anchor %s", name)
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
-	const q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-
+func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
 	ref := b.Ref()
-	res, err := s.db.ExecContext(ctx, q, ref, b)
+	args := []interface{}{ref, b}
+
+	var q string
+	if typ == nil {
+		q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	} else {
+		q = `INSERT INTO blobs (ref, data, typ) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+		args = append(args, *typ)
+	}
+	res, err := s.db.ExecContext(ctx, q, args...)
 	if err != nil {
-		return bs.Ref{}, false, err
+		return bs.Ref{}, false, errors.Wrapf(err, "inserting %s", ref)
 	}
 
 	aff, err := res.RowsAffected()
-	return ref, aff > 0, err
-}
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+	}
 
-// PutMulti adds multiple blobs to the store in one call.
-// TODO: refactor; this matches the implementation in gcs.
-func (s *Store) PutMulti(ctx context.Context, blobs []bs.Blob) (bs.PutMultiResult, error) {
-	result := make(bs.PutMultiResult, len(blobs))
-	for i, b := range blobs {
-		var (
-			i     = i
-			b     = b
-			ch    = make(chan struct{})
-			ref   bs.Ref
-			added bool
-			err   error
-		)
-		go func() {
-			ref, added, err = s.Put(ctx, b)
-			close(ch)
-		}()
-		result[i] = func(_ context.Context) (bs.Ref, bool, error) {
-			select {
-			case <-ctx.Done():
-				return bs.Ref{}, false, ctx.Err()
-			case <-ch:
-				return ref, added, err
-			}
+	if aff > 0 {
+		err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+			const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+			_, err := s.db.ExecContext(ctx, q, name, ref, at)
+			return err
+		})
+		if err != nil {
+			return ref, true, errors.Wrap(err, "inserting anchor")
 		}
 	}
-	return result, nil
-}
 
-// PutAnchor adds a new ref for a given anchor as of a given time.
-func (s *Store) PutAnchor(ctx context.Context, a bs.Anchor, at time.Time, ref bs.Ref) error {
-	const q = `INSERT INTO anchors (anchor, at, ref) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
-
-	_, err := s.db.ExecContext(ctx, q, a, at, ref)
-	return err
+	return ref, aff > 0, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	const q = `SELECT ref FROM blobs WHERE ref > $1 ORDER BY ref`
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
+	const q = `SELECT ref, typ FROM blobs WHERE ref > $1 ORDER BY ref`
 	rows, err := s.db.QueryContext(ctx, q, start)
 	if err != nil {
 		return errors.Wrap(err, "querying starting position")
@@ -163,41 +123,13 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	defer rows.Close()
 
 	for rows.Next() {
-		var ref bs.Ref
-		err := rows.Scan(&ref)
+		var ref, typ bs.Ref
+		err := rows.Scan(&ref, &typ)
 		if err != nil {
 			return errors.Wrap(err, "scanning query result")
 		}
 
-		err = f(ref)
-		if err != nil {
-			return err
-		}
-	}
-	return errors.Wrap(rows.Err(), "iterating over result rows")
-}
-
-// ListAnchors lists all anchors in the store, in lexicographic order.
-func (s *Store) ListAnchors(ctx context.Context, start bs.Anchor, f func(bs.Anchor, time.Time, bs.Ref) error) error {
-	const q = `SELECT anchor, at, ref FROM anchors WHERE anchor > $1 ORDER BY anchor, at`
-	rows, err := s.db.QueryContext(ctx, q, start)
-	if err != nil {
-		return errors.Wrap(err, "querying starting position")
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			anchor bs.Anchor
-			at     time.Time
-			ref    bs.Ref
-		)
-		err := rows.Scan(&anchor, &at, &ref)
-		if err != nil {
-			return errors.Wrap(err, "scanning query result")
-		}
-
-		err = f(anchor, at, ref)
+		err = f(ref, typ)
 		if err != nil {
 			return err
 		}

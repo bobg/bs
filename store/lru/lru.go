@@ -6,7 +6,6 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store"
@@ -15,11 +14,15 @@ import (
 var _ bs.Store = &Store{}
 
 // Store implements a memory-based least-recently-used cache for a blob store.
-// At present it caches only blobs, not anchors.
 // Writes pass through to the underlying blob store.
 type Store struct {
 	c *lru.Cache // Ref->Blob
 	s bs.Store
+}
+
+type tblob struct {
+	b   bs.Blob
+	typ bs.Ref
 }
 
 // New produces a new Store backed by `s` and caching up to `size` blobs.
@@ -29,44 +32,30 @@ func New(s bs.Store, size int) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
 	if gotPair, ok := s.c.Get(ref); ok {
-		p := gotPair.(bs.TBlob)
-		return p.Blob, p.Type, nil
+		p := gotPair.(tblob)
+		return p.b, p.typ, nil
 	}
 	blob, typ, err := s.s.Get(ctx, ref)
 	if err != nil {
-		return nil, err
+		return nil, bs.Ref{}, err
 	}
-	s.c.Add(ref, bs.TBlob{Blob: blob, Type: typ})
+	s.c.Add(ref, tblob{b: blob, typ: typ})
 	return blob, typ, nil
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
-	ref, added, err := s.s.Put(ctx, b)
+func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+	ref, added, err := s.s.Put(ctx, b, typ)
 	if err != nil {
 		return ref, added, err
 	}
-	s.c.Add(ref, bs.TBlob{Blob: b})
-	return ref, added, nil
-}
-
-func (s *Store) PutProto(ctx context.Context, m proto.Message) (bs.Ref, bool, error) {
-	ref, added, err := s.s.PutProto(ctx, m)
-	if err != nil {
-		return bs.Ref{}, false, err
+	var t bs.Ref
+	if typ != nil {
+		t = *typ
 	}
-	blob, err := proto.Marshal(m)
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "remarshaling protobuf")
-	}
-	typ, err := bs.Type(m)
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "getting protobuf type")
-	}
-	typRef := typ.Ref()
-	s.c.Add(ref, bs.TBlob{Blob: blob, Type: typRef})
+	s.c.Add(ref, tblob{b: b, typ: t})
 	return ref, added, nil
 }
 

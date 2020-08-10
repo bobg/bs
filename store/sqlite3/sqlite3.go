@@ -8,7 +8,6 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // register the sqlite3 type for sql.Open
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
@@ -88,25 +87,19 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
 	}
-	added := aff > 0
 
-	if typ != nil && added && *typ == anchor.TypeRef() {
-		var a anchor.Anchor
-		err := proto.Unmarshal(b, &a)
+	if aff > 0 {
+		err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+			const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+			_, err = s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))
+			return err
+		})
 		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "unmarshaling Anchor protobuf")
-		}
-
-		at := a.At.AsTime()
-
-		const q2 = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
-		_, err = s.db.ExecContext(ctx, q2, a.Name, bs.RefFromBytes(a.Ref), at.UTC().Format(time.RFC3339Nano))
-		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
+			return ref, true, errors.Wrap(err, "adding anchor")
 		}
 	}
 
-	return ref, added, nil
+	return ref, aff > 0, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.

@@ -7,10 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
-	"github.com/pkg/errors"
-
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
@@ -95,25 +91,18 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 		}
 		s.tblobs[ref] = tb
 
-		if typ != nil && *typ == anchor.TypeRef() {
-			var a anchor.Anchor
-			err := proto.Unmarshal(b, &a)
-			if err != nil {
-				return bs.Ref{}, false, errors.Wrap(err, "unmarshaling Anchor protobuf")
-			}
-
-			at := a.At.AsTime()
-			tr := timeref{r: bs.RefFromBytes(a.Ref), t: at}
-
-			anchors := s.anchors[a.Name]
+		err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+			tr := timeref{r: ref, t: at}
+			anchors := s.anchors[name]
 			anchors = append(anchors, tr)
 			sort.Slice(anchors, func(i, j int) bool {
 				return anchors[i].t.Before(anchors[j].t)
 			})
-			s.anchors[a.Name] = anchors
-		}
+			s.anchors[name] = anchors
+			return nil
+		})
 
-		return ref, true, nil
+		return ref, true, err
 	}
 	return ref, false, nil
 }

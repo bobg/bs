@@ -20,11 +20,3 @@ func TestStore(t *testing.T) {
 	}
 	testutil.ReadWrite(context.Background(), t, s, data)
 }
-
-func TestAnchors(t *testing.T) {
-	s, err := New(mem.New(), 1000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	testutil.Anchors(context.Background(), t, s)
-}

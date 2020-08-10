@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
@@ -45,6 +46,18 @@ func Init(ctx context.Context, s Store) error {
 
 func Put(ctx context.Context, s bs.Store, name string, ref bs.Ref, at time.Time) (bs.Ref, bool, error) {
 	return bs.PutProto(ctx, s, &Anchor{Name: name, Ref: ref[:], At: timestamppb.New(at)})
+}
+
+func Check(b bs.Blob, typ *bs.Ref, f func(name string, ref bs.Ref, at time.Time) error) error {
+	if typ == nil || *typ != TypeRef() {
+		return nil
+	}
+	var a Anchor
+	err := proto.Unmarshal(b, &a)
+	if err != nil {
+		return errors.Wrap(err, "unmarshaling Anchor protobuf")
+	}
+	return f(a.Name, bs.RefFromBytes(a.Ref), a.At.AsTime())
 }
 
 var typeRef *bs.Ref
