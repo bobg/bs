@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/split"
 )
@@ -70,7 +71,7 @@ func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 			}
 
 			subdirAnchor := newAnchor()
-			err = store.PutAnchor(ctx, subdirAnchor, time.Now(), subdirRef)
+			_, _, err = anchor.Put(ctx, store, subdirAnchor, subdirRef, time.Now())
 			if err != nil {
 				return bs.Ref{}, errors.Wrapf(err, "storing anchor for new dir %s/%s", path, info.Name())
 			}
@@ -127,7 +128,7 @@ func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, in
 	}
 
 	fileAnchor := newAnchor()
-	err = store.PutAnchor(ctx, fileAnchor, time.Now(), fref)
+	_, _, err = anchor.Put(ctx, store, fileAnchor, fref, time.Now())
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "storing new file anchor %s", fileAnchor)
 	}
@@ -144,8 +145,8 @@ func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, in
 	return dref, errors.Wrapf(err, "updating dir with file entry %s", name)
 }
 
-func newAnchor() bs.Anchor {
+func newAnchor() string {
 	var buf [32]byte
 	rand.Read(buf[:])
-	return bs.Anchor(hex.EncodeToString(buf[:]))
+	return hex.EncodeToString(buf[:])
 }

@@ -12,6 +12,8 @@ import (
 )
 
 type Getter interface {
+	bs.Getter
+
 	// GetAnchor returns the latest ref associated with the given anchor
 	// not later than the given time.
 	GetAnchor(context.Context, string, time.Time) (bs.Ref, error)

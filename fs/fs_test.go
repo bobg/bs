@@ -13,7 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/split"
 	"github.com/bobg/bs/store/mem"
 )
@@ -155,7 +155,7 @@ func compareFiles(path1, path2 string) error {
 	}
 }
 
-func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
+func extractInto(ctx context.Context, g anchor.Getter, d *Dir, dest string) error {
 	return d.Each(ctx, g, func(name string, dirent *Dirent) error {
 		mode := os.FileMode(dirent.Mode)
 		if mode.IsDir() {
@@ -165,7 +165,7 @@ func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 				return errors.Wrapf(err, "making subdir %s", subdirName)
 			}
 
-			subdirRef, _, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
+			subdirRef, err := g.GetAnchor(ctx, dirent.Item, time.Now())
 			if err != nil {
 				return errors.Wrapf(err, "resolving anchor %s for subdir %s", dirent.Item, subdirName)
 			}
@@ -185,7 +185,7 @@ func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 			return errors.Wrapf(err, "creating symlink %s/%s -> %s", dest, name, dirent.Item)
 		}
 
-		ref, _, err := g.GetAnchor(ctx, bs.Anchor(dirent.Item), time.Now())
+		ref, err := g.GetAnchor(ctx, dirent.Item, time.Now())
 		if err != nil {
 			return errors.Wrapf(err, "resolving anchor %s for file %s/%s", dirent.Item, dest, name)
 		}
