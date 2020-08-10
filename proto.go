@@ -22,6 +22,9 @@ func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
 	return proto.Unmarshal(b, m)
 }
 
+// PutProto serializes m and stores it as a blob in s along with its type ref
+// (see TypeRef).
+// Additionally, it stores m's type blob.
 func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) {
 	typeProto := Type(m)
 
@@ -45,16 +48,22 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 	return s.Put(ctx, b, &typeRef)
 }
 
+// Type computes the type protobuf of a given protobuf.
+// This is the protobuf's "descriptor," converted to its own protobuf.
 func Type(m proto.Message) proto.Message {
 	return protodesc.ToDescriptorProto(m.ProtoReflect().Descriptor())
 }
 
+// TypeBlob computes the type blob of a given protobuf.
+// This is the marshaled Type().
 func TypeBlob(m proto.Message) (Blob, error) {
 	t := Type(m)
 	b, err := proto.Marshal(t)
 	return Blob(b), err
 }
 
+// TypeRef computes the type ref of a given protobuf.
+// This is the ref of the TypeBlob().
 func TypeRef(m proto.Message) (Ref, error) {
 	b, err := TypeBlob(m)
 	if err != nil {
@@ -63,6 +72,7 @@ func TypeRef(m proto.Message) (Ref, error) {
 	return b.Ref(), nil
 }
 
+// ProtoRef is a convenience function for computing the ref of a serialized protobuf.
 func ProtoRef(m proto.Message) (Ref, error) {
 	b, err := proto.Marshal(m)
 	if err != nil {
@@ -72,7 +82,10 @@ func ProtoRef(m proto.Message) (Ref, error) {
 }
 
 var (
-	TypeTypeRef  Ref
+	// TypeTypeRef is the metatype ref: the type ref of a blob type.
+	TypeTypeRef Ref
+
+	// TypeTypeBlob is the metatype blob: the type of a blob type.
 	TypeTypeBlob Blob
 )
 

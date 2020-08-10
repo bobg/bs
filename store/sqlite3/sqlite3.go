@@ -127,6 +127,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref
 	return errors.Wrap(rows.Err(), "iterating over result rows")
 }
 
+// GetAnchor implements anchor.Store.GetAnchor.
 func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
 	const q = `SELECT ref FROM anchors WHERE name = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
 

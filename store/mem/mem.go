@@ -107,6 +107,7 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 	return ref, false, nil
 }
 
+// GetAnchor implements anchor.Store.GetAnchor.
 func (s *Store) GetAnchor(_ context.Context, name string, at time.Time) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

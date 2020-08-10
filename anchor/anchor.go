@@ -11,6 +11,7 @@ import (
 	"github.com/bobg/bs"
 )
 
+// Getter is a read-only anchor store.
 type Getter interface {
 	bs.Getter
 
@@ -32,24 +33,13 @@ type Store interface {
 	Getter
 }
 
-func Init(ctx context.Context, s Store) error {
-	err := bs.Init(ctx, s)
-	if err != nil {
-		return errors.Wrap(err, "calling bs.Init")
-	}
-	b, err := bs.TypeBlob(&Anchor{})
-	if err != nil {
-		return errors.Wrap(err, "computing Anchor type blob")
-	}
-	tr := TypeRef()
-	_, _, err = s.Put(ctx, b, &tr)
-	return errors.Wrap(err, "storing Anchor type")
-}
-
+// Put adds an Anchor constructed from name, ref, and at to the given Store.
 func Put(ctx context.Context, s bs.Store, name string, ref bs.Ref, at time.Time) (bs.Ref, bool, error) {
 	return bs.PutProto(ctx, s, &Anchor{Name: name, Ref: ref[:], At: timestamppb.New(at)})
 }
 
+// Check checks whether typ indicates that b is an Anchor.
+// If it is, it interprets b as an Anchor and calls f with the Anchor's fields.
 func Check(b bs.Blob, typ *bs.Ref, f func(name string, ref bs.Ref, at time.Time) error) error {
 	if typ == nil || *typ != TypeRef() {
 		return nil
@@ -64,6 +54,7 @@ func Check(b bs.Blob, typ *bs.Ref, f func(name string, ref bs.Ref, at time.Time)
 
 var typeRef *bs.Ref
 
+// TypeRef returns the type ref of an Anchor.
 func TypeRef() bs.Ref {
 	if typeRef == nil {
 		tr, err := bs.TypeRef(&Anchor{})

@@ -46,6 +46,8 @@ type Store interface {
 // when a Getter tries to access a non-existent ref.
 var ErrNotFound = errors.New("not found")
 
+// Init initializes a store by populating it with the metatype TypeTypeBlob,
+// which has itself as its type.
 func Init(ctx context.Context, s Store) error {
 	_, _, err := s.Put(ctx, TypeTypeBlob, &TypeTypeRef)
 	return err
