@@ -27,7 +27,7 @@ func TestFS(t *testing.T) {
 		ctx = context.Background()
 	)
 
-	ref, err := d.Ingest(ctx, s, testDir)
+	ref, err := d.AddDir(ctx, s, testDir, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

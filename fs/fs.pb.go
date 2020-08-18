@@ -32,11 +32,11 @@ type Dirent struct {
 
 	Mode uint32 `protobuf:"varint,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// If mode indicates this is a Dir,
-	// then item is a bs.Anchor pointing to a serialized Dir (i.e., a schema.Map).
+	// then item is the name of an anchor.Anchor pointing to a serialized Dir (i.e., a schema.Map).
 	// If it's a symlink,
 	// then item is simply the target path.
 	// If it's a plain file,
-	// then item is a bs.Anchor pointing to the root of a split.Write tree of its contents.
+	// then item is the name of an anchor.Anchor pointing to the root of a split.Write tree of its contents.
 	Item string `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
 }
 

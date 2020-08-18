@@ -27,21 +27,23 @@ func (c maincmd) ingest(ctx context.Context, fset *flag.FlagSet, args []string) 
 		return errors.New("missing path to ingest")
 	}
 
-	dir := fs.NewDir()
-	ref, err := dir.Ingest(ctx, c.s, args[0])
-	if err != nil {
-		return errors.Wrapf(err, "ingesting %s", args[0])
-	}
-
+	at := time.Now()
 	if *a != "" {
-		at := time.Now()
 		if *atstr != "" {
 			at, err = parsetime(*atstr)
 			if err != nil {
 				return errors.Wrap(err, "parsing -at")
 			}
 		}
+	}
 
+	dir := fs.NewDir()
+	ref, err := dir.Add(ctx, c.s, args[0], at)
+	if err != nil {
+		return errors.Wrapf(err, "ingesting %s", args[0])
+	}
+
+	if *a != "" {
 		_, _, err = anchor.Put(ctx, c.s, *a, ref, at)
 		if err != nil {
 			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *a, ref, at)

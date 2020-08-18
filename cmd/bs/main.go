@@ -12,7 +12,7 @@ import (
 	"github.com/bobg/subcmd"
 	"github.com/pkg/errors"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 	_ "github.com/bobg/bs/store/file"
 	_ "github.com/bobg/bs/store/gcs"
@@ -22,7 +22,7 @@ import (
 )
 
 type maincmd struct {
-	s bs.Store
+	s anchor.Store
 }
 
 func main() {
@@ -56,8 +56,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Creating %s-type store: %s", typ, err)
 	}
+	ss, ok := s.(anchor.Store)
+	if !ok {
+		log.Fatal("not an anchor store")
+	}
 
-	err = subcmd.Run(ctx, maincmd{s: s}, flag.Args())
+	err = subcmd.Run(ctx, maincmd{s: ss}, flag.Args())
 	if err != nil {
 		log.Fatal(err)
 	}

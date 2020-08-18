@@ -7,10 +7,10 @@ message Dirent {
   uint32 mode = 1;
 
   // If mode indicates this is a Dir,
-  // then item is a bs.Anchor pointing to a serialized Dir (i.e., a schema.Map).
+  // then item is the name of an anchor.Anchor pointing to a serialized Dir (i.e., a schema.Map).
   // If it's a symlink,
   // then item is simply the target path.
   // If it's a plain file,
-  // then item is a bs.Anchor pointing to the root of a split.Write tree of its contents.
+  // then item is the name of an anchor.Anchor pointing to the root of a split.Write tree of its contents.
   string item = 2;
 }

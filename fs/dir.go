@@ -6,8 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -51,98 +54,199 @@ func (d *Dir) Each(ctx context.Context, g bs.Getter, f func(name string, dirent 
 	})
 }
 
-// Ingest adds the directory hierarchy rooted at path to d.
-// Each new file, dir, or symlink encountered gets a new "inode" anchor.
-// It returns the possibly-updated Ref for d.
-func (d *Dir) Ingest(ctx context.Context, store bs.Store, path string) (bs.Ref, error) {
-	infos, err := ioutil.ReadDir(path)
+func (d *Dir) Set(ctx context.Context, store bs.Store, name string, dirent *Dirent) (bs.Ref, schema.Outcome, error) {
+	direntBytes, err := proto.Marshal(dirent)
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", path)
+		return bs.Ref{}, schema.ONone, errors.Wrapf(err, "marshaling dirent for %s", name)
+	}
+	return (*schema.Map)(d).Set(ctx, store, []byte(name), direntBytes)
+}
+
+// Dirent finds the entry in d with the given name.
+// It returns nil if no such entry exists.
+func (d *Dir) Dirent(ctx context.Context, g bs.Getter, name string) (*Dirent, error) {
+	dbytes, ok, err := (*schema.Map)(d).Lookup(ctx, g, []byte(name))
+	if err != nil {
+		return nil, errors.Wrapf(err, "looking up %s", name)
+	}
+	if !ok {
+		return nil, nil
+	}
+	var dirent Dirent
+	err = proto.Unmarshal(dbytes, &dirent)
+	return &dirent, errors.Wrapf(err, "unmarshaling dirent at %s", name)
+}
+
+func (d *Dir) Find(ctx context.Context, g anchor.Getter, path string, at time.Time) (*Dirent, error) {
+	path = strings.TrimLeft(path, "/")
+	var name string
+	path, name = filepath.Split(path)
+	if path != "" {
+		dirent, err := d.Find(ctx, g, path, at)
+		if err != nil {
+			return nil, errors.Wrapf(err, "finding %s", path)
+		}
+		d, err = dirent.Dir(ctx, g, at)
+		if err != nil {
+			return nil, errors.Wrapf(err, "resolving dir %s", path)
+		}
+	}
+	return d.Dirent(ctx, g, name)
+}
+
+type devInoPair struct {
+	dev, ino uint64
+}
+
+// Add adds the file, symlink, or dir at path to d.
+// If path is a dir,
+// this is recursive.
+// It returns the possibly-updated Ref for d.
+func (d *Dir) Add(ctx context.Context, store anchor.Store, path string, at time.Time) (bs.Ref, error) {
+	return d.add(ctx, store, path, at, map[devInoPair]string{})
+}
+
+func (d *Dir) add(ctx context.Context, store anchor.Store, path string, at time.Time, seen map[devInoPair]string) (bs.Ref, error) {
+	log.Printf("enter add %s", path)
+	defer log.Printf("leave add %s", path)
+
+	info, err := os.Lstat(path)
+	if err != nil {
+		return bs.Ref{}, errors.Wrapf(err, "statting %s", path)
 	}
 
-	var dref bs.Ref
+	var (
+		name = info.Name()
+		mode = uint32(info.Mode())
+	)
 
-	for _, info := range infos {
-		if info.IsDir() {
-			subdir := (*Dir)(schema.NewMap())
-			subdirRef, err := subdir.Ingest(ctx, store, filepath.Join(path, info.Name()))
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "ingesting subdir %s/%s", path, info.Name())
-			}
+	if info.IsDir() {
+		entry, err := d.Dirent(ctx, store, name)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "looking up entry %s", name)
+		}
 
-			subdirAnchor := newAnchor()
-			_, _, err = anchor.Put(ctx, store, subdirAnchor, subdirRef, time.Now())
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "storing anchor for new dir %s/%s", path, info.Name())
-			}
-
-			dirent, err := proto.Marshal(&Dirent{
-				Mode: uint32(info.Mode()),
-				Item: string(subdirAnchor),
-			})
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "marshaling dirent for new dir %s/%s", path, info.Name())
-			}
-
-			dref, _, err = (*schema.Map)(d).Set(ctx, store, []byte(info.Name()), dirent)
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "updating dir with new dir entry %s/%s", path, info.Name())
-			}
-		} else if (info.Mode() & os.ModeSymlink) == os.ModeSymlink {
-			target, err := os.Readlink(filepath.Join(path, info.Name()))
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "reading symlink %s/%s", path, info.Name())
-			}
-			dref, _, err = (*schema.Map)(d).Set(ctx, store, []byte(info.Name()), []byte(target))
-			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "updating dir with new symlink entry %s/%s", path, info.Name())
-			}
-		} else if (info.Mode() & os.ModeType) != 0 {
-			return bs.Ref{}, errors.Wrapf(err, "%s/%s has unsupported file type %v", path, info.Name(), info.Mode()&os.ModeType)
+		var (
+			subdir *Dir
+			a      string
+			isNew  bool
+		)
+		if entry == nil || !entry.IsDir() {
+			subdir = NewDir()
+			a = newAnchor()
+			isNew = true
 		} else {
-			// Regular file.
-			dref, err = d.ingestFile(ctx, store, path, info)
+			subdir, err = entry.Dir(ctx, store, at)
 			if err != nil {
-				return bs.Ref{}, errors.Wrapf(err, "ingesting file %s/%s", path, info.Name())
+				return bs.Ref{}, errors.Wrapf(err, "resolving subdir %s", name)
 			}
+			a = entry.Item
+		}
+
+		sref, err := subdir.addDir(ctx, store, path, at, seen)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "adding subdir contents at %s", path)
+		}
+
+		_, _, err = anchor.Put(ctx, store, a, sref, at)
+		if isNew {
+			dref, _, err := d.Set(ctx, store, name, &Dirent{
+				Mode: mode,
+				Item: a,
+			})
+			return dref, errors.Wrapf(err, "adding subdir %s to dir", name)
+		}
+
+		// Return unchanged self ref.
+		return d.Ref()
+	}
+
+	if (mode & uint32(os.ModeSymlink)) == uint32(os.ModeSymlink) {
+		target, err := os.Readlink(path)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "reading symlink %s", path)
+		}
+		dref, _, err := d.Set(ctx, store, name, &Dirent{
+			Mode: mode,
+			Item: target,
+		})
+		return dref, errors.Wrapf(err, "adding symlink %s to dir", name)
+	}
+
+	if (mode & uint32(os.ModeType)) != 0 {
+		return bs.Ref{}, errors.Wrapf(err, "unsupported file type 0%o for %s", mode&uint32(os.ModeType), path)
+	}
+
+	var diPair devInoPair
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		dev, ino := st.Dev, st.Ino
+		diPair = devInoPair{dev: dev, ino: ino}
+		if a, ok := seen[diPair]; ok {
+			dref, _, err := d.Set(ctx, store, name, &Dirent{
+				Mode: mode,
+				Item: a,
+			})
+			return dref, errors.Wrapf(err, "adding hard link named %s (anchor %s) to dir", name, a)
 		}
 	}
 
-	if (dref == bs.Ref{}) {
-		dref, err = bs.ProtoRef((*schema.Map)(d))
-	}
-	return dref, errors.Wrap(err, "computing self ref")
-}
-
-func (d *Dir) ingestFile(ctx context.Context, store bs.Store, dirpath string, info os.FileInfo) (bs.Ref, error) {
-	name := info.Name()
-	f, err := os.Open(filepath.Join(dirpath, name))
+	f, err := os.Open(path)
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "opening %s/%s", dirpath, name)
+		return bs.Ref{}, errors.Wrapf(err, "opening %s", path)
 	}
 	defer f.Close()
 
 	fref, err := split.Write(ctx, store, f, nil)
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "split-writing to store from %s/%s", dirpath, name)
+		return bs.Ref{}, errors.Wrapf(err, "split-writing to store from %s", path)
 	}
 
-	fileAnchor := newAnchor()
-	_, _, err = anchor.Put(ctx, store, fileAnchor, fref, time.Now())
+	a := newAnchor()
+	_, _, err = anchor.Put(ctx, store, a, fref, at)
 	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "storing new file anchor %s", fileAnchor)
+		return bs.Ref{}, errors.Wrapf(err, "storing anchor %s for file at %s", a, fref)
 	}
 
-	dirent, err := proto.Marshal(&Dirent{
-		Mode: uint32(info.Mode()),
-		Item: string(fileAnchor),
+	if diPair != (devInoPair{}) {
+		seen[diPair] = a
+	}
+
+	dref, _, err := d.Set(ctx, store, name, &Dirent{
+		Mode: mode,
+		Item: a,
 	})
+	return dref, errors.Wrapf(err, "adding file %s (anchor %s) to dir", name, a)
+}
+
+// AddDir adds the members of the directory at path to d, recursively.
+func (d *Dir) AddDir(ctx context.Context, store anchor.Store, path string, at time.Time) (bs.Ref, error) {
+	return d.addDir(ctx, store, path, at, map[devInoPair]string{})
+}
+
+func (d *Dir) addDir(ctx context.Context, store anchor.Store, path string, at time.Time, seen map[devInoPair]string) (bs.Ref, error) {
+	infos, err := ioutil.ReadDir(path)
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "marshaling dirent proto")
+		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", path)
 	}
 
-	dref, _, err := (*schema.Map)(d).Set(ctx, store, []byte(name), dirent)
-	return dref, errors.Wrapf(err, "updating dir with file entry %s", name)
+	if len(infos) == 0 {
+		// Return unchanged self ref.
+		return d.Ref()
+	}
+
+	var dref bs.Ref
+	for _, info := range infos {
+		dref, err = d.add(ctx, store, filepath.Join(path, info.Name()), at, seen)
+		if err != nil {
+			return bs.Ref{}, errors.Wrapf(err, "adding %s/%s", path, info.Name())
+		}
+	}
+
+	return dref, nil
+}
+
+func (d *Dir) Ref() (bs.Ref, error) {
+	return bs.ProtoRef((*schema.Map)(d))
 }
 
 func newAnchor() string {
