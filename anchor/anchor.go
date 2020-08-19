@@ -1,3 +1,6 @@
+// Package anchor defines anchor.Store,
+// an extension to bs.Store that indexes "anchors,"
+// which are constant lookup names for changing blobs.
 package anchor
 
 import (

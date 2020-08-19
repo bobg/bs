@@ -26,6 +26,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
+// Anchor maps a name to a blob ref as of a given time.
 type Anchor struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
