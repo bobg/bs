@@ -22,9 +22,14 @@ func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
 	return proto.Unmarshal(b, m)
 }
 
-// PutProto serializes m and stores it as a blob in s along with its type ref
-// (see TypeRef).
-// Additionally, it stores m's type blob.
+// PutProto serializes m and stores it as a typed blob in s,
+// where the type is Type(m).
+// See Type for more information.
+//
+// Additionally, it stores Type(m) as a blob.
+//
+// The boolean result tells only whether m's blob was newly added,
+// not m's type blob.
 func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) {
 	typeProto := Type(m)
 
@@ -49,7 +54,9 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 }
 
 // Type computes the type protobuf of a given protobuf.
-// This is the protobuf's "descriptor," converted to its own protobuf.
+// This is the protobuf's "descriptor,"
+// converted to its own protobuf.
+// See https://godoc.org/google.golang.org/protobuf/reflect/protoreflect#hdr-Protocol_Buffer_Descriptors.
 func Type(m proto.Message) proto.Message {
 	return protodesc.ToDescriptorProto(m.ProtoReflect().Descriptor())
 }
@@ -82,10 +89,10 @@ func ProtoRef(m proto.Message) (Ref, error) {
 }
 
 var (
-	// TypeTypeRef is the metatype ref: the type ref of a blob type.
+	// TypeTypeRef is the metatype ref: the ref of the type blob of type blobs.
 	TypeTypeRef Ref
 
-	// TypeTypeBlob is the metatype blob: the type of a blob type.
+	// TypeTypeBlob is the metatype blob: the type blob of type blobs.
 	TypeTypeBlob Blob
 )
 
@@ -101,14 +108,15 @@ func init() {
 	TypeTypeRef = TypeTypeBlob.Ref()
 }
 
-// Experimental! See:
-// https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!msg/protobuf/xRWSIyQ3Qyg/YcuGve18BAAJ.
-
-// DynGetProto retrieves the pb.Blob (typed blob) at ref,
-// constructs a new *dynamicpb.Message from the described type,
+// DynGetProto retrieves the blob at ref with Get,
+// constructs a new *dynamicpb.Message from its type,
 // and loads the nested Blob into it.
 // This serializes the same as the original protobuf
 // but is not convertible (or type-assertable) to the original protobuf's Go type.
+//
+// This is EXPERIMENTAL and relies on a hack.
+// (It's also unclear what utility it has, but at least it's interesting.)
+// See: https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!msg/protobuf/xRWSIyQ3Qyg/YcuGve18BAAJ.
 func DynGetProto(ctx context.Context, g Getter, ref Ref) (*dynamicpb.Message, error) {
 	b, typ, err := g.Get(ctx, ref)
 	if err != nil {

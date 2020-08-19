@@ -8,11 +8,11 @@ import (
 // Getter is a read-only Store (qv).
 type Getter interface {
 	// Get gets a blob by its ref.
-	// If blob was added with PutProto,
-	// then the returned object includes the type of the protobuf,
-	// expressed as the ref of the protobuf's descriptor.
-	// Otherwise the type is the zero ref.
-	Get(context.Context, Ref) (Blob, Ref, error)
+	// The return value typ is the blob's "type,"
+	// if it has one
+	// (as specified in a call to Put);
+	// otherwise it is the zero ref.
+	Get(context.Context, Ref) (b Blob, typ Ref, err error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
@@ -37,9 +37,18 @@ type Getter interface {
 type Store interface {
 	Getter
 
-	// Put adds a blob to the store if it was not already present.
-	// It returns the blob's ref and a boolean that is true iff the blob had to be added.
-	Put(context.Context, Blob, *Ref) (ref Ref, added bool, err error)
+	// Put adds b to the store if it was not already present.
+	// It returns the b's ref and a boolean that is true iff the blob had to be added.
+	// If typ is non-nil,
+	// it is b's "type" and is returned from Get.
+	// It should be the ref of a type-describing blob,
+	// such as a serialized protobuf descriptor.
+	// (See PutProto.)
+	//
+	// Note: if the same blob is "Put" twice
+	// with different values for typ,
+	// the typ value returned by Get is unspecified.
+	Put(ctx context.Context, b Blob, typ *Ref) (ref Ref, added bool, err error)
 }
 
 // ErrNotFound is the error returned

@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	// Blob is the type of a blob.
+	// Blob is a data blob.
 	Blob []byte
 
 	// Ref is the reference of a blob: its sha256 hash.
@@ -22,7 +22,7 @@ func (b Blob) Ref() Ref {
 	return sha256.Sum256(b)
 }
 
-// String converts a Ref to hexadecimal.
+// String converts a Ref to a hexadecimal string.
 func (r Ref) String() string {
 	return hex.EncodeToString(r[:])
 }
@@ -56,12 +56,12 @@ func RefFromHex(s string) (Ref, error) {
 	return out, err
 }
 
-// Value implements the Valuer interface for database/sql.
+// Value implements the "database/sql".Valuer.
 func (r Ref) Value() (driver.Value, error) {
 	return r[:], nil
 }
 
-// Scan implements the Scanner interface for database/sql.
+// Scan implements the "database/sql".Scanner.
 func (r *Ref) Scan(src interface{}) error {
 	if src == nil {
 		return nil

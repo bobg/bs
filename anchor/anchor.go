@@ -68,3 +68,18 @@ func TypeRef() bs.Ref {
 	}
 	return *typeRef
 }
+
+// Init initializes a Store by populating it with the type blob of an Anchor.
+// It also calls bs.Init.
+func Init(ctx context.Context, s Store) error {
+	err := bs.Init(ctx, s)
+	if err != nil {
+		return errors.Wrap(err, "calling bs.Init")
+	}
+	t := bs.Type(&Anchor{})
+	if err != nil {
+		return errors.Wrap(err, "computing type of Anchor")
+	}
+	_, _, err = bs.PutProto(ctx, s, t)
+	return errors.Wrap(err, "storing Anchor type blob")
+}
