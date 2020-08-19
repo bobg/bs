@@ -62,8 +62,11 @@ But as a tree, only the subtree with the affected blob has to change.
 
 The bs package describes an abstract Store interface.
 The store subpackage contains a registry for different concrete types of blob store:
-a memory-based one, a file-based one, a Postgresql-based one,
-a Google Cloud Storage one, and a Google Cloud Bigtable one.
+a memory-based one,
+a file-based one,
+a SQLite-based one,
+a Postgresql-based one,
+and a Google Cloud Storage one.
 There is also a blob store that is an LRU cache for an underlying blob store.
 
 BS is inspired by, and a simplification of,
