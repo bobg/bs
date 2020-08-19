@@ -54,6 +54,9 @@ func (d *Dir) Each(ctx context.Context, g bs.Getter, f func(name string, dirent 
 	})
 }
 
+// Set sets the given name in d to the given Dirent.
+// It returns the possibly updated Ref of d
+// and the schema.Outcome resulting from the underlying "bs/schema".Map.Set call.
 func (d *Dir) Set(ctx context.Context, store bs.Store, name string, dirent *Dirent) (bs.Ref, schema.Outcome, error) {
 	direntBytes, err := proto.Marshal(dirent)
 	if err != nil {
@@ -64,6 +67,11 @@ func (d *Dir) Set(ctx context.Context, store bs.Store, name string, dirent *Dire
 
 // Dirent finds the entry in d with the given name.
 // It returns nil if no such entry exists.
+// It does not traverse subdirs,
+// and name must not be a multi-segment path.
+// For that,
+// use Find.
+// Note: Dirent does not understand "." and "..".
 func (d *Dir) Dirent(ctx context.Context, g bs.Getter, name string) (*Dirent, error) {
 	dbytes, ok, err := (*schema.Map)(d).Lookup(ctx, g, []byte(name))
 	if err != nil {
@@ -77,6 +85,13 @@ func (d *Dir) Dirent(ctx context.Context, g bs.Getter, name string) (*Dirent, er
 	return &dirent, errors.Wrapf(err, "unmarshaling dirent at %s", name)
 }
 
+// Find resolves a path starting at d,
+// traversing into subdirs as appropriate,
+// and returning the entry found at the end of path.
+// It does not resolve symlinks in its traversal.
+// Leading path separators in `path` are ignored;
+// traversal is always relative to d.
+// Note: Find does not understand "." and "..".
 func (d *Dir) Find(ctx context.Context, g anchor.Getter, path string, at time.Time) (*Dirent, error) {
 	path = strings.TrimLeft(path, "/")
 	var name string
@@ -245,6 +260,7 @@ func (d *Dir) addDir(ctx context.Context, store anchor.Store, path string, at ti
 	return dref, nil
 }
 
+// Ref returns d's Ref.
 func (d *Dir) Ref() (bs.Ref, error) {
 	return bs.ProtoRef((*schema.Map)(d))
 }
