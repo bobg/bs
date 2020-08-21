@@ -11,7 +11,7 @@ import (
 	"github.com/bobg/bs/anchor"
 )
 
-// Anchors tests writing, reading, and listing anchors.
+// Anchors tests writing and reading anchors.
 func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 	var (
 		a1 = "anchor1"

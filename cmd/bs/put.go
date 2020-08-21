@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/bobg/hashsplit"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
@@ -20,6 +21,7 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 		a       = fs.String("anchor", "", "anchor to assign to added ref")
 		dosplit = fs.Bool("split", false, "get a split tree instead of a single blob")
 		atstr   = fs.String("at", "", "timestamp for anchor (default: now)")
+		bits    = fs.Uint("bits", 0, "with -split, the number of bits to split on (to control chunk size)")
 	)
 	err := fs.Parse(args)
 	if err != nil {
@@ -31,7 +33,13 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 		added bool
 	)
 	if *dosplit {
-		ref, err = split.Write(ctx, c.s, os.Stdin, nil)
+		var splitter *hashsplit.Splitter
+		if *bits > 0 {
+			splitter = &hashsplit.Splitter{
+				SplitBits: *bits,
+			}
+		}
+		ref, err = split.Write(ctx, c.s, os.Stdin, splitter)
 		if err != nil {
 			return errors.Wrap(err, "splitting stdin to store")
 		}

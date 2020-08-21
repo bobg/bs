@@ -73,7 +73,7 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 		"get-anchor": c.getAnchor,
 		"list-refs":  c.listRefs,
 		"ls":         c.ls,
-		"ingest":     c.ingest,
+		"addtodir":   c.addToDir,
 		"put":        c.put,
 		"tree":       c.tree,
 	}
