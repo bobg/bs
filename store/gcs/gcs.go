@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +106,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 				w    = obj.NewWriter(ctx)
 			)
 			defer w.Close()
+
 			_, err = w.Write(ref[:])
 			return err
 		})
@@ -194,6 +194,69 @@ func (s *Store) GetAnchor(ctx context.Context, a string, when time.Time) (bs.Ref
 	}
 }
 
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(name string, ref bs.Ref, at time.Time) error) error {
+	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
+	// But they can filter by object-name prefix.
+	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
+	// If `start` is e67a, for example, the sequence of generated prefixes is:
+	//   e67b e67c e67d e67e e67f
+	//   e68 e69 e6a e6b e6c e6d e6e e6f
+	//   e7 e8 e9 ea eb ec ed ee ef
+	//   f
+	startHex := hex.EncodeToString([]byte(start))
+	return eachHexPrefix(startHex+"0", true, func(prefix string) error {
+		return s.listAnchors(ctx, prefix, f)
+	})
+}
+
+type anchorTuple struct {
+	name string
+	ref  bs.Ref
+	at   time.Time
+}
+
+func (s *Store) listAnchors(ctx context.Context, prefix string, f func(name string, ref bs.Ref, at time.Time) error) error {
+	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "a:" + prefix})
+	var tuples []anchorTuple
+	emit := func() error {
+		if len(tuples) > 0 {
+			for i := len(tuples) - 1; i >= 0; i-- {
+				tup := tuples[i]
+				err := f(tup.name, tup.ref, tup.at)
+				if err != nil {
+					return err
+				}
+			}
+			tuples = nil
+		}
+		return nil
+	}
+	for {
+		attrs, err := iter.Next()
+		if stderrs.Is(err, iterator.Done) {
+			return emit()
+		}
+		if err != nil {
+			return err
+		}
+		name, at, err := anchorTimeFromObjName(attrs.Name)
+		if err != nil {
+			return err
+		}
+		if len(tuples) > 0 && name != tuples[0].name {
+			err = emit()
+			if err != nil {
+				return err
+			}
+		}
+		ref, err := s.getAnchorRef(ctx, attrs.Name)
+		if err != nil {
+			return err
+		}
+		tuples = append(tuples, anchorTuple{name: name, ref: ref, at: at})
+	}
+}
+
 func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
 	prefix = strings.ToLower(prefix)
 	for len(prefix) > 0 {
@@ -261,29 +324,20 @@ func anchorPrefix(a string) string {
 }
 
 func anchorObjName(a string, when time.Time) string {
-	return fmt.Sprintf("%s%020d", anchorPrefix(a), maxTime.Sub(when))
+	return fmt.Sprintf("%s%s", anchorPrefix(a), nanosToStr(timeToInvNanos(when)))
 }
 
-var anchorNameRegex = regexp.MustCompile(`^a:([0-9a-f]+):(\d{20})$`)
+var anchorNameRegex = regexp.MustCompile(`^a:([0-9a-f]+):(\d+)$`)
 
 func anchorTimeFromObjName(name string) (string, time.Time, error) {
 	m := anchorNameRegex.FindStringSubmatch(name)
 	if len(m) < 3 {
 		return "", time.Time{}, errors.New("malformed name")
 	}
+	at := invNanosToTime(strToNanos(m[2]))
 	a, err := hex.DecodeString(m[1])
-	if err != nil {
-		return "", time.Time{}, errors.Wrap(err, "hex-decoding anchor")
-	}
-	nanos, err := strconv.ParseInt(m[2], 10, 64)
-	if err != nil {
-		return "", time.Time{}, errors.Wrap(err, "parsing int64")
-	}
-	return string(a), maxTime.Add(time.Duration(-nanos)), nil
+	return string(a), at, errors.Wrap(err, "hex-decoding anchor")
 }
-
-// This is from https://stackoverflow.com/a/32620397
-var maxTime = time.Unix(1<<63-1-int64((1969*365+1969/4-1969/100+1969/400)*24*60*60), 999999999)
 
 func init() {
 	store.Register("gcs", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {

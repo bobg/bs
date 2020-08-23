@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -27,6 +28,19 @@ func (c maincmd) listRefs(ctx context.Context, fs *flag.FlagSet, args []string) 
 
 	return c.s.ListRefs(ctx, startRef, func(ref, typ bs.Ref) error {
 		fmt.Printf("%s %s\n", ref, typ)
+		return nil
+	})
+}
+
+func (c maincmd) listAnchors(ctx context.Context, fs *flag.FlagSet, args []string) error {
+	start := fs.String("start", "", "start after this anchor name")
+	err := fs.Parse(args)
+	if err != nil {
+		return errors.Wrap(err, "parsing args")
+	}
+
+	return c.s.ListAnchors(ctx, *start, func(name string, ref bs.Ref, at time.Time) error {
+		fmt.Printf("%s %s %s\n", name, ref, at)
 		return nil
 	})
 }

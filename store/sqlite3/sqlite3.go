@@ -6,6 +6,7 @@ import (
 	stderrs "errors"
 	"time"
 
+	"github.com/bobg/sqlutil"
 	_ "github.com/mattn/go-sqlite3" // register the sqlite3 type for sql.Open
 	"github.com/pkg/errors"
 
@@ -137,6 +138,17 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 		return bs.Ref{}, bs.ErrNotFound
 	}
 	return result, errors.Wrapf(err, "querying anchor %s", name)
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	const q = `SELECT name, ref, at FROM anchors WHERE name > $1 ORDER BY name, at`
+	return sqlutil.ForQueryRows(ctx, s.db, q, start, func(name string, ref bs.Ref, atstr string) error {
+		at, err := time.Parse(time.RFC3339Nano, atstr)
+		if err != nil {
+			return errors.Wrapf(err, "parsing time %s", atstr)
+		}
+		return f(name, ref, at)
+	})
 }
 
 func init() {

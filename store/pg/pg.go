@@ -7,6 +7,7 @@ import (
 	stderrs "errors"
 	"time"
 
+	"github.com/bobg/sqlutil"
 	_ "github.com/lib/pq" // register the postgres type for sql.Open
 	"github.com/pkg/errors"
 
@@ -75,6 +76,13 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 		return bs.Ref{}, bs.ErrNotFound
 	}
 	return result, errors.Wrapf(err, "getting anchor %s", name)
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	const q = `SELECT name, ref, at FROM anchors WHERE name > $1 ORDER BY name, at`
+	return sqlutil.ForQueryRows(ctx, s.db, q, start, func(name string, ref bs.Ref, at time.Time) error {
+		return f(name, ref, at)
+	})
 }
 
 // Put adds a blob to the store if it wasn't already present.

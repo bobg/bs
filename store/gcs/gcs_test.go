@@ -43,25 +43,35 @@ const (
 )
 
 func TestStore(t *testing.T) {
+	withStore(t, func(ctx context.Context, store *Store) {
+		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		if err != nil {
+			t.Fatal(err)
+		}
+		testutil.ReadWrite(ctx, t, store, data)
+	})
+}
+
+func TestAnchors(t *testing.T) {
+	withStore(t, func(ctx context.Context, store *Store) {
+		testutil.Anchors(ctx, t, store)
+	})
+}
+
+func withStore(t *testing.T, f func(context.Context, *Store)) {
 	var (
 		creds     = os.Getenv(credsVar)
 		projectID = os.Getenv(projVar)
 	)
 	if creds == "" || projectID == "" {
-		t.Skipf("to run TestStore, set %s to the name of a credentials file and %s to a project ID", credsVar, projVar)
+		t.Skipf("to run %s, set %s to the name of a credentials file and %s to a project ID", t.Name(), credsVar, projVar)
 	}
-
 	var r [30]byte
 	_, err := rand.Read(r[:])
 	if err != nil {
 		t.Fatal(err)
 	}
 	bucketName := hex.EncodeToString(r[:])
-
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	ctx := context.Background()
 
@@ -77,6 +87,7 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer func() {
 		iter := bucket.Objects(ctx, nil)
 		for {
@@ -101,5 +112,5 @@ func TestStore(t *testing.T) {
 		}
 	}()
 
-	testutil.ReadWrite(ctx, t, New(bucket), data)
+	f(ctx, New(bucket))
 }

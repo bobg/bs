@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/bigtable v1.5.0
 	cloud.google.com/go/storage v1.8.0
 	github.com/bobg/hashsplit v0.0.0-20200731135043-a5c105c9337f
+	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a
 	github.com/golang/protobuf v1.4.2
 	github.com/hashicorp/golang-lru v0.5.1

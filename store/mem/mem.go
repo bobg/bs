@@ -128,6 +128,38 @@ func (s *Store) GetAnchor(_ context.Context, name string, at time.Time) (bs.Ref,
 	return anchors[index-1].r, nil
 }
 
+// ListAnchors implements anchor.Store.ListAnchors.
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	var names []string
+	s.mu.Lock()
+	for name := range s.anchors {
+		if name > start {
+			names = append(names, name)
+		}
+	}
+	s.mu.Unlock()
+
+	sort.StringSlice(names).Sort()
+
+	for _, name := range names {
+		s.mu.Lock()
+		timerefs := s.anchors[name]
+		s.mu.Unlock()
+
+		for _, tr := range timerefs {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			err := f(name, tr.r, tr.t)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func init() {
 	store.Register("mem", func(context.Context, map[string]interface{}) (bs.Store, error) {
 		return New(), nil

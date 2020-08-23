@@ -11,7 +11,7 @@ import (
 	"github.com/bobg/bs/anchor"
 )
 
-// Anchors tests writing and reading anchors.
+// Anchors tests writing, reading, and listing anchors.
 func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 	var (
 		a1 = "anchor1"
@@ -73,5 +73,40 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 				t.Fatalf("got %s, want %s", got, c.want)
 			}
 		})
+	}
+
+	type anchorTimeRef struct {
+		a   string
+		ref bs.Ref
+		at  time.Time
+	}
+
+	var (
+		wantAnchorTimeRefs = []anchorTimeRef{
+			{a: a1, ref: r1a, at: t1},
+			{a: a1, ref: r1b, at: t2},
+			{a: a2, ref: r2, at: t1},
+		}
+		gotAnchorTimeRefs []anchorTimeRef
+	)
+	gotAnchorFn := func(a string, ref bs.Ref, at time.Time) error {
+		gotAnchorTimeRefs = append(gotAnchorTimeRefs, anchorTimeRef{a: a, ref: ref, at: at})
+		return nil
+	}
+
+	err = store.ListAnchors(ctx, "", gotAnchorFn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gotAnchorTimeRefs) != len(wantAnchorTimeRefs) {
+		t.Fatalf("got %d anchors, want %d", len(gotAnchorTimeRefs), len(wantAnchorTimeRefs))
+	}
+	for i, gotAnchorTimeRef := range gotAnchorTimeRefs {
+		wantAnchorTimeRef := wantAnchorTimeRefs[i]
+		if gotAnchorTimeRef.a != wantAnchorTimeRef.a ||
+			gotAnchorTimeRef.ref != wantAnchorTimeRef.ref ||
+			!gotAnchorTimeRef.at.Equal(wantAnchorTimeRef.at) {
+			t.Fatalf("got %+v, want %+v", gotAnchorTimeRefs, wantAnchorTimeRefs)
+		}
 	}
 }
