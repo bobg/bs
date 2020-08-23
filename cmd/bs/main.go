@@ -7,6 +7,8 @@ import (
 	"flag"
 	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"time"
 
 	"github.com/bobg/subcmd"
@@ -26,8 +28,36 @@ type maincmd struct {
 }
 
 func main() {
-	config := flag.String("config", "bsconf.json", "path to config file")
+	var (
+		config  = flag.String("config", "bsconf.json", "path to config file")
+		cpuprof = flag.String("cpuprof", "", "cpu profile file")
+		memprof = flag.String("memprof", "", "mem profile file")
+	)
 	flag.Parse()
+
+	if *cpuprof != "" {
+		f, err := os.Create(*cpuprof)
+		if err != nil {
+			log.Fatalf("could not create CPU profile: %s", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatalf("could not start CPU profile: %s")
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	if *memprof != "" {
+		f, err := os.Create(*memprof)
+		if err != nil {
+			log.Fatalf("could not create memory profile: %s", err)
+		}
+		defer f.Close()
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatalf("could not write memory profile: %s", err)
+		}
+	}
 
 	if *config == "" {
 		log.Fatal("Config value not set")

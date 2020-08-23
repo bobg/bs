@@ -69,7 +69,11 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 		}
 	}
 
-	log.Printf("ref %s (added: %v)", ref, added)
+	if *dosplit {
+		log.Printf("ref %s", ref)
+	} else {
+		log.Printf("ref %s (added: %v)", ref, added)
+	}
 
 	return nil
 }
