@@ -3,9 +3,6 @@ package file
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
-	"hash/adler32"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -48,11 +45,7 @@ func (s *Store) anchorroot() string {
 }
 
 func (s *Store) anchorpath(name string) string {
-	sum := adler32.Checksum([]byte(name))
-	var sumbytes [4]byte
-	binary.BigEndian.PutUint32(sumbytes[:], sum)
-	sumhex := hex.EncodeToString(sumbytes[:])
-	return filepath.Join(s.anchorroot(), sumhex[:2], sumhex, encodeAnchor(name))
+	return filepath.Join(s.anchorroot(), encodeAnchor(name))
 }
 
 // Get gets the blob with hash `ref`.
@@ -167,6 +160,61 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 	})
 
 	return ref, true, errors.Wrap(err, "storing anchor")
+}
+
+// ListAnchors implements anchor.Getter.
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	infos, err := ioutil.ReadDir(s.anchorroot())
+	if err != nil {
+		return errors.Wrap(err, "reading anchor root")
+	}
+
+	var names []string
+	for _, info := range infos {
+		if !info.IsDir() {
+			continue
+		}
+		name, err := decodeAnchor(info.Name())
+		if err != nil {
+			return errors.Wrapf(err, "decoding anchor %s", info.Name())
+		}
+		if name <= start {
+			continue
+		}
+		names = append(names, name)
+	}
+
+	sort.StringSlice(names).Sort()
+
+	for _, name := range names {
+		dir := s.anchorpath(name)
+		aInfos, err := ioutil.ReadDir(dir)
+		if err != nil {
+			return errors.Wrapf(err, "reading dir %s", dir)
+		}
+		for _, aInfo := range aInfos {
+			if err = ctx.Err(); err != nil {
+				return err
+			}
+			at, err := time.Parse(time.RFC3339Nano, aInfo.Name())
+			if err != nil {
+				return errors.Wrapf(err, "parsing filename %s in %s", aInfo.Name(), dir)
+			}
+			refHex, err := ioutil.ReadFile(filepath.Join(dir, aInfo.Name()))
+			if err != nil {
+				return errors.Wrapf(err, "reading %s/%s", dir, aInfo.Name())
+			}
+			ref, err := bs.RefFromHex(string(refHex))
+			if err != nil {
+				return errors.Wrapf(err, "parsing ref from string %s", refHex)
+			}
+			err = f(name, ref, at)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.

@@ -194,6 +194,7 @@ func (s *Store) GetAnchor(ctx context.Context, a string, when time.Time) (bs.Ref
 	}
 }
 
+// ListAnchors implements anchor.Getter.
 func (s *Store) ListAnchors(ctx context.Context, start string, f func(name string, ref bs.Ref, at time.Time) error) error {
 	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
 	// But they can filter by object-name prefix.
