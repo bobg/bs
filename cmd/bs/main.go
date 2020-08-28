@@ -42,7 +42,7 @@ func main() {
 		}
 		defer f.Close()
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatalf("could not start CPU profile: %s")
+			log.Fatalf("could not start CPU profile: %s", err)
 		}
 		defer pprof.StopCPUProfile()
 	}

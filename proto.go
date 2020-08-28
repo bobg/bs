@@ -110,7 +110,7 @@ func init() {
 
 // DynGetProto retrieves the blob at ref with Get,
 // constructs a new *dynamicpb.Message from its type,
-// and loads the nested Blob into it.
+// and loads the blob into it.
 // This serializes the same as the original protobuf
 // but is not convertible (or type-assertable) to the original protobuf's Go type.
 //
