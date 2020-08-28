@@ -1,0 +1,49 @@
+syntax = "proto3";
+package mail;
+
+option go_package = ".;mail";
+
+import "google/protobuf/timestamp.proto";
+
+message Field {
+  string          name = 1;
+  repeated string val  = 2;
+}
+
+message Header {
+  string         default_type = 1;
+  repeated Field fields       = 2;
+}
+
+message DeliveryStatus {
+  Header          msg        = 1;
+  repeated Header recipients = 2;
+}
+
+message Multipart {
+  string preamble  = 1;
+  string postamble = 2;
+
+  // Each part_ref refers to a Part.
+  repeated bytes part_refs = 3;
+}
+
+message Part {
+  bytes header_ref = 1;
+
+  // The type of object referred to by body_ref depends on the value of content_type.
+  //   message/rfc822: Part
+  //   message/delivery-status: DeliveryStatus
+  //   multipart/*: Multipart
+  //   */*: split.Write tree root
+  bytes body_ref = 2;
+
+  string                    content_type = 3;
+  string                    message_id   = 4;
+  string                    in_reply_to  = 5;
+  string                    references   = 6;
+  string                    subject      = 7;
+  google.protobuf.Timestamp time         = 8;
+  Address                   sender       = 9;
+  repeated Address          recipients   = 10;
+}
