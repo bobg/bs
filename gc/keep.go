@@ -48,10 +48,14 @@ func Add(ctx context.Context, k Keep, g bs.Getter, ref bs.Ref) error {
 	if err != nil {
 		return errors.Wrapf(err, "getting %s", ref)
 	}
-	return addProto(ctx, k, g, p)
+	return forProtoEdges(p, func(to bs.Ref) error {
+		return Add(ctx, k, g, to)
+	})
 }
 
-func addProto(ctx context.Context, k Keep, g bs.Getter, p proto.Message) error {
+// forProtoEdges walks through the message p, and invokes callback
+// on each Ref it finds.
+func forProtoEdges(p proto.Message, callback func(bs.Ref) error) error {
 	var (
 		refl   = p.ProtoReflect()
 		md     = refl.Descriptor()
@@ -60,7 +64,7 @@ func addProto(ctx context.Context, k Keep, g bs.Getter, p proto.Message) error {
 	)
 
 	for i := 0; i < fields.Len(); i++ {
-		err := addField(ctx, k, g, refl, fields.Get(i))
+		err := forFieldEdges(refl, fields.Get(i), callback)
 		if err != nil {
 			return err
 		}
@@ -72,7 +76,7 @@ func addProto(ctx context.Context, k Keep, g bs.Getter, p proto.Message) error {
 		if fd == nil {
 			continue
 		}
-		err := addField(ctx, k, g, refl, fd)
+		err := forFieldEdges(refl, fd, callback)
 		if err != nil {
 			return err
 		}
@@ -81,21 +85,22 @@ func addProto(ctx context.Context, k Keep, g bs.Getter, p proto.Message) error {
 	return nil
 }
 
-func addField(ctx context.Context, k Keep, g bs.Getter, refl protoreflect.Message, fd protoreflect.FieldDescriptor) error {
+// helper for forProtoEdges; walks through a single field.
+func forFieldEdges(refl protoreflect.Message, fd protoreflect.FieldDescriptor, callback func(bs.Ref) error) error {
 	switch fd.Kind() {
 	case protoreflect.BytesKind:
 		val := refl.Get(fd).Bytes()
 		if len(val) != len(bs.Ref{}) {
 			return nil
 		}
-		err := Add(ctx, k, g, bs.RefFromBytes(val))
+		err := callback(bs.RefFromBytes(val))
 		if err != nil {
 			return err
 		}
 
 	case protoreflect.MessageKind:
 		val := refl.Get(fd).Message()
-		err := addProto(ctx, k, g, val.Interface())
+		err := forProtoEdges(val.Interface(), callback)
 		if err != nil {
 			return err
 		}
