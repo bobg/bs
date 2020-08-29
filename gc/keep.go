@@ -64,7 +64,7 @@ func forProtoEdges(p proto.Message, callback func(bs.Ref) error) error {
 	)
 
 	for i := 0; i < fields.Len(); i++ {
-		err := forFieldEdges(refl, fields.Get(i), callback)
+		err := onFieldEdge(refl, fields.Get(i), callback)
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func forProtoEdges(p proto.Message, callback func(bs.Ref) error) error {
 		if fd == nil {
 			continue
 		}
-		err := forFieldEdges(refl, fd, callback)
+		err := onFieldEdge(refl, fd, callback)
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func forProtoEdges(p proto.Message, callback func(bs.Ref) error) error {
 }
 
 // helper for forProtoEdges; walks through a single field.
-func forFieldEdges(refl protoreflect.Message, fd protoreflect.FieldDescriptor, callback func(bs.Ref) error) error {
+func onFieldEdge(refl protoreflect.Message, fd protoreflect.FieldDescriptor, callback func(bs.Ref) error) error {
 	switch fd.Kind() {
 	case protoreflect.BytesKind:
 		val := refl.Get(fd).Bytes()
