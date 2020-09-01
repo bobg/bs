@@ -12,7 +12,7 @@ type Getter interface {
 	// if it has one
 	// (as specified in a call to Put);
 	// otherwise it is the zero ref.
-	Get(context.Context, Ref) (b Blob, typ Ref, err error)
+	Get(context.Context, Ref) (b Blob, err error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
@@ -27,7 +27,7 @@ type Getter interface {
 	//
 	// If the callback function returns an error,
 	// ListRefs exits with that error.
-	ListRefs(context.Context, Ref, func(r, typ Ref) error) error
+	ListRefs(context.Context, Ref, func(r Ref) error) error
 }
 
 // Store is a blob store.
@@ -48,16 +48,9 @@ type Store interface {
 	// Note: if the same blob is "Put" twice
 	// with different values for typ,
 	// the typ value returned by Get is unspecified.
-	Put(ctx context.Context, b Blob, typ *Ref) (ref Ref, added bool, err error)
+	Put(ctx context.Context, b Blob) (ref Ref, added bool, err error)
 }
 
 // ErrNotFound is the error returned
 // when a Getter tries to access a non-existent ref.
 var ErrNotFound = errors.New("not found")
-
-// Init initializes a store by populating it with the metatype TypeTypeBlob,
-// which has itself as its type.
-func Init(ctx context.Context, s Store) error {
-	_, _, err := s.Put(ctx, TypeTypeBlob, &TypeTypeRef)
-	return err
-}

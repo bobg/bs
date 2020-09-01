@@ -20,11 +20,6 @@ type Store struct {
 	s bs.Store
 }
 
-type tblob struct {
-	b   bs.Blob
-	typ bs.Ref
-}
-
 // New produces a new Store backed by `s` and caching up to `size` blobs.
 func New(s bs.Store, size int) (*Store, error) {
 	c, err := lru.New(size)
@@ -32,35 +27,30 @@ func New(s bs.Store, size int) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
-	if gotPair, ok := s.c.Get(ref); ok {
-		p := gotPair.(tblob)
-		return p.b, p.typ, nil
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+	if got, ok := s.c.Get(ref); ok {
+		return got.(bs.Blob), nil
 	}
-	blob, typ, err := s.s.Get(ctx, ref)
+	blob, err := s.s.Get(ctx, ref)
 	if err != nil {
-		return nil, bs.Ref{}, err
+		return nil, err
 	}
-	s.c.Add(ref, tblob{b: blob, typ: typ})
-	return blob, typ, nil
+	s.c.Add(ref, blob)
+	return blob, nil
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	ref, added, err := s.s.Put(ctx, b, typ)
+func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
+	ref, added, err := s.s.Put(ctx, b)
 	if err != nil {
 		return ref, added, err
 	}
-	var t bs.Ref
-	if typ != nil {
-		t = *typ
-	}
-	s.c.Add(ref, tblob{b: b, typ: t})
+	s.c.Add(ref, b)
 	return ref, added, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r bs.Ref) error) error {
 	return s.s.ListRefs(ctx, start, f)
 }
 

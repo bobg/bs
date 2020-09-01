@@ -7,9 +7,11 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
+	gproto "google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/proto"
+	"github.com/bobg/bs/typed"
 )
 
 // The tree interface factors out common logic shared by Set and Map.
@@ -28,7 +30,7 @@ import (
 // In a Map, the members are pairs with arbitrary byte slices for both key and payload.
 // The "key hash" is a hash of the key.
 type tree interface {
-	proto.Message
+	gproto.Message
 	copyMember(src tree, i int32)
 	keyHash(int32) []byte
 	newAt(int32) tree
@@ -59,7 +61,7 @@ const (
 // When the right position in the member list of the right node is found,
 // mutate is called with the node, position, and a boolean: true for insertion,
 // false for update-in-place.
-func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate func(tree, int32, bool) Outcome) (bs.Ref, Outcome, error) {
+func treeSet(ctx context.Context, t tree, store typed.Store, keyHash []byte, mutate func(tree, int32, bool) Outcome) (bs.Ref, Outcome, error) {
 	tn := t.treenode()
 	if tn.Left != nil {
 		var subnode *SubNode
@@ -71,7 +73,7 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 		subref := subnode.Ref
 
 		sub := t.newAt(0)
-		err := bs.GetProto(ctx, store, bs.RefFromBytes(subref), sub)
+		err := proto.Get(ctx, store, bs.RefFromBytes(subref), sub)
 		if err != nil {
 			return bs.Ref{}, ONone, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
 		}
@@ -81,7 +83,7 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 			return bs.Ref{}, ONone, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
 		}
 		if outcome == ONone {
-			selfRef, err := bs.ProtoRef(t)
+			selfRef, err := proto.Ref(t)
 			return selfRef, ONone, errors.Wrap(err, "computing self ref")
 		}
 
@@ -91,7 +93,7 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 			tn.Size++
 		}
 
-		selfRef, _, err := bs.PutProto(ctx, store, t)
+		selfRef, _, err := proto.Put(ctx, store, t)
 		return selfRef, outcome, errors.Wrap(err, "storing updated object")
 	}
 
@@ -99,10 +101,10 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 	if index < t.numMembers() && bytes.Equal(t.keyHash(index), keyHash) {
 		outcome := mutate(t, index, false)
 		if outcome == ONone {
-			selfRef, err := bs.ProtoRef(t)
+			selfRef, err := proto.Ref(t)
 			return selfRef, ONone, errors.Wrap(err, "computing self ref")
 		}
-		selfRef, _, err := bs.PutProto(ctx, store, t)
+		selfRef, _, err := proto.Put(ctx, store, t)
 		return selfRef, OUpdated, errors.Wrap(err, "storing updated tree node")
 	}
 
@@ -120,11 +122,11 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 				leftChild.copyMember(t, i)
 			}
 		}
-		leftRef, _, err := bs.PutProto(ctx, store, leftChild)
+		leftRef, _, err := proto.Put(ctx, store, leftChild)
 		if err != nil {
 			return bs.Ref{}, ONone, errors.Wrap(err, "storing new left child after split")
 		}
-		rightRef, _, err := bs.PutProto(ctx, store, rightChild)
+		rightRef, _, err := proto.Put(ctx, store, rightChild)
 		if err != nil {
 			return bs.Ref{}, ONone, errors.Wrap(err, "storing new right child after split")
 		}
@@ -140,7 +142,7 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 	}
 	tn.Size++
 
-	selfRef, _, err := bs.PutProto(ctx, store, t)
+	selfRef, _, err := proto.Put(ctx, store, t)
 	return selfRef, OAdded, errors.Wrap(err, "storing updated tree node")
 }
 
@@ -160,7 +162,7 @@ func treeLookup(ctx context.Context, t tree, g bs.Getter, keyhash []byte, found 
 			subref = tn.Left.Ref
 		}
 		sub := t.newAt(0)
-		err := bs.GetProto(ctx, g, bs.RefFromBytes(subref), sub)
+		err := proto.Get(ctx, g, bs.RefFromBytes(subref), sub)
 		if err != nil {
 			return errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
 		}
@@ -190,7 +192,7 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 		subref := subnode.Ref
 
 		sub := t.newAt(0)
-		err := bs.GetProto(ctx, store, bs.RefFromBytes(subref), sub)
+		err := proto.Get(ctx, store, bs.RefFromBytes(subref), sub)
 		if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
 		}
@@ -200,7 +202,7 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 			return bs.Ref{}, false, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
 		}
 		if !removed {
-			selfRef, err := bs.ProtoRef(t)
+			selfRef, err := proto.Ref(t)
 			return selfRef, false, errors.Wrap(err, "computing self ref")
 		}
 		subnode.Ref = newSubref[:]
@@ -216,14 +218,14 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 			if isRight {
 				right = sub
 				left = t.newAt(0)
-				err = bs.GetProto(ctx, store, bs.RefFromBytes(tn.Left.Ref), left)
+				err = proto.Get(ctx, store, bs.RefFromBytes(tn.Left.Ref), left)
 				if err != nil {
 					return bs.Ref{}, false, errors.Wrapf(err, "getting left child %x at depth %d", tn.Left.Ref, tn.Depth+1)
 				}
 			} else {
 				left = sub
 				right = t.newAt(0)
-				err = bs.GetProto(ctx, store, bs.RefFromBytes(tn.Right.Ref), right)
+				err = proto.Get(ctx, store, bs.RefFromBytes(tn.Right.Ref), right)
 				if err != nil {
 					return bs.Ref{}, false, errors.Wrapf(err, "getting right child %x at depth %d", tn.Right.Ref, tn.Depth+1)
 				}
@@ -255,7 +257,7 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 			}
 		}
 
-		selfRef, _, err := bs.PutProto(ctx, store, t)
+		selfRef, _, err := proto.Put(ctx, store, t)
 		return selfRef, true, errors.Wrap(err, "storing updated tree node")
 	}
 
@@ -269,11 +271,11 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 		// to preserve the invariant (for now)
 		// that any node with children has both children,
 		// which simplifies the logic.
-		selfRef, _, err := bs.PutProto(ctx, store, t)
+		selfRef, _, err := proto.Put(ctx, store, t)
 		return selfRef, true, errors.Wrap(err, "storing updated tree node")
 	}
 
-	selfRef, err := bs.ProtoRef(t)
+	selfRef, err := proto.Ref(t)
 	return selfRef, false, errors.Wrap(err, "computing self ref")
 }
 
@@ -282,7 +284,7 @@ func treeEach(ctx context.Context, t tree, g bs.Getter, f func(tree, int32) erro
 	tn := t.treenode()
 	if tn.Left != nil {
 		sub := t.newAt(0)
-		err := bs.GetProto(ctx, g, bs.RefFromBytes(tn.Left.Ref), sub)
+		err := proto.Get(ctx, g, bs.RefFromBytes(tn.Left.Ref), sub)
 		if err != nil {
 			return errors.Wrapf(err, "getting left child %x at depth %d", tn.Left.Ref, tn.Depth+1)
 		}
@@ -290,7 +292,7 @@ func treeEach(ctx context.Context, t tree, g bs.Getter, f func(tree, int32) erro
 		if err != nil {
 			return errors.Wrapf(err, "iterating over left child %x", tn.Left.Ref)
 		}
-		err = bs.GetProto(ctx, g, bs.RefFromBytes(tn.Right.Ref), sub)
+		err = proto.Get(ctx, g, bs.RefFromBytes(tn.Right.Ref), sub)
 		if err != nil {
 			return errors.Wrapf(err, "getting right child %x at depth %d", tn.Right.Ref, tn.Depth+1)
 		}

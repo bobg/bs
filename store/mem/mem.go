@@ -18,13 +18,9 @@ var _ anchor.Store = &Store{}
 type (
 	Store struct {
 		mu      sync.Mutex
-		tblobs  map[bs.Ref]tblob
+		blobs   map[bs.Ref]bs.Blob
+		types   map[bs.Ref][]bs.Ref
 		anchors map[string][]timeref
-	}
-
-	tblob struct {
-		blob bs.Blob
-		typ  bs.Ref
 	}
 
 	timeref struct {
@@ -36,41 +32,54 @@ type (
 // New produces a new Store.
 func New() *Store {
 	return &Store{
-		tblobs:  make(map[bs.Ref]tblob),
+		blobs:   make(map[bs.Ref]bs.Blob),
+		types:   make(map[bs.Ref][]bs.Ref),
 		anchors: make(map[string][]timeref),
 	}
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if p, ok := s.tblobs[ref]; ok {
-		return p.blob, p.typ, nil
+	if blob, ok := s.blobs[ref]; ok {
+		return blob, nil
 	}
-	return bs.Blob{}, bs.Ref{}, bs.ErrNotFound
+	return nil, bs.ErrNotFound
+}
+
+func (s *Store) GetTyped(_ context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if blob, ok := s.blobs[ref]; ok {
+		return blob, s.types[ref], nil
+	}
+	return nil, nil, bs.ErrNotFound
+}
+
+func (s *Store) PutType(_ context.Context, ref, typ bs.Ref) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.types[ref] = append(s.types[ref], typ)
+	return nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
-	type tref struct {
-		r, typ bs.Ref
-	}
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r bs.Ref) error) error {
 	s.mu.Lock()
-	var trefs []tref
-	for ref, rt := range s.tblobs {
+	var refs []bs.Ref
+	for ref := range s.blobs {
 		if ref.Less(start) || ref == start {
 			continue
 		}
-		trefs = append(trefs, tref{r: ref, typ: rt.typ})
+		refs = append(refs, ref)
 	}
 	s.mu.Unlock()
 
-	sort.Slice(trefs, func(i, j int) bool { return trefs[i].r.Less(trefs[j].r) })
+	sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
 
-	for _, tr := range trefs {
-		err := f(tr.r, tr.typ)
+	for _, ref := range refs {
+		err := f(ref)
 		if err != nil {
 			return err
 		}
@@ -79,30 +88,14 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	ref := b.Ref()
-	if _, ok := s.tblobs[ref]; !ok {
-		tb := tblob{blob: b}
-		if typ != nil {
-			tb.typ = *typ
-		}
-		s.tblobs[ref] = tb
-
-		err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-			tr := timeref{r: ref, t: at}
-			anchors := s.anchors[name]
-			anchors = append(anchors, tr)
-			sort.Slice(anchors, func(i, j int) bool {
-				return anchors[i].t.Before(anchors[j].t)
-			})
-			s.anchors[name] = anchors
-			return nil
-		})
-
-		return ref, true, err
+	if _, ok := s.blobs[ref]; !ok {
+		s.blobs[ref] = b
+		return ref, true, nil
 	}
 	return ref, false, nil
 }

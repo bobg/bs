@@ -8,9 +8,11 @@ import (
 
 	"github.com/bobg/hashsplit"
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
+	gproto "google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/proto"
+	"github.com/bobg/bs/typed"
 )
 
 // Write writes the contents of `r` to the blob store `s`,
@@ -28,7 +30,7 @@ import (
 //
 // If splitter is nil,
 // a default splitter is used that produces chunks that are typically 5-10kb in size.
-func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Splitter) (bs.Ref, error) {
+func Write(ctx context.Context, s typed.Store, r io.Reader, splitter *hashsplit.Splitter) (bs.Ref, error) {
 	if splitter == nil {
 		splitter = &hashsplit.Splitter{
 			Reset:   true, // xxx ?
@@ -50,7 +52,7 @@ func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Spl
 	err := func() error {
 		defer close(ch)
 		return splitter.Split(ctx, r, func(chunk hashsplit.Chunk) error {
-			ref, _, err := s.Put(ctx, chunk.Bytes, nil)
+			ref, _, err := s.Put(ctx, chunk.Bytes)
 			if err != nil {
 				return errors.Wrap(err, "writing split chunk to store")
 			}
@@ -75,7 +77,7 @@ func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Spl
 	return splitWrite(ctx, s, root)
 }
 
-func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, error) {
+func splitWrite(ctx context.Context, s typed.Store, n *hashsplit.Node) (bs.Ref, error) {
 	tn := &Node{Size: n.Size}
 	if len(n.Leaves) > 0 {
 		tn.Leaves = n.Leaves
@@ -88,7 +90,7 @@ func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, err
 			tn.Nodes = append(tn.Nodes, childRef[:])
 		}
 	}
-	ref, _, err := bs.PutProto(ctx, s, tn)
+	ref, _, err := proto.Put(ctx, s, tn)
 	return ref, err
 }
 
@@ -98,7 +100,7 @@ func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, err
 // The ref of the root Node is given by `ref`.
 func Read(ctx context.Context, g bs.Getter, ref bs.Ref, w io.Writer) error {
 	var tn Node
-	err := bs.GetProto(ctx, g, ref, &tn)
+	err := proto.Get(ctx, g, ref, &tn)
 	if err != nil {
 		return err
 	}
@@ -114,7 +116,7 @@ func splitRead(ctx context.Context, g bs.Getter, n *Node, w io.Writer) error {
 	}
 	return splitReadHelper(ctx, g, n.Nodes, func(m []byte) error {
 		var tn Node
-		err := proto.Unmarshal(m, &tn)
+		err := gproto.Unmarshal(m, &tn)
 		if err != nil {
 			return err
 		}
@@ -124,7 +126,7 @@ func splitRead(ctx context.Context, g bs.Getter, n *Node, w io.Writer) error {
 
 func splitReadHelper(ctx context.Context, g bs.Getter, subrefsBytes [][]byte, do func([]byte) error) error {
 	for _, s := range subrefsBytes {
-		b, _, err := g.Get(ctx, bs.RefFromBytes(s))
+		b, err := g.Get(ctx, bs.RefFromBytes(s))
 		if err != nil {
 			return errors.Wrapf(err, "getting %x", s)
 		}

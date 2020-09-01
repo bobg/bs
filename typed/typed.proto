@@ -1,0 +1,13 @@
+syntax = "proto3";
+package typed;
+
+option go_package = ".;typed";
+
+// Annotation associates a type with a blob reference.
+// The annotated blob is a serialized protobuf.
+// The type is itself a blob reference.
+// The type's blob is the serialized descriptor of the annotated blob's protobuf.
+message Annotation {
+  bytes ref = 1;
+  bytes typ = 2;
+}

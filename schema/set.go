@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/typed"
 )
 
 // NewSet produces a new, empty Set,
@@ -20,7 +21,7 @@ func NewSet() *Set {
 // and a boolean indicating whether the Set was changed,
 // which will be false if the input Ref was already present.
 // If the Set is changed, it is written to the Store.
-func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
+func (s *Set) Add(ctx context.Context, store typed.Store, ref bs.Ref) (bs.Ref, bool, error) {
 	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
 		if !insert {
 			return ONone

@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/typed"
 )
 
 // NewMap produces a new, blank map,
@@ -20,7 +21,7 @@ func NewMap() *Map {
 // ONone if no change was needed (the key was already present and had the same payload),
 // OUpdated (the key was present with a different payload), or
 // OAdded (the key was not present).
-func (m *Map) Set(ctx context.Context, store bs.Store, key, payload []byte) (bs.Ref, Outcome, error) {
+func (m *Map) Set(ctx context.Context, store typed.Store, key, payload []byte) (bs.Ref, Outcome, error) {
 	return treeSet(ctx, m, store, hashKey(key), func(t tree, i int32, insert bool) Outcome {
 		m := t.(*Map)
 		if insert {
