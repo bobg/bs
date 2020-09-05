@@ -121,18 +121,24 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 	if typ != nil {
 		const q2 = `INSERT INTO types (blob_ref, type_ref) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 
-		res, err = s.db.ExecContext(ctx, q, ref, *typ)
+		res, err = s.db.ExecContext(ctx, q2, ref, *typ)
 		if err != nil {
 			return bs.Ref{}, false, errors.Wrap(err, "adding type info")
 		}
 
-		err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-			const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
-			_, err := s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))
-			return err
-		})
+		aff, err = res.RowsAffected()
 		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "inserting anchor")
+			return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+		}
+		if aff > 0 {
+			err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+				const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+				_, err := s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))
+				return err
+			})
+			if err != nil {
+				return bs.Ref{}, false, errors.Wrap(err, "inserting anchor")
+			}
 		}
 	}
 
