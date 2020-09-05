@@ -26,8 +26,12 @@ func (c maincmd) listRefs(ctx context.Context, fs *flag.FlagSet, args []string) 
 		}
 	}
 
-	return c.s.ListRefs(ctx, startRef, func(ref, typ bs.Ref) error {
-		fmt.Printf("%s %s\n", ref, typ)
+	return c.s.ListRefs(ctx, startRef, func(ref bs.Ref, types []bs.Ref) error {
+		fmt.Printf("%s", ref)
+		for _, typ := range types {
+			fmt.Printf(" %s", typ)
+		}
+		fmt.Print("\n")
 		return nil
 	})
 }

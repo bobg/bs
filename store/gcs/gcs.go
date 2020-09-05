@@ -96,9 +96,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 			// ok
 		} else if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "storing type info for %s", ref)
-		}
-
-		if added {
+		} else {
 			err = anchor.Check(b, typ, func(a string, ref bs.Ref, when time.Time) error {
 				var (
 					name = anchorObjName(a, when)

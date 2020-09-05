@@ -173,18 +173,18 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 			// ok
 		} else if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "writing type file %s", typeFile)
-		}
-
-		err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-			dir := s.anchorpath(name)
-			err := os.MkdirAll(dir, 0755)
+		} else {
+			err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+				dir := s.anchorpath(name)
+				err := os.MkdirAll(dir, 0755)
+				if err != nil {
+					return errors.Wrapf(err, "ensuring path %s exists", dir)
+				}
+				return ioutil.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
+			})
 			if err != nil {
-				return errors.Wrapf(err, "ensuring path %s exists", dir)
+				return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
 			}
-			return ioutil.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
-		})
-		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
 		}
 	}
 
