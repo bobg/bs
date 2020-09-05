@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,9 +121,6 @@ func (d *Dir) Add(ctx context.Context, store anchor.Store, path string, at time.
 }
 
 func (d *Dir) add(ctx context.Context, store anchor.Store, path string, at time.Time, seen map[devInoPair]string) (bs.Ref, error) {
-	log.Printf("enter add %s", path)
-	defer log.Printf("leave add %s", path)
-
 	info, err := os.Lstat(path)
 	if err != nil {
 		return bs.Ref{}, errors.Wrapf(err, "statting %s", path)
