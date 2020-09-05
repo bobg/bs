@@ -160,6 +160,8 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 	}
 
 	if typ != nil {
+		var typeAdded bool
+
 		typeDir := s.typepath(ref)
 		err = os.MkdirAll(typeDir, 0755)
 		if os.IsExist(err) {
@@ -174,6 +176,10 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 		} else if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "writing type file %s", typeFile)
 		} else {
+			typeAdded = true
+		}
+
+		if added || typeAdded {
 			err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
 				dir := s.anchorpath(name)
 				err := os.MkdirAll(dir, 0755)

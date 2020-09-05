@@ -107,7 +107,9 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 		if !found {
 			types = append(types, *typ)
 			s.types[ref] = types
+		}
 
+		if added || !found {
 			err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
 				tr := timeref{r: ref, t: at}
 				anchors := s.anchors[name]

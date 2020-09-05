@@ -18,7 +18,7 @@ import (
 type Getter interface {
 	bs.Getter
 
-	// GetAnchor returns the latest ref associated with the given anchor
+	// GetAnchor returns the latest ref associated with the given anchor name
 	// not later than the given time.
 	GetAnchor(context.Context, string, time.Time) (bs.Ref, error)
 
@@ -36,8 +36,11 @@ type Getter interface {
 // must detect the case where the type ref is non-nil and equal to TypeRef().
 // In that case, the implementation must unmarshal the blob as an Anchor
 // in order to record it.
-// If Put is called on an Anchor-typed blob that is already present in the store,
-// it is free to assume that that anchor already has been recorded.
+// The function Check can assist with that.
+// In a call to Put,
+// if both the blob and its type were already present,
+// it is not necessary to check that the type is TypeRef().
+// The implementation can assume the anchor has already been recorded.
 type Store interface {
 	bs.Store
 	Getter

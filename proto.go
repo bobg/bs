@@ -108,6 +108,9 @@ func init() {
 	TypeTypeRef = TypeTypeBlob.Ref()
 }
 
+// ErrNoType means no type information was available for the ref in a call to DynGetProto.
+var ErrNoType = errors.New("no type")
+
 // DynGetProto retrieves the blob at ref with Get,
 // constructs a new *dynamicpb.Message from its type,
 // and loads the blob into it.
@@ -124,7 +127,7 @@ func DynGetProto(ctx context.Context, g Getter, ref Ref) (*dynamicpb.Message, er
 	}
 
 	if len(types) == 0 {
-		return nil, fmt.Errorf("no type for %s", ref)
+		return nil, ErrNoType
 	}
 
 	typ := types[0]

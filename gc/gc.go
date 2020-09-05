@@ -6,8 +6,14 @@ import (
 	"github.com/bobg/bs"
 )
 
+// Store is a blob store that can delete blobs.
 type Store interface {
 	bs.Getter
+
+	// Delete removes the blob with the given ref from the store.
+	// It is a no-op,
+	// not an error,
+	// to call this on a non-existent ref.
 	Delete(context.Context, bs.Ref) error
 }
 

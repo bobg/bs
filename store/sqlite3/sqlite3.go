@@ -126,11 +126,16 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 			return bs.Ref{}, false, errors.Wrap(err, "adding type info")
 		}
 
-		aff, err = res.RowsAffected()
-		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+		var typeAdded bool
+
+		if !added {
+			aff, err = res.RowsAffected()
+			if err != nil {
+				return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+			}
+			typeAdded = aff > 0
 		}
-		if aff > 0 {
+		if added || typeAdded {
 			err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
 				const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
 				_, err := s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))

@@ -8,17 +8,19 @@ import (
 // Getter is a read-only Store (qv).
 type Getter interface {
 	// Get gets a blob by its ref.
-	// Get also returns the set of types that have been associated with this blob by Put,
+	// Get also returns the set of types that have been associated with this blob by Store.Put,
 	// in an unspecified order but without any duplicates.
 	Get(context.Context, Ref) (b Blob, types []Ref, err error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
-	// The function gets the blob's ref plus its type ref,
-	// if it has one.
-	// (If it doesn't, then typ is the zero ref.)
+	// The function gets the blob's ref plus its complete set of type refs,
+	// if any,
+	// in an unspecified order but without any duplicates.
 	//
-	// The calls reflect at least the set of refs known at the moment ListRefs was called.
+	// The calls reflect at least the set of refs
+	// (and their types)
+	// known at the moment ListRefs was called.
 	// It is unspecified whether later changes,
 	// that happen concurrently with ListRefs,
 	// are reflected.
@@ -32,6 +34,12 @@ type Getter interface {
 // It stores byte sequences - "blobs" - of arbitrary length.
 // Each blob can be retrieved using its "ref" as a lookup key.
 // A ref is simply the SHA2-256 hash of the blob's content.
+// It can also associate type information with each blob.
+// A type is simply another ref,
+// pointing to a blob that describes the type.
+// Exactly how to interpret a type blob can depend on the application,
+// but this library provides support for type blobs that are serialized protocol buffer descriptors.
+// (See PutProto.)
 type Store interface {
 	Getter
 
@@ -54,7 +62,7 @@ type Store interface {
 var ErrNotFound = errors.New("not found")
 
 // Init initializes a store by populating it with the metatype TypeTypeBlob,
-// which has itself as its type.
+// which has its own ref as its type.
 func Init(ctx context.Context, s Store) error {
 	_, _, err := s.Put(ctx, TypeTypeBlob, &TypeTypeRef)
 	return err
