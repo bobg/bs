@@ -29,9 +29,16 @@ type Store struct {
 const Schema = `
 CREATE TABLE IF NOT EXISTS blobs (
   ref BYTEA PRIMARY KEY NOT NULL,
-  data BYTEA NOT NULL,
-  typ BYTEA
+  data BYTEA NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS types (
+  blob_ref BYTEA NOT NULL,
+  type_ref BYTEA NOT NULL,
+  PRIMARY KEY (blob_ref, type_ref)
+);
+
+CREATE INDEX IF NOT EXISTS ON types (blob_ref);
 
 CREATE TABLE IF NOT EXISTS anchors (
   name TEXT NOT NULL,
@@ -52,21 +59,26 @@ func New(ctx context.Context, db *sql.DB) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
-	const q = `SELECT data, typ FROM blobs WHERE ref = $1`
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+	const q = `SELECT data FROM blobs WHERE ref = $1`
 
-	var (
-		b   bs.Blob
-		typ bs.Ref
-	)
-	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b, &typ)
+	var b bs.Blob
+	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b)
 	if stderrs.Is(err, sql.ErrNoRows) {
-		return nil, bs.Ref{}, bs.ErrNotFound
+		return nil, nil, bs.ErrNotFound
 	}
-	return b, typ, errors.Wrapf(err, "getting %s", ref)
+
+	const q2 = `SELECT type_ref FROM types WHERE blob_ref = $1`
+
+	var types []bs.Ref
+	err = sqlutil.ForQueryRows(ctx, s.db, q2, ref, func(t bs.Ref) {
+		types = append(types, t)
+	})
+
+	return b, types, errors.Wrap(err, "querying types")
 }
 
-// GetAnchor gets the latest blob ref for a given anchor as of a given time.
+// GetAnchor implements anchor.Store.GetAnchor.
 func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
 	const q = `SELECT ref FROM anchors WHERE name = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
 
@@ -88,19 +100,12 @@ func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	ref := b.Ref()
-	args := []interface{}{ref, b}
+	const q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 
-	var q string
-	if typ == nil {
-		q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
-	} else {
-		q = `INSERT INTO blobs (ref, data, typ) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
-		args = append(args, *typ)
-	}
-	res, err := s.db.ExecContext(ctx, q, args...)
+	ref := b.Ref()
+	res, err := s.db.ExecContext(ctx, q, ref, b)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrapf(err, "inserting %s", ref)
+		return bs.Ref{}, false, errors.Wrap(err, "inserting blob")
 	}
 
 	aff, err := res.RowsAffected()
@@ -108,42 +113,68 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 		return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
 	}
 
-	if aff > 0 {
+	added := aff > 0
+
+	if typ != nil {
+		const q2 = `INSERT INTO types (blob_ref, type_ref) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+
+		res, err = s.db.ExecContext(ctx, q, ref, *typ)
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "adding type info")
+		}
+
 		err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
 			const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
 			_, err := s.db.ExecContext(ctx, q, name, ref, at)
 			return err
 		})
 		if err != nil {
-			return ref, true, errors.Wrap(err, "inserting anchor")
+			return bs.Ref{}, false, errors.Wrap(err, "inserting anchor")
 		}
 	}
 
-	return ref, aff > 0, nil
+	return ref, added, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
-	const q = `SELECT ref, typ FROM blobs WHERE ref > $1 ORDER BY ref`
-	rows, err := s.db.QueryContext(ctx, q, start)
-	if err != nil {
-		return errors.Wrap(err, "querying starting position")
-	}
-	defer rows.Close()
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+	const q = `SELECT blobs.ref, types.type_ref
+		FROM blobs LEFT JOIN types ON blobs.ref = types.blob_ref
+		WHERE blobs.ref > $1
+		ORDER BY blobs.ref`
 
-	for rows.Next() {
-		var ref, typ bs.Ref
-		err := rows.Scan(&ref, &typ)
-		if err != nil {
-			return errors.Wrap(err, "scanning query result")
+	var (
+		lastRef *bs.Ref
+		types   []bs.Ref
+	)
+	err := sqlutil.ForQueryRows(ctx, s.db, q, start, func(ref, typ bs.Ref) error {
+		if lastRef != nil {
+			if ref != *lastRef {
+				err := f(*lastRef, types)
+				if err != nil {
+					return err
+				}
+				lastRef = &ref
+				types = nil
+			}
+		} else {
+			lastRef = &ref
 		}
-
-		err = f(ref, typ)
+		if typ != (bs.Ref{}) {
+			types = append(types, typ)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if lastRef != nil {
+		err = f(*lastRef, types)
 		if err != nil {
 			return err
 		}
 	}
-	return errors.Wrap(rows.Err(), "iterating over result rows")
+	return nil
 }
 
 func init() {

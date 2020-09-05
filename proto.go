@@ -118,10 +118,16 @@ func init() {
 // (It's also unclear what utility it has, but at least it's interesting.)
 // See: https://groups.google.com/forum/?utm_medium=email&utm_source=footer#!msg/protobuf/xRWSIyQ3Qyg/YcuGve18BAAJ.
 func DynGetProto(ctx context.Context, g Getter, ref Ref) (*dynamicpb.Message, error) {
-	b, typ, err := g.Get(ctx, ref)
+	b, types, err := g.Get(ctx, ref)
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting %s", ref)
 	}
+
+	if len(types) == 0 {
+		return nil, fmt.Errorf("no type for %s", ref)
+	}
+
+	typ := types[0]
 
 	var dp descriptorpb.DescriptorProto
 	err = GetProto(ctx, g, typ, &dp)

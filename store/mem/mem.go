@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
@@ -18,13 +20,9 @@ var _ anchor.Store = &Store{}
 type (
 	Store struct {
 		mu      sync.Mutex
-		tblobs  map[bs.Ref]tblob
+		blobs   map[bs.Ref]bs.Blob
+		types   map[bs.Ref][]bs.Ref
 		anchors map[string][]timeref
-	}
-
-	tblob struct {
-		blob bs.Blob
-		typ  bs.Ref
 	}
 
 	timeref struct {
@@ -36,41 +34,43 @@ type (
 // New produces a new Store.
 func New() *Store {
 	return &Store{
-		tblobs:  make(map[bs.Ref]tblob),
+		blobs:   make(map[bs.Ref]bs.Blob),
+		types:   make(map[bs.Ref][]bs.Ref),
 		anchors: make(map[string][]timeref),
 	}
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if p, ok := s.tblobs[ref]; ok {
-		return p.blob, p.typ, nil
+	if p, ok := s.blobs[ref]; ok {
+		return p, s.types[ref], nil
 	}
-	return bs.Blob{}, bs.Ref{}, bs.ErrNotFound
+	return nil, nil, bs.ErrNotFound
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
 	type tref struct {
-		r, typ bs.Ref
+		r bs.Ref
+		t []bs.Ref
 	}
 
 	s.mu.Lock()
 	var trefs []tref
-	for ref, rt := range s.tblobs {
+	for ref := range s.blobs {
 		if ref.Less(start) || ref == start {
 			continue
 		}
-		trefs = append(trefs, tref{r: ref, typ: rt.typ})
+		trefs = append(trefs, tref{r: ref, t: s.types[ref]})
 	}
 	s.mu.Unlock()
 
 	sort.Slice(trefs, func(i, j int) bool { return trefs[i].r.Less(trefs[j].r) })
 
 	for _, tr := range trefs {
-		err := f(tr.r, tr.typ)
+		err := f(tr.r, tr.t)
 		if err != nil {
 			return err
 		}
@@ -83,28 +83,48 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	ref := b.Ref()
-	if _, ok := s.tblobs[ref]; !ok {
-		tb := tblob{blob: b}
-		if typ != nil {
-			tb.typ = *typ
-		}
-		s.tblobs[ref] = tb
-
-		err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-			tr := timeref{r: ref, t: at}
-			anchors := s.anchors[name]
-			anchors = append(anchors, tr)
-			sort.Slice(anchors, func(i, j int) bool {
-				return anchors[i].t.Before(anchors[j].t)
-			})
-			s.anchors[name] = anchors
-			return nil
-		})
-
-		return ref, true, err
+	var (
+		ref   = b.Ref()
+		added bool
+	)
+	if _, ok := s.blobs[ref]; !ok {
+		s.blobs[ref] = b
+		added = true
 	}
-	return ref, false, nil
+
+	if typ != nil {
+		var (
+			found bool
+			types = s.types[ref]
+		)
+
+		for _, t := range types {
+			if t == *typ {
+				found = true
+				break
+			}
+		}
+		if !found {
+			types = append(types, *typ)
+			s.types[ref] = types
+
+			err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
+				tr := timeref{r: ref, t: at}
+				anchors := s.anchors[name]
+				anchors = append(anchors, tr)
+				sort.Slice(anchors, func(i, j int) bool {
+					return anchors[i].t.Before(anchors[j].t)
+				})
+				s.anchors[name] = anchors
+				return nil
+			})
+			if err != nil {
+				return ref, added, errors.Wrap(err, "in anchor check")
+			}
+		}
+	}
+
+	return ref, added, nil
 }
 
 // GetAnchor implements anchor.Store.GetAnchor.

@@ -38,88 +38,106 @@ func New(bucket *storage.BucketHandle) *Store {
 const typeKey = "type"
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, bs.Ref, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
 	name := blobObjName(ref)
 	obj := s.bucket.Object(name)
-	attrs, err := obj.Attrs(ctx)
-	if err != nil {
-		return nil, bs.Ref{}, errors.Wrapf(err, "getting object attrs for %s", name)
-	}
-
-	var typ bs.Ref
-	if typHex, ok := attrs.Metadata[typeKey]; ok {
-		err = typ.FromHex(typHex)
-		if err != nil {
-			return nil, bs.Ref{}, errors.Wrapf(err, "decoding type ref (%s) for %s", typHex, name)
-		}
-	}
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		return nil, bs.Ref{}, errors.Wrapf(err, "reading info of object %s", name)
+		return nil, nil, errors.Wrapf(err, "reading info of object %s", name)
 	}
+	defer r.Close()
 
 	b := make([]byte, r.Attrs.Size)
-	err = func() error {
-		defer r.Close()
+	_, err = io.ReadFull(r, b)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "reading contents of object %s", name)
+	}
 
-		_, err := io.ReadFull(r, b)
-		return errors.Wrapf(err, "reading contents of object %s", name)
-	}()
-	return b, typ, err
+	types, err := s.typesOfRef(ctx, ref)
+	return b, types, errors.Wrapf(err, "getting types of %s", ref)
+}
+
+func (s *Store) typesOfRef(ctx context.Context, ref bs.Ref) ([]bs.Ref, error) {
+	var types []bs.Ref
+	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: typePrefix(ref)})
+	for {
+		tobj, err := iter.Next()
+		if stderrs.Is(err, iterator.Done) {
+			return types, nil
+		}
+		if err != nil {
+			return nil, errors.Wrapf(err, "iterating over types for %s", ref)
+		}
+		typRef, err := refFromTypeObjName(tobj.Name)
+		if err != nil {
+			return nil, errors.Wrapf(err, "parsing type %s", tobj.Name)
+		}
+		types = append(types, typRef)
+	}
 }
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	var (
-		ref   = b.Ref()
-		name  = blobObjName(ref)
-		obj   = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
-		w     = obj.NewWriter(ctx)
-		added bool
-	)
-	err := func() error {
-		defer w.Close()
+	ref, added, err := s.putBlob(ctx, b)
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "storing blob")
+	}
 
-		if typ != nil {
-			w.Metadata = map[string]string{typeKey: typ.String()}
-		}
-
-		_, err := w.Write(b) // TODO: are partial writes a possibility?
+	if typ != nil {
+		var (
+			name = typeObjName(ref, *typ)
+			obj  = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
+			w    = obj.NewWriter(ctx)
+		)
+		err = w.Close()
 		var e *googleapi.Error
 		if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
-			return nil
+			// ok
+		} else if err != nil {
+			return bs.Ref{}, false, errors.Wrapf(err, "storing type info for %s", ref)
 		}
-		if err == nil { // sic
-			added = true
-		}
-		return errors.Wrapf(err, "writing object %s", name)
-	}()
-	if err != nil {
-		return ref, added, err
-	}
-	if added {
-		err = anchor.Check(b, typ, func(a string, ref bs.Ref, when time.Time) error {
-			var (
-				name = anchorObjName(a, when)
-				obj  = s.bucket.Object(name)
-				w    = obj.NewWriter(ctx)
-			)
-			defer w.Close()
 
-			_, err = w.Write(ref[:])
-			return err
-		})
-		if err != nil {
-			return ref, true, errors.Wrap(err, "writing anchor")
+		if added {
+			err = anchor.Check(b, typ, func(a string, ref bs.Ref, when time.Time) error {
+				var (
+					name = anchorObjName(a, when)
+					obj  = s.bucket.Object(name)
+					w    = obj.NewWriter(ctx)
+				)
+				defer w.Close()
+
+				_, err = w.Write(ref[:])
+				return err
+			})
+			if err != nil {
+				return bs.Ref{}, false, errors.Wrap(err, "writing anchor")
+			}
 		}
 	}
 
-	return ref, added, err
+	return ref, added, nil
+}
+
+func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
+	var (
+		ref  = b.Ref()
+		name = blobObjName(ref)
+		obj  = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
+		w    = obj.NewWriter(ctx)
+	)
+	defer w.Close()
+
+	_, err := w.Write(b)
+	var e *googleapi.Error
+	if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
+		return ref, false, nil
+	}
+	return ref, true, err
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
 	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
 	// But they can filter by object-name prefix.
 	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
@@ -133,7 +151,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(r, typ bs.Ref
 	})
 }
 
-func (s *Store) listRefs(ctx context.Context, prefix string, f func(r, typ bs.Ref) error) error {
+func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs.Ref) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()
@@ -141,22 +159,20 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(r, typ bs.Re
 			return nil
 		}
 		if err != nil {
-			return err
+			return errors.Wrap(err, "iterating over blobs")
 		}
+
 		ref, err := refFromBlobObjName(obj.Name)
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "decoding obj name %s", obj.Name)
 		}
 
-		var typ bs.Ref
-		if typHex, ok := obj.Metadata[typeKey]; ok {
-			err = typ.FromHex(typHex)
-			if err != nil {
-				return errors.Wrapf(err, "decoding type ref (%s) for %s", typHex, obj.Name)
-			}
+		types, err := s.typesOfRef(ctx, ref)
+		if err != nil {
+			return errors.Wrapf(err, "getting types of %s", ref)
 		}
 
-		err = f(ref, typ)
+		err = f(ref, types)
 		if err != nil {
 			return err
 		}
@@ -338,6 +354,22 @@ func anchorTimeFromObjName(name string) (string, time.Time, error) {
 	at := invNanosToTime(strToNanos(m[2]))
 	a, err := hex.DecodeString(m[1])
 	return string(a), at, errors.Wrap(err, "hex-decoding anchor")
+}
+
+func typePrefix(ref bs.Ref) string {
+	return fmt.Sprintf("t:%s:", ref)
+}
+
+func typeObjName(ref, typ bs.Ref) string {
+	return typePrefix(ref) + typ.String()
+}
+
+func refFromTypeObjName(name string) (bs.Ref, error) {
+	parts := strings.Split(name, ":")
+	if len(parts) != 3 {
+		return bs.Ref{}, fmt.Errorf("got %d part(s), want 3", len(parts))
+	}
+	return bs.RefFromHex(parts[2])
 }
 
 func init() {

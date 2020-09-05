@@ -8,11 +8,9 @@ import (
 // Getter is a read-only Store (qv).
 type Getter interface {
 	// Get gets a blob by its ref.
-	// The return value typ is the blob's "type,"
-	// if it has one
-	// (as specified in a call to Put);
-	// otherwise it is the zero ref.
-	Get(context.Context, Ref) (b Blob, typ Ref, err error)
+	// Get also returns the set of types that have been associated with this blob by Put,
+	// in an unspecified order but without any duplicates.
+	Get(context.Context, Ref) (b Blob, types []Ref, err error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
@@ -27,7 +25,7 @@ type Getter interface {
 	//
 	// If the callback function returns an error,
 	// ListRefs exits with that error.
-	ListRefs(context.Context, Ref, func(r, typ Ref) error) error
+	ListRefs(context.Context, Ref, func(r Ref, types []Ref) error) error
 }
 
 // Store is a blob store.
@@ -38,16 +36,16 @@ type Store interface {
 	Getter
 
 	// Put adds b to the store if it was not already present.
-	// It returns the b's ref and a boolean that is true iff the blob had to be added.
+	// It returns b's ref and a boolean that is true iff the blob had to be added.
+	//
 	// If typ is non-nil,
-	// it is b's "type" and is returned from Get.
+	// it is associated with b as a type annotation.
 	// It should be the ref of a type-describing blob,
 	// such as a serialized protobuf descriptor.
 	// (See PutProto.)
+	// A single blob may have multiple type annotations.
 	//
-	// Note: if the same blob is "Put" twice
-	// with different values for typ,
-	// the typ value returned by Get is unspecified.
+	// All types added for a given blob are returned by Get.
 	Put(ctx context.Context, b Blob, typ *Ref) (ref Ref, added bool, err error)
 }
 
