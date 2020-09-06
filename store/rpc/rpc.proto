@@ -1,0 +1,38 @@
+syntax = "proto3";
+package rpc;
+
+option go_package = ".;rpc";
+
+message GetRequest {
+  bytes ref = 1;
+}
+
+message GetResponse {
+  bytes          blob  = 1;
+  repeated bytes types = 2;
+}
+
+message PutRequest {
+  bytes blob = 1;
+  bytes type = 2;
+}
+
+message PutResponse {
+  bytes ref   = 1;
+  bool  added = 2;
+}
+
+message ListRefsRequest {
+  bytes start = 1;
+}
+
+message ListRefsResponse {
+  bytes          ref   = 1;
+  repeated bytes types = 2;
+}
+
+service Store {
+  rpc Get (GetRequest) returns (GetResponse);
+  rpc Put (PutRequest) returns (PutResponse);
+  rpc ListRefs (ListRefsRequest) returns (stream ListRefsResponse);
+}
