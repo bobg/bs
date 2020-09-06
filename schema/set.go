@@ -15,6 +15,13 @@ func NewSet() *Set {
 	return &Set{Node: new(TreeNode)}
 }
 
+// LoadSet loads the set at the given ref.
+func LoadSet(ctx context.Context, g bs.Getter, ref bs.Ref) (*Set, error) {
+	var s Set
+	err := bs.GetProto(ctx, g, ref, &s)
+	return &s, err
+}
+
 // Add adds a Ref to a Set.
 // It returns the Set's own possibly-updated Ref,
 // and a boolean indicating whether the Set was changed,

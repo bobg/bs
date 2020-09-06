@@ -15,6 +15,13 @@ func NewMap() *Map {
 	return &Map{Node: new(TreeNode)}
 }
 
+// LoadMap loads the map at the given ref.
+func LoadMap(ctx context.Context, g bs.Getter, ref bs.Ref) (*Map, error) {
+	var m Map
+	err := bs.GetProto(ctx, g, ref, &m)
+	return &m, err
+}
+
 // Set sets the payload for a given key in a Map.
 // It returns the Map's possibly-updated Ref and an Outcome:
 // ONone if no change was needed (the key was already present and had the same payload),
