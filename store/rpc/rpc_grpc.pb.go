@@ -20,6 +20,8 @@ type StoreClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	ListRefs(ctx context.Context, in *ListRefsRequest, opts ...grpc.CallOption) (Store_ListRefsClient, error)
+	GetAnchor(ctx context.Context, in *GetAnchorRequest, opts ...grpc.CallOption) (*GetAnchorResponse, error)
+	ListAnchors(ctx context.Context, in *ListAnchorsRequest, opts ...grpc.CallOption) (Store_ListAnchorsClient, error)
 }
 
 type storeClient struct {
@@ -80,6 +82,47 @@ func (x *storeListRefsClient) Recv() (*ListRefsResponse, error) {
 	return m, nil
 }
 
+func (c *storeClient) GetAnchor(ctx context.Context, in *GetAnchorRequest, opts ...grpc.CallOption) (*GetAnchorResponse, error) {
+	out := new(GetAnchorResponse)
+	err := c.cc.Invoke(ctx, "/rpc.Store/GetAnchor", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeClient) ListAnchors(ctx context.Context, in *ListAnchorsRequest, opts ...grpc.CallOption) (Store_ListAnchorsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Store_serviceDesc.Streams[1], "/rpc.Store/ListAnchors", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &storeListAnchorsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Store_ListAnchorsClient interface {
+	Recv() (*ListAnchorsResponse, error)
+	grpc.ClientStream
+}
+
+type storeListAnchorsClient struct {
+	grpc.ClientStream
+}
+
+func (x *storeListAnchorsClient) Recv() (*ListAnchorsResponse, error) {
+	m := new(ListAnchorsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // StoreServer is the server API for Store service.
 // All implementations must embed UnimplementedStoreServer
 // for forward compatibility
@@ -87,6 +130,8 @@ type StoreServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	ListRefs(*ListRefsRequest, Store_ListRefsServer) error
+	GetAnchor(context.Context, *GetAnchorRequest) (*GetAnchorResponse, error)
+	ListAnchors(*ListAnchorsRequest, Store_ListAnchorsServer) error
 	mustEmbedUnimplementedStoreServer()
 }
 
@@ -102,6 +147,12 @@ func (*UnimplementedStoreServer) Put(context.Context, *PutRequest) (*PutResponse
 }
 func (*UnimplementedStoreServer) ListRefs(*ListRefsRequest, Store_ListRefsServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListRefs not implemented")
+}
+func (*UnimplementedStoreServer) GetAnchor(context.Context, *GetAnchorRequest) (*GetAnchorResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAnchor not implemented")
+}
+func (*UnimplementedStoreServer) ListAnchors(*ListAnchorsRequest, Store_ListAnchorsServer) error {
+	return status.Errorf(codes.Unimplemented, "method ListAnchors not implemented")
 }
 func (*UnimplementedStoreServer) mustEmbedUnimplementedStoreServer() {}
 
@@ -166,6 +217,45 @@ func (x *storeListRefsServer) Send(m *ListRefsResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _Store_GetAnchor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAnchorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServer).GetAnchor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.Store/GetAnchor",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServer).GetAnchor(ctx, req.(*GetAnchorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Store_ListAnchors_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListAnchorsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StoreServer).ListAnchors(m, &storeListAnchorsServer{stream})
+}
+
+type Store_ListAnchorsServer interface {
+	Send(*ListAnchorsResponse) error
+	grpc.ServerStream
+}
+
+type storeListAnchorsServer struct {
+	grpc.ServerStream
+}
+
+func (x *storeListAnchorsServer) Send(m *ListAnchorsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _Store_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "rpc.Store",
 	HandlerType: (*StoreServer)(nil),
@@ -178,11 +268,20 @@ var _Store_serviceDesc = grpc.ServiceDesc{
 			MethodName: "Put",
 			Handler:    _Store_Put_Handler,
 		},
+		{
+			MethodName: "GetAnchor",
+			Handler:    _Store_GetAnchor_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "ListRefs",
 			Handler:       _Store_ListRefs_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListAnchors",
+			Handler:       _Store_ListAnchors_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -3,6 +3,8 @@ package rpc;
 
 option go_package = ".;rpc";
 
+import "google/protobuf/timestamp.proto";
+
 message GetRequest {
   bytes ref = 1;
 }
@@ -31,8 +33,30 @@ message ListRefsResponse {
   repeated bytes types = 2;
 }
 
+message GetAnchorRequest {
+  string                    name = 1;
+  google.protobuf.Timestamp at   = 2;
+}
+
+message GetAnchorResponse {
+  bytes ref = 1;
+}
+
+message ListAnchorsRequest {
+  string start = 1;
+}
+
+message ListAnchorsResponse {
+  string                    name = 1;
+  bytes                     ref  = 2;
+  google.protobuf.Timestamp at   = 3;
+}
+
 service Store {
   rpc Get (GetRequest) returns (GetResponse);
   rpc Put (PutRequest) returns (PutResponse);
   rpc ListRefs (ListRefsRequest) returns (stream ListRefsResponse);
+
+  rpc GetAnchor (GetAnchorRequest) returns (GetAnchorResponse);
+  rpc ListAnchors (ListAnchorsRequest) returns (stream ListAnchorsResponse);
 }

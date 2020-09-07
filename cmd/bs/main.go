@@ -99,6 +99,7 @@ func main() {
 
 func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 	return map[string]subcmd.Subcmd{
+		"client":       c.client,
 		"get":          c.get,
 		"get-anchor":   c.getAnchor,
 		"list-anchors": c.listAnchors,
@@ -106,6 +107,7 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 		"ls":           c.ls,
 		"addtodir":     c.addToDir,
 		"put":          c.put,
+		"serve":        c.serve,
 		"tree":         c.tree,
 	}
 }

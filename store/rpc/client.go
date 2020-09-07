@@ -3,15 +3,18 @@ package rpc
 import (
 	context "context"
 	"io"
+	"time"
 
 	"github.com/pkg/errors"
 	grpc "google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 )
 
-var _ bs.Store = &Client{}
+var _ anchor.Store = &Client{}
 
 type Client struct {
 	sc StoreClient
@@ -70,6 +73,34 @@ func (c *Client) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, bo
 		return bs.Ref{}, false, err
 	}
 	return bs.RefFromBytes(resp.Ref), resp.Added, nil
+}
+
+func (c *Client) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
+	resp, err := c.sc.GetAnchor(ctx, &GetAnchorRequest{Name: name, At: timestamppb.New(at)})
+	if err != nil {
+		return bs.Ref{}, err
+	}
+	return bs.RefFromBytes(resp.Ref), nil
+}
+
+func (c *Client) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	lc, err := c.sc.ListAnchors(ctx, &ListAnchorsRequest{Start: start})
+	if err != nil {
+		return err
+	}
+	for {
+		resp, err := lc.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return errors.Wrap(err, "receiving response")
+		}
+		err = f(resp.Name, bs.RefFromBytes(resp.Ref), resp.At.AsTime())
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func init() {

@@ -2,8 +2,13 @@ package rpc
 
 import (
 	context "context"
+	"time"
+
+	"github.com/pkg/errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 )
 
 var _ StoreServer = &Server{}
@@ -17,6 +22,8 @@ type Server struct {
 func NewServer(s bs.Store) *Server {
 	return &Server{s: s}
 }
+
+// TODO: use errors from grpc/status.
 
 func (s *Server) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	blob, types, err := s.s.Get(ctx, bs.RefFromBytes(req.Ref))
@@ -50,5 +57,32 @@ func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error 
 			typeBytes = append(typeBytes, t[:])
 		}
 		return srv.Send(&ListRefsResponse{Ref: ref[:], Types: typeBytes})
+	})
+}
+
+var ErrNotAnchorStore = errors.New("not an anchor store")
+
+func (s *Server) GetAnchor(ctx context.Context, req *GetAnchorRequest) (*GetAnchorResponse, error) {
+	astore, ok := s.s.(anchor.Store)
+	if !ok {
+		return nil, ErrNotAnchorStore
+	}
+
+	ref, err := astore.GetAnchor(ctx, req.Name, req.At.AsTime())
+	if err != nil {
+		return nil, err
+	}
+
+	return &GetAnchorResponse{Ref: ref[:]}, nil
+}
+
+func (s *Server) ListAnchors(req *ListAnchorsRequest, srv Store_ListAnchorsServer) error {
+	astore, ok := s.s.(anchor.Store)
+	if !ok {
+		return ErrNotAnchorStore
+	}
+
+	return astore.ListAnchors(srv.Context(), req.Start, func(name string, ref bs.Ref, at time.Time) error {
+		return srv.Send(&ListAnchorsResponse{Name: name, Ref: ref[:], At: timestamppb.New(at)})
 	})
 }
