@@ -2,7 +2,6 @@ package gc
 
 import (
 	"context"
-	stderrs "errors"
 	"time"
 
 	"github.com/pkg/errors"
@@ -42,7 +41,7 @@ func Add(ctx context.Context, k Keep, g bs.Getter, ref bs.Ref) error {
 	}
 
 	p, err := bs.DynGetProto(ctx, g, ref)
-	if stderrs.Is(err, bs.ErrNotFound) || stderrs.Is(err, bs.ErrNoType) {
+	if errors.Is(err, bs.ErrNotFound) || errors.Is(err, bs.ErrNoType) {
 		return nil
 	}
 	if err != nil {

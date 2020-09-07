@@ -34,5 +34,6 @@ func (c maincmd) client(ctx context.Context, fs *flag.FlagSet, args []string) er
 	defer cc.Close()
 
 	cl := rpc.NewClient(cc)
-	return subcmd.Run(ctx, maincmd{s: cl}, flag.Args())
+
+	return subcmd.Run(ctx, maincmd{s: cl}, fs.Args())
 }

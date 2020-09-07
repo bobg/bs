@@ -24,11 +24,7 @@ func TestRPC(t *testing.T) {
 
 	l := bufconn.Listen(4096)
 
-	go func() {
-		t.Log("starting server")
-		err := grpcSrv.Serve(l)
-		t.Logf("server exited with error %v", err)
-	}()
+	go grpcSrv.Serve(l)
 
 	options := []grpc.DialOption{
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
@@ -45,10 +41,14 @@ func TestRPC(t *testing.T) {
 
 	c := NewClient(cc)
 
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testutil.ReadWrite(ctx, t, c, data)
+	t.Run("readwrite", func(t *testing.T) {
+		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		if err != nil {
+			t.Fatal(err)
+		}
+		testutil.ReadWrite(ctx, t, c, data)
+	})
+	t.Run("anchors", func(t *testing.T) {
+		testutil.Anchors(ctx, t, c)
+	})
 }

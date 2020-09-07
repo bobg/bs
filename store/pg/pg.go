@@ -4,7 +4,6 @@ package pg
 import (
 	"context"
 	"database/sql"
-	stderrs "errors"
 	"time"
 
 	"github.com/bobg/sqlutil"
@@ -64,7 +63,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) 
 
 	var b bs.Blob
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b)
-	if stderrs.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, bs.ErrNotFound
 	}
 
@@ -84,7 +83,7 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 
 	var result bs.Ref
 	err := s.db.QueryRowContext(ctx, q, name, at).Scan(&result)
-	if stderrs.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return bs.Ref{}, bs.ErrNotFound
 	}
 	return result, errors.Wrapf(err, "getting anchor %s", name)

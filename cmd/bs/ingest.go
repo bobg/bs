@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	stderrs "errors"
 	"flag"
 	"log"
 	"time"
@@ -51,7 +50,7 @@ func (c maincmd) addToDir(ctx context.Context, fset *flag.FlagSet, args []string
 		}
 	} else if *a != "" {
 		ref, err = c.s.GetAnchor(ctx, *a, at)
-		if err != nil && !stderrs.Is(err, bs.ErrNotFound) {
+		if err != nil && !errors.Is(err, bs.ErrNotFound) {
 			return errors.Wrapf(err, "getting anchor %s as of %s", *a, at)
 		}
 	}

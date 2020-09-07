@@ -4,7 +4,6 @@ package gcs
 import (
 	"context"
 	"encoding/hex"
-	stderrs "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,7 +62,7 @@ func (s *Store) typesOfRef(ctx context.Context, ref bs.Ref) ([]bs.Ref, error) {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: typePrefix(ref)})
 	for {
 		tobj, err := iter.Next()
-		if stderrs.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			return types, nil
 		}
 		if err != nil {
@@ -93,7 +92,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, 
 		)
 		err = w.Close()
 		var e *googleapi.Error
-		if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
+		if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
 			// ok
 		} else if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "storing type info for %s", ref)
@@ -133,7 +132,7 @@ func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 	_, err := w.Write(b)
 	var e *googleapi.Error
-	if stderrs.As(err, &e) && e.Code == http.StatusPreconditionFailed {
+	if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
 		return ref, false, nil
 	}
 	return ref, true, err
@@ -158,7 +157,7 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()
-		if stderrs.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			return nil
 		}
 		if err != nil {
@@ -194,7 +193,7 @@ func (s *Store) GetAnchor(ctx context.Context, a string, when time.Time) (bs.Ref
 	// Find the first one whose timestamp is `when` or earlier.
 	for {
 		attrs, err := iter.Next()
-		if stderrs.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			return bs.Ref{}, bs.ErrNotFound
 		}
 		if err != nil {
@@ -253,7 +252,7 @@ func (s *Store) listAnchors(ctx context.Context, prefix string, f func(name stri
 	}
 	for {
 		attrs, err := iter.Next()
-		if stderrs.Is(err, iterator.Done) {
+		if errors.Is(err, iterator.Done) {
 			return emit()
 		}
 		if err != nil {
