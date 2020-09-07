@@ -36,41 +36,22 @@ func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Spl
 		}
 	}
 
-	var (
-		ch   = make(chan hashsplit.Chunk)
-		done = make(chan struct{})
-		root *hashsplit.Node
-	)
+	tb := hashsplit.NewTreeBuilder()
 
-	go func() {
-		root = hashsplit.Tree(ch)
-		close(done)
-	}()
-
-	err := func() error {
-		defer close(ch)
-		return splitter.Split(ctx, r, func(chunk hashsplit.Chunk) error {
-			ref, _, err := s.Put(ctx, chunk.Bytes, nil)
-			if err != nil {
-				return errors.Wrap(err, "writing split chunk to store")
-			}
-
-			chunk.Bytes = ref[:]
-			chunk.Level /= 2 // TODO: Does this produce the best fan-out?
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case ch <- chunk:
-				return nil
-			}
-		})
-	}()
+	err := splitter.Split(ctx, r, func(bytes []byte, level uint) error {
+		size := len(bytes)
+		ref, _, err := s.Put(ctx, bytes, nil)
+		if err != nil {
+			return errors.Wrap(err, "writing split chunk to store")
+		}
+		tb.Add(ref[:], size, level/2) // TODO: does level/2 produce the best fan-out?
+		return nil
+	})
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "splitting input")
+		return bs.Ref{}, err
 	}
 
-	<-done
+	root := tb.Root()
 
 	return splitWrite(ctx, s, root)
 }
