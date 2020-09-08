@@ -9,6 +9,7 @@ require (
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a
 	github.com/golang/protobuf v1.4.2
+	github.com/google/go-cmp v0.5.0
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/lib/pq v1.8.0
 	github.com/mattn/go-sqlite3 v1.14.0
