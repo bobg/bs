@@ -254,6 +254,13 @@ func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+	err := os.MkdirAll(s.blobroot(), 0755)
+	if os.IsExist(err) {
+		// ok
+	} else if err != nil {
+		return errors.Wrapf(err, "ensuring %s exists", s.blobroot())
+	}
+
 	topLevel, err := ioutil.ReadDir(s.blobroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.blobroot())
