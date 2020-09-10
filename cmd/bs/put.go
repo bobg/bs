@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"io/ioutil"
 	"log"
 	"os"
@@ -16,27 +15,17 @@ import (
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	var (
-		a       = fs.String("anchor", "", "anchor to assign to added ref")
-		dosplit = fs.Bool("split", false, "get a split tree instead of a single blob")
-		atstr   = fs.String("at", "", "timestamp for anchor (default: now)")
-		bits    = fs.Uint("bits", 0, "with -split, the number of bits to split on (to control chunk size)")
-	)
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
+func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits uint, args []string) error {
 	var (
 		ref   bs.Ref
+		err   error
 		added bool
 	)
-	if *dosplit {
+	if dosplit {
 		var splitter *hashsplit.Splitter
-		if *bits > 0 {
+		if bits > 0 {
 			splitter = &hashsplit.Splitter{
-				SplitBits: *bits,
+				SplitBits: bits,
 			}
 		}
 		ref, err = split.Write(ctx, c.s, os.Stdin, splitter)
@@ -54,22 +43,22 @@ func (c maincmd) put(ctx context.Context, fs *flag.FlagSet, args []string) error
 		}
 	}
 
-	if *a != "" {
+	if a != "" {
 		at := time.Now()
-		if *atstr != "" {
-			at, err = parsetime(*atstr)
+		if atstr != "" {
+			at, err = parsetime(atstr)
 			if err != nil {
 				return errors.Wrap(err, "parsing -at")
 			}
 		}
 
-		_, _, err = anchor.Put(ctx, c.s, *a, ref, at)
+		_, _, err = anchor.Put(ctx, c.s, a, ref, at)
 		if err != nil {
-			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", *a, ref, at)
+			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", a, ref, at)
 		}
 	}
 
-	if *dosplit {
+	if dosplit {
 		log.Printf("ref %s", ref)
 	} else {
 		log.Printf("ref %s (added: %v)", ref, added)

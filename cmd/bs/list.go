@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"time"
 
@@ -11,16 +10,14 @@ import (
 	"github.com/bobg/bs"
 )
 
-func (c maincmd) listRefs(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	start := fs.String("start", "", "start after this ref")
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
+func (c maincmd) listRefs(ctx context.Context, start string, args []string) error {
+	var (
+		startRef bs.Ref
+		err      error
+	)
 
-	var startRef bs.Ref
-	if *start != "" {
-		startRef, err = bs.RefFromHex(*start)
+	if start != "" {
+		startRef, err = bs.RefFromHex(start)
 		if err != nil {
 			return errors.Wrap(err, "parsing start ref")
 		}
@@ -36,14 +33,8 @@ func (c maincmd) listRefs(ctx context.Context, fs *flag.FlagSet, args []string) 
 	})
 }
 
-func (c maincmd) listAnchors(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	start := fs.String("start", "", "start after this anchor name")
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
-	return c.s.ListAnchors(ctx, *start, func(name string, ref bs.Ref, at time.Time) error {
+func (c maincmd) listAnchors(ctx context.Context, start string, args []string) error {
+	return c.s.ListAnchors(ctx, start, func(name string, ref bs.Ref, at time.Time) error {
 		fmt.Printf("%s %s %s\n", name, ref, at)
 		return nil
 	})

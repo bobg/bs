@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"strings"
 	"time"
@@ -14,27 +13,20 @@ import (
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) tree(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	var (
-		a      = fs.String("anchor", "", "anchor of blob or tree to get")
-		refstr = fs.String("ref", "", "ref of blob or tree to get")
-		atstr  = fs.String("at", "", "timestamp for anchor (default: now)")
-	)
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
-	if (*a == "" && *refstr == "") || (*a != "" && *refstr != "") {
+func (c maincmd) tree(ctx context.Context, a, refstr, atstr string, args []string) error {
+	if (a == "" && refstr == "") || (a != "" && refstr != "") {
 		return errors.New("must supply one of -anchor or -ref")
 	}
 
-	var ref bs.Ref
+	var (
+		ref bs.Ref
+		err error
+	)
 
-	if *a != "" {
+	if a != "" {
 		at := time.Now()
-		if *atstr != "" {
-			at, err = parsetime(*atstr)
+		if atstr != "" {
+			at, err = parsetime(atstr)
 			if err != nil {
 				return errors.Wrap(err, "parsing -at")
 			}
@@ -45,14 +37,14 @@ func (c maincmd) tree(ctx context.Context, fs *flag.FlagSet, args []string) erro
 			return fmt.Errorf("%T is not an anchor.Store", c.s)
 		}
 
-		ref, err = as.GetAnchor(ctx, *a, at)
+		ref, err = as.GetAnchor(ctx, a, at)
 		if err != nil {
-			return errors.Wrapf(err, "getting anchor %s at time %s", *a, at)
+			return errors.Wrapf(err, "getting anchor %s at time %s", a, at)
 		}
 	} else {
-		ref, err = bs.RefFromHex(*refstr)
+		ref, err = bs.RefFromHex(refstr)
 		if err != nil {
-			return errors.Wrapf(err, "decoding ref %s", *refstr)
+			return errors.Wrapf(err, "decoding ref %s", refstr)
 		}
 	}
 

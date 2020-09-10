@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log"
 	"net"
 
@@ -12,23 +11,15 @@ import (
 	"github.com/bobg/bs/store/rpc"
 )
 
-func (c maincmd) serve(ctx context.Context, fs *flag.FlagSet, args []string) error {
-	var (
-		addr = fs.String("addr", ":2969", "server listen address")
-	)
-	err := fs.Parse(args)
-	if err != nil {
-		return errors.Wrap(err, "parsing args")
-	}
-
+func (c maincmd) serve(ctx context.Context, addr string, args []string) error {
 	gs := grpc.NewServer()
 	rs := rpc.NewServer(c.s)
 	rpc.RegisterStoreServer(gs, rs)
 	defer gs.GracefulStop()
 
-	lis, err := net.Listen("tcp", *addr)
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return errors.Wrapf(err, "listening on %s", *addr)
+		return errors.Wrapf(err, "listening on %s", addr)
 	}
 	defer lis.Close()
 
