@@ -1,6 +1,5 @@
-// Package compress implements a blob store that compresses and uncompresses blobs
-// on their way into and out of a nested store.
-package compress
+// Package transform implements a blob store that can transform blobs into and out of a nested store.
+package transform
 
 import (
 	"bytes"
@@ -21,21 +20,28 @@ import (
 
 var _ bs.Store = &Store{}
 
+// Store is a blob store wrapped a nested anchor.Store and a Transformer.
+// Blobs are transformed according to the Transformer on their way in and out of the nested store.
 type Store struct {
 	s anchor.Store
-	c Compressor
+	x Transformer
 	a string // anchor name at which the ref map lives in the nested stored
 
 	mu sync.Mutex  // protects m
-	m  *schema.Map // maps uncompressed-blob refs to serialized Pairs
+	m  *schema.Map // maps untransformed-blob refs to serialized Pairs
 }
 
-type Compressor interface {
-	Compress([]byte) []byte
-	Uncompress([]byte) ([]byte, error)
+// Transformer tells how to transform a blob on its way into and out of a Store.
+// Out should be the inverse of In.
+type Transformer interface {
+	// In transforms a blob on its way into the store.
+	In(context.Context, []byte) ([]byte, error)
+
+	// Out transforms a blob on its way out of the store.
+	Out(context.Context, []byte) ([]byte, error)
 }
 
-func New(ctx context.Context, s anchor.Store, c Compressor, a string) (*Store, error) {
+func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, error) {
 	var m *schema.Map
 
 	ref, err := s.GetAnchor(ctx, a, time.Now())
@@ -50,7 +56,7 @@ func New(ctx context.Context, s anchor.Store, c Compressor, a string) (*Store, e
 		}
 	}
 
-	return &Store{s: s, c: c, a: a, m: m}, nil
+	return &Store{s: s, x: x, a: a, m: m}, nil
 }
 
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
@@ -74,21 +80,21 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) 
 		for _, t := range pair.Types {
 			types = append(types, bs.RefFromBytes(t))
 		}
-		return bs.RefFromBytes(pair.CompressedRef), types, nil
+		return bs.RefFromBytes(pair.TransformedRef), types, nil
 	}()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "getting compressed-blob ref")
+		return nil, nil, errors.Wrap(err, "getting transformed-blob ref")
 	}
 
 	blob, _, err := s.s.Get(ctx, cref)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "getting compressed blob")
+		return nil, nil, errors.Wrap(err, "getting transformed blob")
 	}
 
 	if ref != cref {
-		blob, err = s.c.Uncompress(blob)
+		blob, err = s.x.Out(ctx, blob)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "uncompressing blob")
+			return nil, nil, errors.Wrap(err, "untransforming blob")
 		}
 	}
 
@@ -97,18 +103,16 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) 
 
 func (s *Store) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
 	ref := blob.Ref()
-	cblob := bs.Blob(s.c.Compress(blob))
-
-	cref := ref
-	if len(cblob) < len(blob) {
-		cref = cblob.Ref()
-	} else {
-		cblob = blob
+	cblob, err := s.x.In(ctx, blob)
+	if err != nil {
+		return bs.Ref{}, false, errors.Wrap(err, "transforming blob")
 	}
+
+	cref := bs.Blob(cblob).Ref()
 
 	_, added, err := s.s.Put(ctx, cblob, nil)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "storing compressed blob")
+		return bs.Ref{}, false, errors.Wrap(err, "storing transformed blob")
 	}
 
 	s.mu.Lock()
@@ -126,7 +130,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, boo
 			return bs.Ref{}, false, errors.Wrap(err, "unmarshaling pair")
 		}
 	} else {
-		pair.CompressedRef = cref[:]
+		pair.TransformedRef = cref[:]
 	}
 	if typ != nil {
 		var found bool
@@ -183,7 +187,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 }
 
 func init() {
-	store.Register("compress", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
+	store.Register("transform", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
 		nested, ok := conf["nested"].(map[string]interface{})
 		if !ok {
 			return nil, errors.New(`missing "nested" parameter`)
@@ -204,11 +208,11 @@ func init() {
 		if !ok {
 			return nil, errors.New(`missing "anchor" parameter`)
 		}
-		compressor, ok := conf["compressor"].(string)
+		transformer, ok := conf["transformer"].(string)
 		if !ok {
-			return nil, errors.New(`missing "compressor" parameter`)
+			return nil, errors.New(`missing "transformer" parameter`)
 		}
-		switch compressor {
+		switch transformer {
 		case "lzw":
 			order := lzw.LSB
 			if o, ok := conf["order"].(int); ok && lzw.Order(o) == lzw.MSB {
@@ -224,7 +228,7 @@ func init() {
 			return New(ctx, s, Flate{Level: level}, anchor)
 
 		default:
-			return nil, fmt.Errorf(`unknown compressor "%s"`, compressor)
+			return nil, fmt.Errorf(`unknown transformer "%s"`, transformer)
 		}
 	})
 }

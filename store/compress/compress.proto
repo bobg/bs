@@ -1,9 +1,0 @@
-syntax = "proto3";
-package compress;
-
-option go_package = ".;compress";
-
-message Pair {
-  bytes          compressed_ref = 1;
-  repeated bytes types          = 2;
-}

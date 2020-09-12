@@ -67,7 +67,10 @@ a file-based one,
 a SQLite-based one,
 a Postgresql-based one,
 and a Google Cloud Storage one.
-There is also a blob store that is an LRU cache for an underlying blob store.
+There is also a blob store that is an LRU cache for an underlying blob store,
+and a blob store that transforms blobs
+(compressing or encrypting them, for instance)
+on their way into and out of an underlying blob store.
 
 BS is inspired by, and a simplification of,
 [the Perkeep project](https://perkeep.org/),

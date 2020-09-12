@@ -25,6 +25,25 @@ import (
 var _ anchor.Store = &Store{}
 
 // Store is a Google Cloud Storage-based implementation of a blob store.
+// All blobs and other information are stored in a single GCS bucket.
+//
+// A blob with ref R is stored in a bucket object named b:hex(R)
+// (where hex(R) denotes the hexadecimal encoding of R).
+//
+// A type annotation T for blob ref R is stored as a zero-length object named t:hex(R):hex(T).
+//
+// An anchor with name N at time T pointing to ref R
+// stores the bytes of R in an object named a:hex(N):nanos(M-T),
+// where nanos denotes the representation of a time
+// as a 30-digit number of nanoseconds since the Unix epoch
+// (base 10, zero-padded),
+// and M is the maximum useful time in Go,
+// given by the formula:
+//   time.Unix(1<<63-1-int64((1969*365+1969/4-1969/100+1969/400)*24*60*60), 999999999)
+// (see https://stackoverflow.com/a/32620397).
+// This representation optimizes finding the latest anchor for a given name
+// (in the common case)
+// by querying the prefix a:hex(N):
 type Store struct {
 	bucket *storage.BucketHandle
 }

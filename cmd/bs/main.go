@@ -14,7 +14,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs/anchor"
-	_ "github.com/bobg/bs/store/compress"
 	_ "github.com/bobg/bs/store/file"
 	_ "github.com/bobg/bs/store/gcs"
 	_ "github.com/bobg/bs/store/lru"
@@ -22,6 +21,7 @@ import (
 	_ "github.com/bobg/bs/store/pg"
 	_ "github.com/bobg/bs/store/rpc"
 	_ "github.com/bobg/bs/store/sqlite3"
+	_ "github.com/bobg/bs/store/transform"
 )
 
 type maincmd struct {

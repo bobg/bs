@@ -1,4 +1,4 @@
-package compress
+package transform
 
 import (
 	"compress/lzw"
@@ -10,7 +10,7 @@ import (
 	"github.com/bobg/bs/testutil"
 )
 
-func TestCompress(t *testing.T) {
+func TestTransform(t *testing.T) {
 	ctx := context.Background()
 
 	data, err := ioutil.ReadFile("../../testdata/commonsense.txt")
