@@ -24,7 +24,7 @@
 // so does its ref,
 // which can make it tricky to keep track of a piece of data over its lifetime.
 // So in addition to a plain blob store,
-// this module provides an _anchor_ store.
+// this module provides an "anchor" store.
 // An anchor is a structured blob containing a name,
 // a timestamp,
 // and a blob ref.
@@ -43,7 +43,8 @@
 // and it returns the ref of the tree’s root.
 // The bytestream can be reassembled with split.Read.
 //
-// BS is inspired by, and a simplification of,
+// BS is inspired by,
+// and a simplification of,
 // the Perkeep project
 // (https://perkeep.org/),
 // which is presently dormant.

@@ -71,7 +71,10 @@ There is also a blob store that is an LRU cache for an underlying blob store,
 and a blob store that transforms blobs
 (compressing or encrypting them, for instance)
 on their way into and out of an underlying blob store.
+And store/rpc supplies a simple grpc server wrapping a Store,
+and a client for it that is a Store.
 
-BS is inspired by, and a simplification of,
+BS is inspired by,
+and a simplification of,
 [the Perkeep project](https://perkeep.org/),
 which is presently dormant.
