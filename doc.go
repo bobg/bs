@@ -44,6 +44,7 @@
 // The bytestream can be reassembled with split.Read.
 //
 // BS is inspired by, and a simplification of,
-// [the Perkeep project](https://perkeep.org/),
+// the Perkeep project
+// (https://perkeep.org/),
 // which is presently dormant.
 package bs
