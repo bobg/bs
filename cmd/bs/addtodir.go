@@ -28,10 +28,7 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 		}
 	}
 
-	var (
-		ref bs.Ref
-		dir *fs.Dir
-	)
+	var ref bs.Ref
 	if refstr != "" {
 		// Note: User may supply both -ref and -anchor,
 		// in which case -ref is the "before" ref of the dir and -anchor is assigned afterwards.
@@ -45,7 +42,10 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 			return errors.Wrapf(err, "getting anchor %s as of %s", a, at)
 		}
 	}
+
+	var dir *fs.Dir
 	if ref != (bs.Ref{}) {
+		dir = new(fs.Dir)
 		err = dir.Load(ctx, c.s, ref)
 		if err != nil {
 			return errors.Wrapf(err, "loading dir at %s", ref)
