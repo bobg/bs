@@ -47,6 +47,11 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) 
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+	ref := b.Ref()
+	if _, ok := s.c.Get(ref); ok {
+		return ref, false, nil
+	}
+
 	ref, added, err := s.s.Put(ctx, b, typ)
 	if err != nil {
 		return ref, added, err
