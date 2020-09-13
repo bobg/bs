@@ -31,7 +31,6 @@ import (
 func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Splitter) (bs.Ref, error) {
 	if splitter == nil {
 		splitter = &hashsplit.Splitter{
-			Reset:   true, // xxx ?
 			MinSize: 1024, // xxx ?
 		}
 	}
