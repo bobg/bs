@@ -22,25 +22,54 @@ func LoadSet(ctx context.Context, g bs.Getter, ref bs.Ref) (*Set, error) {
 	return &s, err
 }
 
+type setItem []byte
+
+func (it setItem) keyHash() []byte {
+	return it
+}
+
+func (it setItem) mutate(t tree, pos int32, insert bool) Outcome {
+	return setMutate(it)(t, pos, insert)
+}
+
+// SetFromRefs creates a Set from a slice of bs.Ref.
+func SetFromRefs(ctx context.Context, s bs.Store, refs []bs.Ref) (*Set, bs.Ref, error) {
+	items := make([]treeItem, 0, len(refs))
+	for _, ref := range refs {
+		ref := ref
+		items = append(items, setItem(ref[:]))
+	}
+	t, ref, err := treeFromGo(ctx, s, items, setNewAt)
+	return t.(*Set), ref, err
+}
+
 // Add adds a Ref to a Set.
 // It returns the Set's own possibly-updated Ref,
 // and a boolean indicating whether the Set was changed,
 // which will be false if the input Ref was already present.
 // If the Set is changed, it is written to the Store.
 func (s *Set) Add(ctx context.Context, store bs.Store, ref bs.Ref) (bs.Ref, bool, error) {
-	newref, outcome, err := treeSet(ctx, s, store, ref[:], func(m tree, i int32, insert bool) Outcome {
+	newref, outcome, err := treeSet(ctx, s, store, ref[:], setMutate(ref[:]))
+	return newref, outcome == OAdded, err
+}
+
+func setMutate(member []byte) func(tree, int32, bool) Outcome {
+	return func(m tree, i int32, insert bool) Outcome {
 		if !insert {
 			return ONone
 		}
 		s := m.(*Set)
-		newMembers := make([][]byte, 1+len(s.Members))
-		copy(newMembers[:i], s.Members[:i])
-		newMembers[i] = ref[:]
-		copy(newMembers[i+1:], s.Members[i:])
-		s.Members = newMembers
+		if i == int32(len(s.Members)) {
+			s.Members = append(s.Members, member)
+		} else {
+			newMembers := make([][]byte, 1+len(s.Members))
+			copy(newMembers[:i], s.Members[:i])
+			newMembers[i] = member
+			copy(newMembers[i+1:], s.Members[i:])
+			s.Members = newMembers
+		}
 		return OAdded
-	})
-	return newref, outcome == OAdded, err
+	}
 }
 
 func (s *Set) treenode() *TreeNode    { return s.Node }
@@ -48,7 +77,11 @@ func (s *Set) numMembers() int32      { return int32(len(s.Members)) }
 func (s *Set) keyHash(i int32) []byte { return s.Members[i] }
 func (s *Set) zeroMembers()           { s.Members = nil }
 
-func (s *Set) newAt(depth int32) tree {
+func (*Set) newAt(depth int32) tree {
+	return setNewAt(depth)
+}
+
+func setNewAt(depth int32) tree {
 	return &Set{
 		Node: &TreeNode{
 			Depth: depth,

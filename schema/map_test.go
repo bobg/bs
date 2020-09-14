@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -172,6 +174,48 @@ func TestMap(t *testing.T) {
 	}
 	if newMref != mref {
 		t.Fatalf("map changed back but new ref %s != %s", newMref, mref)
+	}
+}
+
+func TestMapFromGo(t *testing.T) {
+	ctx := context.Background()
+	seed := time.Now().Unix()
+	t.Logf("using seed %d", seed)
+	rng := rand.New(rand.NewSource(seed))
+	for i := 1; i <= 512; i++ {
+		t.Run(fmt.Sprintf("%d_members", i), func(t *testing.T) {
+			inp := make(map[string][]byte, i)
+			for j := 0; j < i; j++ {
+				key := fmt.Sprintf("key%d", j)
+				val := make([]byte, 8+rng.Intn(248))
+				_, err := rng.Read(val)
+				if err != nil {
+					t.Fatal(err)
+				}
+				inp[key] = val
+			}
+			store := mem.New()
+			m1 := NewMap()
+			var (
+				m1ref bs.Ref
+				err   error
+			)
+			for k, v := range inp {
+				m1ref, _, err = m1.Set(ctx, store, []byte(k), v)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, m2ref, err := MapFromGo(ctx, store, inp)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if m1ref != m2ref {
+				t.Error("mismatched refs")
+			}
+		})
 	}
 }
 

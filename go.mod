@@ -8,6 +8,7 @@ require (
 	github.com/bobg/hashsplit v0.0.0-20200907174827-4f358f3f075e
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v0.0.0-20200910040509-543baff89e3e
+	github.com/davecgh/go-spew v1.1.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.0
 	github.com/hashicorp/golang-lru v0.5.1

@@ -3,15 +3,19 @@ package lru
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/store"
 )
 
-var _ bs.Store = &Store{}
+var _ anchor.Store = &Store{}
 
 // Store implements a memory-based least-recently-used cache for a blob store.
 // Writes pass through to the underlying blob store.
@@ -81,12 +85,33 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 	return s.s.ListRefs(ctx, start, f)
 }
 
+func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
+	// TODO: add caching for anchors lookups too
+	if astore, ok := s.s.(anchor.Store); ok {
+		return astore.GetAnchor(ctx, name, at)
+	}
+	return bs.Ref{}, fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
+}
+
+func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
+	// TODO: add caching for anchors lookups too
+	if astore, ok := s.s.(anchor.Store); ok {
+		return astore.ListAnchors(ctx, start, f)
+	}
+	return fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
+}
+
 func init() {
 	store.Register("lru", func(ctx context.Context, conf map[string]interface{}) (bs.Store, error) {
-		size, ok := conf["size"].(int)
+		sizeNum, ok := conf["size"].(json.Number)
 		if !ok {
 			return nil, errors.New(`missing "size" parameter`)
 		}
+		size, err := sizeNum.Int64()
+		if err != nil {
+			return nil, errors.Wrapf(err, "parsing size %d", size)
+		}
+
 		nested, ok := conf["nested"].(map[string]interface{})
 		if !ok {
 			return nil, errors.New(`missing "nested" parameter`)
@@ -99,6 +124,6 @@ func init() {
 		if err != nil {
 			return nil, errors.Wrap(err, "creating nested store")
 		}
-		return New(nestedStore, size)
+		return New(nestedStore, int(size))
 	})
 }

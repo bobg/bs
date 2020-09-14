@@ -55,6 +55,56 @@ const (
 	OUpdated
 )
 
+type treeItem interface {
+	keyHash() []byte
+	mutate(tree, int32, bool) Outcome
+}
+
+func treeFromGo(ctx context.Context, s bs.Store, items []treeItem, newAt func(int32) tree) (tree, bs.Ref, error) {
+	sort.Slice(items, func(i, j int) bool {
+		return bytes.Compare(items[i].keyHash(), items[j].keyHash()) < 0
+	})
+	return treeFromGoHelper(ctx, s, items, 0, newAt)
+}
+
+func treeFromGoHelper(ctx context.Context, s bs.Store, items []treeItem, level int32, newAt func(int32) tree) (tree, bs.Ref, error) {
+	t := newAt(level)
+	tn := t.treenode()
+	tn.Size = int32(len(items))
+	if len(items) <= maxNode {
+		for i := 0; i < len(items); i++ {
+			items[i].mutate(t, int32(i), true)
+		}
+	} else {
+		var leftItems, rightItems []treeItem
+		for _, item := range items {
+			if nthbit(item.keyHash(), level) {
+				rightItems = append(rightItems, item)
+			} else {
+				leftItems = append(leftItems, item)
+			}
+		}
+		_, leftRef, err := treeFromGoHelper(ctx, s, leftItems, level+1, newAt)
+		if err != nil {
+			return nil, bs.Ref{}, errors.Wrap(err, "computing left node child")
+		}
+		_, rightRef, err := treeFromGoHelper(ctx, s, rightItems, level+1, newAt)
+		if err != nil {
+			return nil, bs.Ref{}, errors.Wrap(err, "computing right node child")
+		}
+		tn.Left = &SubNode{
+			Ref:  leftRef[:],
+			Size: int32(len(leftItems)),
+		}
+		tn.Right = &SubNode{
+			Ref:  rightRef[:],
+			Size: int32(len(rightItems)),
+		}
+	}
+	ref, _, err := bs.PutProto(ctx, s, t)
+	return t, ref, errors.Wrap(err, "storing tree node")
+}
+
 // Add or update an element to the tree.
 // When the right position in the member list of the right node is found,
 // mutate is called with the node, position, and a boolean: true for insertion,

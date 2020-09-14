@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/store/mem"
@@ -121,6 +123,47 @@ func TestSet(t *testing.T) {
 		if sref != newSref {
 			t.Fatalf("after adding back %d deleted refs, set root ref %s differs from original %s", len(deleted), newSref, sref)
 		}
+	}
+}
+
+func TestSetFromRefs(t *testing.T) {
+	ctx := context.Background()
+	seed := time.Now().Unix()
+	t.Logf("using seed %d", seed)
+	rng := rand.New(rand.NewSource(seed))
+	for i := 1; i <= 512; i++ {
+		t.Run(fmt.Sprintf("%d_members", i), func(t *testing.T) {
+			inp := make([]bs.Ref, 0, i)
+			for j := 0; j < i; j++ {
+				var ref bs.Ref
+				_, err := rng.Read(ref[:])
+				if err != nil {
+					t.Fatal(err)
+				}
+				inp = append(inp, ref)
+			}
+			store := mem.New()
+			m1 := NewSet()
+			var (
+				m1ref bs.Ref
+				err   error
+			)
+			for _, ref := range inp {
+				m1ref, _, err = m1.Add(ctx, store, bs.RefFromBytes(ref[:]))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			_, m2ref, err := SetFromRefs(ctx, store, inp)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if m1ref != m2ref {
+				t.Error("mismatched refs")
+			}
+		})
 	}
 }
 

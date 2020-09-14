@@ -22,23 +22,54 @@ func LoadMap(ctx context.Context, g bs.Getter, ref bs.Ref) (*Map, error) {
 	return &m, err
 }
 
+type mapItem struct {
+	k, v []byte
+}
+
+func (it mapItem) keyHash() []byte {
+	return hashKey(it.k)
+}
+
+func (it mapItem) mutate(t tree, pos int32, insert bool) Outcome {
+	return mapMutate(it.k, it.v)(t, pos, insert)
+}
+
+// MapFromGo creates a Map from a Go map[string][]byte.
+func MapFromGo(ctx context.Context, s bs.Store, m map[string][]byte) (*Map, bs.Ref, error) {
+	items := make([]treeItem, 0, len(m))
+	for k, v := range m {
+		items = append(items, mapItem{k: []byte(k), v: v})
+	}
+	t, ref, err := treeFromGo(ctx, s, items, mapNewAt)
+	return t.(*Map), ref, err
+}
+
 // Set sets the payload for a given key in a Map.
 // It returns the Map's possibly-updated Ref and an Outcome:
 // ONone if no change was needed (the key was already present and had the same payload),
 // OUpdated (the key was present with a different payload), or
 // OAdded (the key was not present).
 func (m *Map) Set(ctx context.Context, store bs.Store, key, payload []byte) (bs.Ref, Outcome, error) {
-	return treeSet(ctx, m, store, hashKey(key), func(t tree, i int32, insert bool) Outcome {
+	return treeSet(ctx, m, store, hashKey(key), mapMutate(key, payload))
+}
+
+func mapMutate(key, payload []byte) func(tree, int32, bool) Outcome {
+	return func(t tree, i int32, insert bool) Outcome {
 		m := t.(*Map)
 		if insert {
-			newMembers := make([]*MapPair, 1+len(m.Members))
-			copy(newMembers[:i], m.Members[:i])
-			newMembers[i] = &MapPair{
+			newMember := &MapPair{
 				Key:     key,
 				Payload: payload,
 			}
-			copy(newMembers[i+1:], m.Members[i:])
-			m.Members = newMembers
+			if i == int32(len(m.Members)) {
+				m.Members = append(m.Members, newMember)
+			} else {
+				newMembers := make([]*MapPair, 1+len(m.Members))
+				copy(newMembers[:i], m.Members[:i])
+				newMembers[i] = newMember
+				copy(newMembers[i+1:], m.Members[i:])
+				m.Members = newMembers
+			}
 			return OAdded
 		}
 		if bytes.Equal(payload, m.Members[i].Payload) {
@@ -46,7 +77,7 @@ func (m *Map) Set(ctx context.Context, store bs.Store, key, payload []byte) (bs.
 		}
 		m.Members[i].Payload = payload
 		return OUpdated
-	})
+	}
 }
 
 func (m *Map) treenode() *TreeNode    { return m.Node }
@@ -54,7 +85,11 @@ func (m *Map) numMembers() int32      { return int32(len(m.Members)) }
 func (m *Map) keyHash(i int32) []byte { return hashKey(m.Members[i].Key) }
 func (m *Map) zeroMembers()           { m.Members = nil }
 
-func (m *Map) newAt(depth int32) tree {
+func (*Map) newAt(depth int32) tree {
+	return mapNewAt(depth)
+}
+
+func mapNewAt(depth int32) tree {
 	return &Map{
 		Node: &TreeNode{
 			Depth: depth,

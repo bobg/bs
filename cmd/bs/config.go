@@ -20,7 +20,9 @@ func storeFromConfig(ctx context.Context, filename string) (bs.Store, error) {
 	}
 	defer f.Close()
 
-	err = json.NewDecoder(f).Decode(&conf)
+	dec := json.NewDecoder(f)
+	dec.UseNumber()
+	err = dec.Decode(&conf)
 	if err != nil {
 		return nil, errors.Wrapf(err, "decoding config file %s", filename)
 	}
