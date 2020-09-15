@@ -9,11 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs"
 	"github.com/bobg/bs/split"
 	"github.com/bobg/bs/store/mem"
 )
@@ -27,7 +26,7 @@ func TestFS(t *testing.T) {
 		ctx = context.Background()
 	)
 
-	ref, err := d.AddDir(ctx, s, testDir, time.Now())
+	ref, err := d.AddDir(ctx, s, testDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +154,7 @@ func compareFiles(path1, path2 string) error {
 	}
 }
 
-func extractInto(ctx context.Context, g anchor.Getter, d *Dir, dest string) error {
+func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 	return d.Each(ctx, g, func(name string, dirent *Dirent) error {
 		mode := os.FileMode(dirent.Mode)
 		if mode.IsDir() {
@@ -165,9 +164,9 @@ func extractInto(ctx context.Context, g anchor.Getter, d *Dir, dest string) erro
 				return errors.Wrapf(err, "making subdir %s", subdirName)
 			}
 
-			subdirRef, err := g.GetAnchor(ctx, dirent.Item, time.Now())
+			subdirRef, err := bs.RefFromHex(dirent.Item)
 			if err != nil {
-				return errors.Wrapf(err, "resolving anchor %s for subdir %s", dirent.Item, subdirName)
+				return errors.Wrapf(err, "parsing hex ref %s", dirent.Item)
 			}
 
 			var subdir Dir
@@ -185,9 +184,9 @@ func extractInto(ctx context.Context, g anchor.Getter, d *Dir, dest string) erro
 			return errors.Wrapf(err, "creating symlink %s/%s -> %s", dest, name, dirent.Item)
 		}
 
-		ref, err := g.GetAnchor(ctx, dirent.Item, time.Now())
+		ref, err := bs.RefFromHex(dirent.Item)
 		if err != nil {
-			return errors.Wrapf(err, "resolving anchor %s for file %s/%s", dirent.Item, dest, name)
+			return errors.Wrapf(err, "parsing hex ref %s for file %s/%s", dirent.Item, dest, name)
 		}
 
 		f, err := os.OpenFile(filepath.Join(dest, name), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)

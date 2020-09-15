@@ -54,7 +54,7 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 		dir = fs.NewDir()
 	}
 
-	ref, err = dir.Add(ctx, c.s, args[0], at)
+	ref, err = dir.Add(ctx, c.s, args[0])
 	if err != nil {
 		return errors.Wrapf(err, "adding %s to dir", args[0])
 	}
