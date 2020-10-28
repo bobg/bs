@@ -42,6 +42,10 @@ github.com/PuerkitoBio/goquery v1.5.1/go.mod h1:GsLWisAFVj4WgDibEWF4pvYnkVQBpKBK
 github.com/andybalholm/cascadia v1.1.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/bobg/hashsplit v0.0.0-20200907174827-4f358f3f075e h1:3kba0A1ZJCSJ+prEowSlevu+XqyN4x861+xjUUzAXKw=
 github.com/bobg/hashsplit v0.0.0-20200907174827-4f358f3f075e/go.mod h1:7lTNR9wZOcSajCIC4JOQmtcjtU93LFmY/hkDj87VTJw=
+github.com/bobg/hashsplit v0.0.0-20200915194103-403fb9e135fb h1:fjPU+ykKSEApUg6IVtfqnE5NoOUhguc/Q9gKYJuAmas=
+github.com/bobg/hashsplit v0.0.0-20200915194103-403fb9e135fb/go.mod h1:E/Fz4uUsNvhN9xrneh5rMP5I5vEhxunaNU2UlTxFoUg=
+github.com/bobg/hashsplit v0.0.0-20201028050146-aa38a0f27675 h1:TPZZxWzzzxyfnfgt9ntiwvvYn0nY6/RWvK3AO3PsdTs=
+github.com/bobg/hashsplit v0.0.0-20201028050146-aa38a0f27675/go.mod h1:E/Fz4uUsNvhN9xrneh5rMP5I5vEhxunaNU2UlTxFoUg=
 github.com/bobg/sqlutil v1.0.0 h1:UYyM8pNLsEYPINtH717SEXo/th9B6hQOKzUBTN4ApgA=
 github.com/bobg/sqlutil v1.0.0/go.mod h1:gI/qD+aW30zA+38MzLZMzbRf4KrK3Qs1dtpQ9AEBeCQ=
 github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a h1:pPPyLHxa+IDPuGOozhpR+jdvh6iCzd7JyDGgCX0oLns=
@@ -50,6 +54,8 @@ github.com/bobg/subcmd v0.0.0-20200910040509-543baff89e3e h1:yZh7EtedlDrSAhuKKFZ
 github.com/bobg/subcmd v0.0.0-20200910040509-543baff89e3e/go.mod h1:f2Q3XIILD4YqoNmbTffa/j4NPDdj5s88TqLokML8AvY=
 github.com/census-instrumentation/opencensus-proto v0.2.1 h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
+github.com/chmduquesne/rollinghash v4.0.0+incompatible h1:hnREQO+DXjqIw3rUTzWN7/+Dpw+N5Um8zpKV0JOEgbo=
+github.com/chmduquesne/rollinghash v4.0.0+incompatible/go.mod h1:Uc2I36RRfTAf7Dge82bi3RU0OQUmXT9iweIcPqvr8A0=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
