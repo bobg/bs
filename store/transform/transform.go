@@ -28,7 +28,7 @@ type Store struct {
 	a string // anchor name at which the ref map lives in the nested stored
 
 	mu sync.Mutex  // protects m
-	m  *schema.Map // maps untransformed-blob refs to serialized Pairs
+	m  *schema.Map // maps untransformed-blob refs to transformed-blob refs
 }
 
 // Transformer tells how to transform a blob on its way into and out of a Store.
@@ -59,31 +59,22 @@ func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, 
 	return &Store{s: s, x: x, a: a, m: m}, nil
 }
 
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
-	cref, types, err := func() (bs.Ref, []bs.Ref, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+	cref, err := func() (bs.Ref, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
 		got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
 		if err != nil {
-			return bs.Ref{}, nil, err
+			return bs.Ref{}, err
 		}
 		if !ok {
-			return bs.Ref{}, nil, bs.ErrNotFound
+			return bs.Ref{}, bs.ErrNotFound
 		}
-		var pair Pair
-		err = proto.Unmarshal(got, &pair)
-		if err != nil {
-			return bs.Ref{}, nil, errors.Wrap(err, "unmarshaling pair")
-		}
-		var types []bs.Ref
-		for _, t := range pair.Types {
-			types = append(types, bs.RefFromBytes(t))
-		}
-		return bs.RefFromBytes(pair.TransformedRef), types, nil
+		return bs.RefFromBytes(got), nil
 	}()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "getting transformed-blob ref")
+		return nil, errors.Wrap(err, "getting transformed-blob ref")
 	}
 
 	blob, _, err := s.s.Get(ctx, cref)
@@ -98,10 +89,10 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) 
 		}
 	}
 
-	return blob, types, nil
+	return blob, nil
 }
 
-func (s *Store) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	ref := blob.Ref()
 	cblob, err := s.x.In(ctx, blob)
 	if err != nil {
@@ -118,38 +109,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, boo
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "consulting ref map")
-	}
-
-	var pair Pair
-	if ok {
-		err = proto.Unmarshal(got, &pair)
-		if err != nil {
-			return bs.Ref{}, false, errors.Wrap(err, "unmarshaling pair")
-		}
-	} else {
-		pair.TransformedRef = cref[:]
-	}
-	if typ != nil {
-		var found bool
-		for _, t := range pair.Types {
-			if bytes.Equal(t, (*typ)[:]) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			pair.Types = append(pair.Types, (*typ)[:])
-		}
-	}
-	pairBytes, err := proto.Marshal(&pair)
-	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "marshaling pair")
-	}
-
-	mref, _, err := s.m.Set(ctx, s.s, ref[:], pairBytes)
+	mref, _, err := s.m.Set(ctx, s.s, ref[:], cref[:])
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "updating ref map")
 	}
@@ -158,32 +118,8 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, boo
 	return ref, added, errors.Wrap(err, "updating ref map anchor")
 }
 
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
-	return s.s.ListRefs(ctx, start, func(ref bs.Ref, types []bs.Ref) error {
-		if len(types) > 0 {
-			return f(ref, types)
-		}
-
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
-		if err != nil {
-			return errors.Wrap(err, "consulting ref map")
-		}
-		if !ok {
-			return nil // xxx ?
-		}
-		var pair Pair
-		err = proto.Unmarshal(got, &pair)
-		if err != nil {
-			return errors.Wrap(err, "unmarshaling pair")
-		}
-
-		for _, t := range pair.Types {
-			types = append(types, bs.RefFromBytes(t))
-		}
-		return f(ref, types)
-	})
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+	return s.s.ListRefs(ctx, start, f) // TODO: double-check
 }
 
 func init() {

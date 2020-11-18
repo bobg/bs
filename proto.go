@@ -15,7 +15,7 @@ import (
 // GetProto reads a blob from a blob store and parses it into the given protocol buffer.
 func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
 	// TODO: check type info?
-	b, _, err := g.Get(ctx, ref)
+	b, err := g.Get(ctx, ref)
 	if err != nil {
 		return err
 	}

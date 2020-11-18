@@ -26,24 +26,18 @@ func NewClient(cc grpc.ClientConnInterface) *Client {
 	return &Client{sc: NewStoreClient(cc)}
 }
 
-func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	resp, err := c.sc.Get(ctx, &GetRequest{Ref: ref[:]})
 	if code := status.Code(err); code == codes.NotFound {
-		return nil, nil, bs.ErrNotFound
+		return nil, bs.ErrNotFound
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	var types []bs.Ref
-	for _, t := range resp.Types {
-		types = append(types, bs.RefFromBytes(t))
-	}
-
-	return resp.Blob, types, nil
+	return resp.Blob, nil
 }
 
-func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	lc, err := c.sc.ListRefs(ctx, &ListRefsRequest{Start: start[:]})
 	if err != nil {
 		return err
@@ -56,23 +50,15 @@ func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs
 		if err != nil {
 			return errors.Wrap(err, "receiving response")
 		}
-		var types []bs.Ref
-		for _, t := range resp.Types {
-			types = append(types, bs.RefFromBytes(t))
-		}
-		err = f(bs.RefFromBytes(resp.Ref), types)
+		err = f(bs.RefFromBytes(resp.Ref))
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (c *Client) Put(ctx context.Context, blob bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	var typeBytes []byte
-	if typ != nil {
-		typeBytes = (*typ)[:]
-	}
-	resp, err := c.sc.Put(ctx, &PutRequest{Blob: blob, Type: typeBytes})
+func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
+	resp, err := c.sc.Put(ctx, &PutRequest{Blob: blob})
 	if err != nil {
 		return bs.Ref{}, false, err
 	}

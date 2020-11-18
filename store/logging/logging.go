@@ -25,20 +25,20 @@ func New(s anchor.Store) *Store {
 	return &Store{s: s}
 }
 
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
-	b, types, err := s.s.Get(ctx, ref)
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+	b, err := s.s.Get(ctx, ref)
 	if err != nil {
 		log.Printf("ERROR Get %s: %s", ref, err)
 	} else {
 		log.Printf("Get %s", ref)
 	}
-	return b, types, err
+	return b, err
 }
 
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
 	log.Printf("ListRefs, start=%s", start)
-	return s.s.ListRefs(ctx, start, func(ref bs.Ref, types []bs.Ref) error {
-		err := f(ref, types)
+	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
+		err := f(ref)
 		if err != nil {
 			log.Printf("  ERROR in ListRefs: %s: %s", ref, err)
 		} else {
@@ -48,8 +48,8 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 	})
 }
 
-func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
-	ref, added, err := s.s.Put(ctx, b, typ)
+func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
+	ref, added, err := s.s.Put(ctx, b)
 	if err != nil {
 		log.Printf("ERROR in Put: %s", err)
 	} else {

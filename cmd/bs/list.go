@@ -23,12 +23,8 @@ func (c maincmd) listRefs(ctx context.Context, start string, args []string) erro
 		}
 	}
 
-	return c.s.ListRefs(ctx, startRef, func(ref bs.Ref, types []bs.Ref) error {
-		fmt.Printf("%s", ref)
-		for _, typ := range types {
-			fmt.Printf(" %s", typ)
-		}
-		fmt.Print("\n")
+	return c.s.ListRefs(ctx, startRef, func(ref bs.Ref) error {
+		fmt.Println(ref)
 		return nil
 	})
 }

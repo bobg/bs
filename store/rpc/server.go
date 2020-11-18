@@ -26,40 +26,21 @@ func NewServer(s bs.Store) *Server {
 }
 
 func (s *Server) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
-	blob, types, err := s.s.Get(ctx, bs.RefFromBytes(req.Ref))
+	blob, err := s.s.Get(ctx, bs.RefFromBytes(req.Ref))
 	if errors.Is(err, bs.ErrNotFound) {
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
-	if err != nil {
-		return nil, err
-	}
-	var tbytes [][]byte
-	for _, t := range types {
-		tbytes = append(tbytes, t[:])
-	}
-	return &GetResponse{Blob: blob, Types: tbytes}, nil
+	return &GetResponse{Blob: blob}, err
 }
 
 func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error) {
-	var typ *bs.Ref
-	if len(req.Type) > 0 {
-		t := bs.RefFromBytes(req.Type)
-		typ = &t
-	}
-	ref, added, err := s.s.Put(ctx, req.Blob, typ)
-	if err != nil {
-		return nil, err
-	}
-	return &PutResponse{Ref: ref[:], Added: added}, nil
+	ref, added, err := s.s.Put(ctx, req.Blob)
+	return &PutResponse{Ref: ref[:], Added: added}, err
 }
 
 func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error {
-	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref, types []bs.Ref) error {
-		var typeBytes [][]byte
-		for _, t := range types {
-			typeBytes = append(typeBytes, t[:])
-		}
-		return srv.Send(&ListRefsResponse{Ref: ref[:], Types: typeBytes})
+	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {
+		return srv.Send(&ListRefsResponse{Ref: ref[:]})
 	})
 }
 

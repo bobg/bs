@@ -30,8 +30,6 @@ var _ anchor.Store = &Store{}
 // A blob with ref R is stored in a bucket object named b:hex(R)
 // (where hex(R) denotes the hexadecimal encoding of R).
 //
-// A type annotation T for blob ref R is stored as a zero-length object named t:hex(R):hex(T).
-//
 // An anchor with name N at time T pointing to ref R
 // stores the bytes of R in an object named a:hex(N):nanos(M-T),
 // where nanos denotes the representation of a time
@@ -53,88 +51,28 @@ func New(bucket *storage.BucketHandle) *Store {
 	return &Store{bucket: bucket}
 }
 
-const typeKey = "type"
-
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+// TODO: distinguish bs.ErrNotFound
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	name := blobObjName(ref)
 	obj := s.bucket.Object(name)
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "reading info of object %s", name)
+		return nil, errors.Wrapf(err, "reading info of object %s", name)
 	}
 	defer r.Close()
 
 	b := make([]byte, r.Attrs.Size)
 	_, err = io.ReadFull(r, b)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "reading contents of object %s", name)
-	}
-
-	types, err := s.typesOfRef(ctx, ref)
-	return b, types, errors.Wrapf(err, "getting types of %s", ref)
-}
-
-func (s *Store) typesOfRef(ctx context.Context, ref bs.Ref) ([]bs.Ref, error) {
-	var types []bs.Ref
-	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: typePrefix(ref)})
-	for {
-		tobj, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			return types, nil
-		}
-		if err != nil {
-			return nil, errors.Wrapf(err, "iterating over types for %s", ref)
-		}
-		typRef, err := refFromTypeObjName(tobj.Name)
-		if err != nil {
-			return nil, errors.Wrapf(err, "parsing type %s", tobj.Name)
-		}
-		types = append(types, typRef)
-	}
+	return b, errors.Wrapf(err, "reading contents of object %s", name)
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.putBlob(ctx, b)
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "storing blob")
-	}
-
-	if typ != nil {
-		var (
-			typeAdded bool
-			name      = typeObjName(ref, *typ)
-			obj       = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
-			w         = obj.NewWriter(ctx)
-		)
-		err = w.Close()
-		var e *googleapi.Error
-		if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
-			// ok
-		} else if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "storing type info for %s", ref)
-		} else {
-			typeAdded = true
-		}
-
-		if added || typeAdded {
-			err = anchor.Check(b, typ, func(a string, ref bs.Ref, when time.Time) error {
-				var (
-					name = anchorObjName(a, when)
-					obj  = s.bucket.Object(name)
-					w    = obj.NewWriter(ctx)
-				)
-				defer w.Close()
-
-				_, err = w.Write(ref[:])
-				return err
-			})
-			if err != nil {
-				return bs.Ref{}, false, errors.Wrap(err, "writing anchor")
-			}
-		}
 	}
 
 	return ref, added, nil
@@ -188,12 +126,7 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs
 			return errors.Wrapf(err, "decoding obj name %s", obj.Name)
 		}
 
-		types, err := s.typesOfRef(ctx, ref)
-		if err != nil {
-			return errors.Wrapf(err, "getting types of %s", ref)
-		}
-
-		err = f(ref, types)
+		err = f(ref)
 		if err != nil {
 			return err
 		}
@@ -375,22 +308,6 @@ func anchorTimeFromObjName(name string) (string, time.Time, error) {
 	at := invNanosToTime(strToNanos(m[2]))
 	a, err := hex.DecodeString(m[1])
 	return string(a), at, errors.Wrap(err, "hex-decoding anchor")
-}
-
-func typePrefix(ref bs.Ref) string {
-	return fmt.Sprintf("t:%s:", ref)
-}
-
-func typeObjName(ref, typ bs.Ref) string {
-	return typePrefix(ref) + typ.String()
-}
-
-func refFromTypeObjName(name string) (bs.Ref, error) {
-	parts := strings.Split(name, ":")
-	if len(parts) != 3 {
-		return bs.Ref{}, fmt.Errorf("got %d part(s), want 3", len(parts))
-	}
-	return bs.RefFromHex(parts[2])
 }
 
 func init() {

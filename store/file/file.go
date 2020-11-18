@@ -39,11 +39,6 @@ func (s *Store) blobpath(ref bs.Ref) string {
 	return filepath.Join(s.blobroot(), h[:2], h[:4], h)
 }
 
-func (s *Store) typepath(ref bs.Ref) string {
-	p := s.blobpath(ref)
-	return p + ".types"
-}
-
 func (s *Store) anchorroot() string {
 	return filepath.Join(s.root, "anchors")
 }
@@ -53,40 +48,13 @@ func (s *Store) anchorpath(name string) string {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	path := s.blobpath(ref)
 	blob, err := ioutil.ReadFile(path)
 	if os.IsNotExist(err) {
-		return nil, nil, bs.ErrNotFound
+		return nil, bs.ErrNotFound
 	}
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "opening %s", path)
-	}
-
-	types, err := s.typesOfRef(ref)
-	return blob, types, errors.Wrapf(err, "getting types for %s", ref)
-}
-
-func (s *Store) typesOfRef(ref bs.Ref) ([]bs.Ref, error) {
-	var (
-		types []bs.Ref
-		dir   = s.typepath(ref)
-	)
-	typeInfos, err := ioutil.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, errors.Wrapf(err, "reading %s", dir)
-	}
-	for _, info := range typeInfos {
-		typeRef, err := bs.RefFromHex(info.Name())
-		if err != nil {
-			return nil, errors.Wrapf(err, "parsing type %s for %s", info.Name(), ref)
-		}
-		types = append(types, typeRef)
-	}
-	return types, nil
+	return blob, errors.Wrapf(err, "opening %s", path)
 }
 
 // GetAnchor gets the latest blob ref for a given anchor as of a given time.
@@ -131,7 +99,7 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
 		ref   = b.Ref()
 		path  = s.blobpath(ref)
@@ -156,41 +124,6 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 		_, err = f.Write(b)
 		if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "writing data to %s", path)
-		}
-	}
-
-	if typ != nil {
-		var typeAdded bool
-
-		typeDir := s.typepath(ref)
-		err = os.MkdirAll(typeDir, 0755)
-		if os.IsExist(err) {
-			// ok
-		} else if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "ensuring path %s exists", typeDir)
-		}
-		typeFile := filepath.Join(typeDir, typ.String())
-		err = ioutil.WriteFile(typeFile, nil, 0644)
-		if os.IsExist(err) {
-			// ok
-		} else if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "writing type file %s", typeFile)
-		} else {
-			typeAdded = true
-		}
-
-		if added || typeAdded {
-			err = anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-				dir := s.anchorpath(name)
-				err := os.MkdirAll(dir, 0755)
-				if err != nil {
-					return errors.Wrapf(err, "ensuring path %s exists", dir)
-				}
-				return ioutil.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
-			})
-			if err != nil {
-				return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
-			}
 		}
 	}
 
@@ -322,12 +255,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 					continue
 				}
 
-				types, err := s.typesOfRef(ref)
-				if err != nil {
-					return errors.Wrapf(err, "getting types for %s", ref)
-				}
-
-				err = f(ref, types)
+				err = f(ref)
 				if err != nil {
 					return err
 				}

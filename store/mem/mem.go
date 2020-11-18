@@ -21,7 +21,6 @@ type (
 	Store struct {
 		mu      sync.Mutex
 		blobs   map[bs.Ref]bs.Blob
-		types   map[bs.Ref][]bs.Ref
 		anchors map[string][]timeref
 	}
 
@@ -35,7 +34,6 @@ type (
 func New() *Store {
 	return &Store{
 		blobs:   make(map[bs.Ref]bs.Blob),
-		types:   make(map[bs.Ref][]bs.Ref),
 		anchors: make(map[string][]timeref),
 	}
 }
@@ -45,32 +43,27 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if p, ok := s.blobs[ref]; ok {
-		return p, s.types[ref], nil
+		return p, nil
 	}
-	return nil, nil, bs.ErrNotFound
+	return nil, bs.ErrNotFound
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
-	type tref struct {
-		r bs.Ref
-		t []bs.Ref
-	}
-
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	s.mu.Lock()
-	var trefs []tref
+	var refs []bs.Ref
 	for ref := range s.blobs {
 		if ref.Less(start) || ref == start {
 			continue
 		}
-		trefs = append(trefs, tref{r: ref, t: s.types[ref]})
+		refs = append(refs, ref)
 	}
 	s.mu.Unlock()
 
-	sort.Slice(trefs, func(i, j int) bool { return trefs[i].r.Less(trefs[j].r) })
+	sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
 
-	for _, tr := range trefs {
-		err := f(tr.r, tr.t)
+	for _, ref := range refs {
+		err := f(ref)
 		if err != nil {
 			return err
 		}
@@ -79,7 +72,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -90,40 +83,6 @@ func (s *Store) Put(_ context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, er
 	if _, ok := s.blobs[ref]; !ok {
 		s.blobs[ref] = b
 		added = true
-	}
-
-	if typ != nil {
-		var (
-			found bool
-			types = s.types[ref]
-		)
-
-		for _, t := range types {
-			if t == *typ {
-				found = true
-				break
-			}
-		}
-		if !found {
-			types = append(types, *typ)
-			s.types[ref] = types
-		}
-
-		if added || !found {
-			err := anchor.Check(b, typ, func(name string, ref bs.Ref, at time.Time) error {
-				tr := timeref{r: ref, t: at}
-				anchors := s.anchors[name]
-				anchors = append(anchors, tr)
-				sort.Slice(anchors, func(i, j int) bool {
-					return anchors[i].t.Before(anchors[j].t)
-				})
-				s.anchors[name] = anchors
-				return nil
-			})
-			if err != nil {
-				return ref, added, errors.Wrap(err, "in anchor check")
-			}
-		}
 	}
 
 	return ref, added, nil
