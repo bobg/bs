@@ -37,7 +37,7 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 		if err != nil {
 			return errors.Wrap(err, "reading stdin")
 		}
-		ref, added, err = c.s.Put(ctx, blob, nil)
+		ref, added, err = c.s.Put(ctx, blob)
 		if err != nil {
 			return errors.Wrap(err, "storing blob")
 		}

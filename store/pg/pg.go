@@ -50,7 +50,7 @@ func New(ctx context.Context, db *sql.DB) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	const q = `SELECT data FROM blobs WHERE ref = $1`
 
 	var b bs.Blob
@@ -99,6 +99,17 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 	added := aff > 0
 
+	if added {
+		err = anchor.Check(b, func(name string, ref bs.Ref, at time.Time) error {
+			const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+			_, err := s.db.ExecContext(ctx, q, name, ref, at)
+			return err
+		})
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "inserting anchor")
+		}
+	}
+
 	return ref, added, nil
 }
 
@@ -106,7 +117,6 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > $1 ORDER BY blobs.ref`
 
-	var lastRef *bs.Ref
 	return sqlutil.ForQueryRows(ctx, s.db, q, start, f)
 }
 

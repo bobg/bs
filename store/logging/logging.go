@@ -35,7 +35,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return b, err
 }
 
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	log.Printf("ListRefs, start=%s", start)
 	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
 		err := f(ref)

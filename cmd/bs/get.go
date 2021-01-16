@@ -52,7 +52,7 @@ func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool,
 		return split.Read(ctx, c.s, ref, os.Stdout)
 	}
 
-	blob, _, err := c.s.Get(ctx, ref)
+	blob, err := c.s.Get(ctx, ref)
 	if err != nil {
 		return errors.Wrapf(err, "getting blob %s", ref)
 	}

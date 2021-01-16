@@ -39,7 +39,7 @@ func New() *Store {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if p, ok := s.blobs[ref]; ok {
@@ -83,6 +83,20 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	if _, ok := s.blobs[ref]; !ok {
 		s.blobs[ref] = b
 		added = true
+
+		err := anchor.Check(b, func(name string, ref bs.Ref, at time.Time) error {
+			tr := timeref{r: ref, t: at}
+			anchors := s.anchors[name]
+			anchors = append(anchors, tr)
+			sort.Slice(anchors, func(i, j int) bool {
+				return anchors[i].t.Before(anchors[j].t)
+			})
+			s.anchors[name] = anchors
+			return nil
+		})
+		if err != nil {
+			return ref, added, errors.Wrap(err, "in anchor check")
+		}
 	}
 
 	return ref, added, nil

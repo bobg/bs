@@ -20,10 +20,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 	}
 
 	type tuple struct {
-		n     int
-		s     bs.Store
-		ch    <-chan typedRef
-		ref   *bs.Ref
+		n   int
+		s   bs.Store
+		ch  <-chan bs.Ref
+		ref *bs.Ref
 	}
 
 	eg, ctx2 := errgroup.WithContext(ctx)
@@ -67,10 +67,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 				if ok && err != nil {
 					return err
 				}
-			case tr, ok := <-tup.ch:
+			case ref, ok := <-tup.ch:
 				if ok {
 					any = true
-					tup.ref = &tr.ref
+					tup.ref = &ref
 				} else {
 					tup.ref = nil
 				}
@@ -114,7 +114,7 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		}
 
 		for _, tup := range needers {
-			_, err = tup.s.Put(ctx, blob)
+			_, _, err = tup.s.Put(ctx, blob)
 			if err != nil {
 				return errors.Wrapf(err, "storing blob for %s", ref)
 			}

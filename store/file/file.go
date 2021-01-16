@@ -125,6 +125,18 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 		if err != nil {
 			return bs.Ref{}, false, errors.Wrapf(err, "writing data to %s", path)
 		}
+
+		err = anchor.Check(b, func(name string, ref bs.Ref, at time.Time) error {
+			dir := s.anchorpath(name)
+			err := os.MkdirAll(dir, 0755)
+			if err != nil {
+				return errors.Wrapf(err, "ensuring path %s exists", dir)
+			}
+			return ioutil.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
+		})
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "adding anchor")
+		}
 	}
 
 	return ref, added, nil
@@ -186,7 +198,7 @@ func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	err := os.MkdirAll(s.blobroot(), 0755)
 	if os.IsExist(err) {
 		// ok

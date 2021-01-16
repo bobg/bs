@@ -75,6 +75,23 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 		return bs.Ref{}, false, errors.Wrap(err, "storing blob")
 	}
 
+	if added {
+		err = anchor.Check(b, func(a string, ref bs.Ref, when time.Time) error {
+			var (
+				name = anchorObjName(a, when)
+				obj  = s.bucket.Object(name)
+				w    = obj.NewWriter(ctx)
+			)
+			defer w.Close()
+
+			_, err = w.Write(ref[:])
+			return err
+		})
+		if err != nil {
+			return bs.Ref{}, false, errors.Wrap(err, "writing anchor")
+		}
+	}
+
 	return ref, added, nil
 }
 
@@ -96,7 +113,7 @@ func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
 	// But they can filter by object-name prefix.
 	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
@@ -110,7 +127,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 	})
 }
 
-func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()

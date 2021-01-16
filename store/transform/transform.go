@@ -2,7 +2,6 @@
 package transform
 
 import (
-	"bytes"
 	"compress/lzw"
 	"context"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
@@ -77,15 +75,15 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 		return nil, errors.Wrap(err, "getting transformed-blob ref")
 	}
 
-	blob, _, err := s.s.Get(ctx, cref)
+	blob, err := s.s.Get(ctx, cref)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "getting transformed blob")
+		return nil, errors.Wrap(err, "getting transformed blob")
 	}
 
 	if ref != cref {
 		blob, err = s.x.Out(ctx, blob)
 		if err != nil {
-			return nil, nil, errors.Wrap(err, "untransforming blob")
+			return nil, errors.Wrap(err, "untransforming blob")
 		}
 	}
 
@@ -101,7 +99,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 
 	cref := bs.Blob(cblob).Ref()
 
-	_, added, err := s.s.Put(ctx, cblob, nil)
+	_, added, err := s.s.Put(ctx, cblob)
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "storing transformed blob")
 	}
