@@ -14,7 +14,7 @@ import (
 	"github.com/bobg/bs"
 )
 
-// Getter is a read-only anchor store.
+// Getter is a read-only blob and anchor store.
 type Getter interface {
 	bs.Getter
 
@@ -44,52 +44,6 @@ type Getter interface {
 type Store interface {
 	bs.Store
 	Getter
-}
 
-// Put adds an Anchor constructed from name, ref, and at to the given Store.
-func Put(ctx context.Context, s bs.Store, name string, ref bs.Ref, at time.Time) (bs.Ref, bool, error) {
-	return bs.PutProto(ctx, s, &Anchor{Name: name, Ref: ref[:], At: timestamppb.New(at)})
-}
-
-// Check checks whether typ indicates that b is an Anchor.
-// If it is, it interprets b as an Anchor and calls f with the Anchor's fields.
-func Check(b bs.Blob, typ *bs.Ref, f func(name string, ref bs.Ref, at time.Time) error) error {
-	if typ == nil || *typ != TypeRef() {
-		return nil
-	}
-	var a Anchor
-	err := proto.Unmarshal(b, &a)
-	if err != nil {
-		return errors.Wrap(err, "unmarshaling Anchor protobuf")
-	}
-	return f(a.Name, bs.RefFromBytes(a.Ref), a.At.AsTime())
-}
-
-var typeRef *bs.Ref
-
-// TypeRef returns the type ref of an Anchor.
-func TypeRef() bs.Ref {
-	if typeRef == nil {
-		tr, err := bs.TypeRef(&Anchor{})
-		if err != nil {
-			panic(err)
-		}
-		typeRef = &tr
-	}
-	return *typeRef
-}
-
-// Init initializes a Store by populating it with the type blob of an Anchor.
-// It also calls bs.Init.
-func Init(ctx context.Context, s Store) error {
-	err := bs.Init(ctx, s)
-	if err != nil {
-		return errors.Wrap(err, "calling bs.Init")
-	}
-	t := bs.Type(&Anchor{})
-	if err != nil {
-		return errors.Wrap(err, "computing type of Anchor")
-	}
-	_, _, err = bs.PutProto(ctx, s, t)
-	return errors.Wrap(err, "storing Anchor type blob")
+	PutAnchor(context.Context, string, bs.Ref, time.Time) error
 }

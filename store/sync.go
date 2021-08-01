@@ -22,15 +22,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		return nil
 	}
 
-	type typedRef struct {
-		ref   bs.Ref
-		types []bs.Ref
-	}
-
 	type tuple struct {
 		n     int
 		s     bs.Store
-		ch    <-chan typedRef
+		ch    <-chan bs.Ref
 		ref   *bs.Ref
 		types []bs.Ref
 	}
@@ -40,14 +35,14 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 	tuples := make([]*tuple, 0, len(stores))
 	for i, s := range stores {
 		i, s := i, s
-		ch := make(chan typedRef)
+		ch := make(chan bs.Ref)
 		eg.Go(func() error {
 			defer close(ch)
-			return s.ListRefs(ctx2, bs.Ref{}, func(ref bs.Ref, types []bs.Ref) error {
+			return s.ListRefs(ctx2, bs.Ref{}, func(ref bs.Ref) error {
 				select {
 				case <-ctx2.Done():
 					return ctx2.Err()
-				case ch <- typedRef{ref: ref, types: types}:
+				case ch <- ref:
 				}
 				return nil
 			})
