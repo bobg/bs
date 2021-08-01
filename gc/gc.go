@@ -20,7 +20,7 @@ type Store interface {
 // Run runs a garbage collection on s,
 // with k the set of refs to keep.
 func Run(ctx context.Context, s Store, k Keep) error {
-	return s.ListRefs(ctx, bs.Ref{}, func(ref bs.Ref, _ []bs.Ref) error {
+	return s.ListRefs(ctx, bs.Ref{}, func(ref bs.Ref) error {
 		found, err := k.Contains(ctx, ref)
 		if err != nil {
 			return err

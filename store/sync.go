@@ -13,10 +13,7 @@ import (
 // Sync synchronizes two or more stores.
 // It runs ListRefs on all input stores.
 // When a ref is found to be in some but not all stores,
-// its blob and types are added to the stores where it's missing.
-//
-// TODO: Two stores may have the same ref but differ in the set of types for it.
-// This function will not synchronize the missing type information in that case, but it should.
+// its blob is added to the stores where it's missing.
 func Sync(ctx context.Context, stores []bs.Store) error {
 	if len(stores) < 2 {
 		return nil
@@ -27,7 +24,6 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		s     bs.Store
 		ch    <-chan bs.Ref
 		ref   *bs.Ref
-		types []bs.Ref
 	}
 
 	eg, ctx2 := errgroup.WithContext(ctx)
@@ -71,11 +67,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 				if ok && err != nil {
 					return err
 				}
-			case tr, ok := <-tup.ch:
+			case ref, ok := <-tup.ch:
 				if ok {
 					any = true
-					tup.ref = &tr.ref
-					tup.types = tr.types
+					tup.ref = &ref
 				} else {
 					tup.ref = nil
 				}
@@ -113,24 +108,15 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 
 		needers := tuples[i:]
 
-		blob, types, err := havers[0].s.Get(ctx, ref)
+		blob, err := havers[0].s.Get(ctx, ref)
 		if err != nil {
 			return errors.Wrapf(err, "getting blob for %s", ref)
 		}
 
 		for _, tup := range needers {
-			if len(types) == 0 {
-				_, _, err = tup.s.Put(ctx, blob, nil)
-				if err != nil {
-					return errors.Wrapf(err, "storing blob for %s", ref)
-				}
-			} else {
-				for _, typ := range types {
-					_, _, err = tup.s.Put(ctx, blob, &typ)
-					if err != nil {
-						return errors.Wrapf(err, "storing blob for %s", ref)
-					}
-				}
+			_, _, err = tup.s.Put(ctx, blob)
+			if err != nil {
+				return errors.Wrapf(err, "storing blob for %s", ref)
 			}
 		}
 	}

@@ -10,13 +10,11 @@ message GetRequest {
 }
 
 message GetResponse {
-  bytes          blob  = 1;
-  repeated bytes types = 2;
+  bytes blob  = 1;
 }
 
 message PutRequest {
   bytes blob = 1;
-  bytes type = 2;
 }
 
 message PutResponse {
@@ -29,8 +27,7 @@ message ListRefsRequest {
 }
 
 message ListRefsResponse {
-  bytes          ref   = 1;
-  repeated bytes types = 2;
+  bytes ref   = 1;
 }
 
 message GetAnchorRequest {

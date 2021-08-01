@@ -56,85 +56,26 @@ func New(bucket *storage.BucketHandle) *Store {
 const typeKey = "type"
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, []bs.Ref, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	name := blobObjName(ref)
 	obj := s.bucket.Object(name)
 
 	r, err := obj.NewReader(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "reading info of object %s", name)
+		return nil, errors.Wrapf(err, "reading info of object %s", name)
 	}
 	defer r.Close()
 
 	b := make([]byte, r.Attrs.Size)
 	_, err = io.ReadFull(r, b)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "reading contents of object %s", name)
-	}
-
-	types, err := s.typesOfRef(ctx, ref)
-	return b, types, errors.Wrapf(err, "getting types of %s", ref)
-}
-
-func (s *Store) typesOfRef(ctx context.Context, ref bs.Ref) ([]bs.Ref, error) {
-	var types []bs.Ref
-	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: typePrefix(ref)})
-	for {
-		tobj, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			return types, nil
-		}
-		if err != nil {
-			return nil, errors.Wrapf(err, "iterating over types for %s", ref)
-		}
-		typRef, err := refFromTypeObjName(tobj.Name)
-		if err != nil {
-			return nil, errors.Wrapf(err, "parsing type %s", tobj.Name)
-		}
-		types = append(types, typRef)
-	}
+	return b, errors.Wrapf(err, "reading contents of object %s", name)
 }
 
 // Put adds a blob to the store if it wasn't already present.
-func (s *Store) Put(ctx context.Context, b bs.Blob, typ *bs.Ref) (bs.Ref, bool, error) {
+func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.putBlob(ctx, b)
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "storing blob")
-	}
-
-	if typ != nil {
-		var (
-			typeAdded bool
-			name      = typeObjName(ref, *typ)
-			obj       = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
-			w         = obj.NewWriter(ctx)
-		)
-		err = w.Close()
-		var e *googleapi.Error
-		if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
-			// ok
-		} else if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "storing type info for %s", ref)
-		} else {
-			typeAdded = true
-		}
-
-		if added || typeAdded {
-			err = anchor.Check(b, typ, func(a string, ref bs.Ref, when time.Time) error {
-				var (
-					name = anchorObjName(a, when)
-					obj  = s.bucket.Object(name)
-					w    = obj.NewWriter(ctx)
-				)
-				defer w.Close()
-
-				_, err = w.Write(ref[:])
-				return err
-			})
-			if err != nil {
-				return bs.Ref{}, false, errors.Wrap(err, "writing anchor")
-			}
-		}
 	}
 
 	return ref, added, nil
@@ -158,7 +99,7 @@ func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
 	// But they can filter by object-name prefix.
 	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
@@ -172,7 +113,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref, []bs.
 	})
 }
 
-func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs.Ref) error) error {
+func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) error) error {
 	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
 	for {
 		obj, err := iter.Next()
@@ -188,12 +129,7 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref, []bs
 			return errors.Wrapf(err, "decoding obj name %s", obj.Name)
 		}
 
-		types, err := s.typesOfRef(ctx, ref)
-		if err != nil {
-			return errors.Wrapf(err, "getting types of %s", ref)
-		}
-
-		err = f(ref, types)
+		err = f(ref)
 		if err != nil {
 			return err
 		}
