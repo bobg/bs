@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/split"
 )
 
@@ -37,7 +36,7 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 		if err != nil {
 			return errors.Wrap(err, "reading stdin")
 		}
-		ref, added, err = c.s.Put(ctx, blob, nil)
+		ref, added, err = c.s.Put(ctx, blob)
 		if err != nil {
 			return errors.Wrap(err, "storing blob")
 		}
@@ -52,7 +51,7 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 			}
 		}
 
-		_, _, err = anchor.Put(ctx, c.s, a, ref, at)
+		err = c.s.PutAnchor(ctx, a, ref, at)
 		if err != nil {
 			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", a, ref, at)
 		}

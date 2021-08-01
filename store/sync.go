@@ -20,10 +20,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 	}
 
 	type tuple struct {
-		n     int
-		s     bs.Store
-		ch    <-chan bs.Ref
-		ref   *bs.Ref
+		n   int
+		s   bs.Store
+		ch  <-chan bs.Ref
+		ref *bs.Ref
 	}
 
 	eg, ctx2 := errgroup.WithContext(ctx)

@@ -71,6 +71,13 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 	return bs.Ref{}, fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
 }
 
+func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+	if astore, ok := s.s.(anchor.Store); ok {
+		return astore.PutAnchor(ctx, name, ref, at)
+	}
+	return fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
+}
+
 func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
 	// TODO: add caching for anchors lookups too
 	if astore, ok := s.s.(anchor.Store); ok {

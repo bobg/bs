@@ -10,7 +10,7 @@ message GetRequest {
 }
 
 message GetResponse {
-  bytes blob  = 1;
+  bytes blob = 1;
 }
 
 message PutRequest {
@@ -27,7 +27,7 @@ message ListRefsRequest {
 }
 
 message ListRefsResponse {
-  bytes ref   = 1;
+  bytes ref = 1;
 }
 
 message GetAnchorRequest {
@@ -37,6 +37,15 @@ message GetAnchorRequest {
 
 message GetAnchorResponse {
   bytes ref = 1;
+}
+
+message PutAnchorRequest {
+  string                    name = 1;
+  bytes                     ref  = 2;
+  google.protobuf.Timestamp at   = 3;
+}
+
+message PutAnchorResponse {
 }
 
 message ListAnchorsRequest {
@@ -55,5 +64,6 @@ service Store {
   rpc ListRefs (ListRefsRequest) returns (stream ListRefsResponse);
 
   rpc GetAnchor (GetAnchorRequest) returns (GetAnchorResponse);
+  rpc PutAnchor (PutAnchorRequest) returns (PutAnchorResponse);
   rpc ListAnchors (ListAnchorsRequest) returns (stream ListAnchorsResponse);
 }

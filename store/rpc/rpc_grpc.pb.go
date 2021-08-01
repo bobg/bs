@@ -21,6 +21,7 @@ type StoreClient interface {
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	ListRefs(ctx context.Context, in *ListRefsRequest, opts ...grpc.CallOption) (Store_ListRefsClient, error)
 	GetAnchor(ctx context.Context, in *GetAnchorRequest, opts ...grpc.CallOption) (*GetAnchorResponse, error)
+	PutAnchor(ctx context.Context, in *PutAnchorRequest, opts ...grpc.CallOption) (*PutAnchorResponse, error)
 	ListAnchors(ctx context.Context, in *ListAnchorsRequest, opts ...grpc.CallOption) (Store_ListAnchorsClient, error)
 }
 
@@ -91,6 +92,15 @@ func (c *storeClient) GetAnchor(ctx context.Context, in *GetAnchorRequest, opts 
 	return out, nil
 }
 
+func (c *storeClient) PutAnchor(ctx context.Context, in *PutAnchorRequest, opts ...grpc.CallOption) (*PutAnchorResponse, error) {
+	out := new(PutAnchorResponse)
+	err := c.cc.Invoke(ctx, "/rpc.Store/PutAnchor", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *storeClient) ListAnchors(ctx context.Context, in *ListAnchorsRequest, opts ...grpc.CallOption) (Store_ListAnchorsClient, error) {
 	stream, err := c.cc.NewStream(ctx, &_Store_serviceDesc.Streams[1], "/rpc.Store/ListAnchors", opts...)
 	if err != nil {
@@ -131,6 +141,7 @@ type StoreServer interface {
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	ListRefs(*ListRefsRequest, Store_ListRefsServer) error
 	GetAnchor(context.Context, *GetAnchorRequest) (*GetAnchorResponse, error)
+	PutAnchor(context.Context, *PutAnchorRequest) (*PutAnchorResponse, error)
 	ListAnchors(*ListAnchorsRequest, Store_ListAnchorsServer) error
 	mustEmbedUnimplementedStoreServer()
 }
@@ -150,6 +161,9 @@ func (*UnimplementedStoreServer) ListRefs(*ListRefsRequest, Store_ListRefsServer
 }
 func (*UnimplementedStoreServer) GetAnchor(context.Context, *GetAnchorRequest) (*GetAnchorResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAnchor not implemented")
+}
+func (*UnimplementedStoreServer) PutAnchor(context.Context, *PutAnchorRequest) (*PutAnchorResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutAnchor not implemented")
 }
 func (*UnimplementedStoreServer) ListAnchors(*ListAnchorsRequest, Store_ListAnchorsServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListAnchors not implemented")
@@ -235,6 +249,24 @@ func _Store_GetAnchor_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Store_PutAnchor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutAnchorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServer).PutAnchor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.Store/PutAnchor",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServer).PutAnchor(ctx, req.(*PutAnchorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Store_ListAnchors_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(ListAnchorsRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -271,6 +303,10 @@ var _Store_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAnchor",
 			Handler:    _Store_GetAnchor_Handler,
+		},
+		{
+			MethodName: "PutAnchor",
+			Handler:    _Store_PutAnchor_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

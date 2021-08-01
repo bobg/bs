@@ -80,6 +80,15 @@ func (c *Client) GetAnchor(ctx context.Context, name string, at time.Time) (bs.R
 	return bs.RefFromBytes(resp.Ref), nil
 }
 
+func (c *Client) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+	_, err := c.sc.PutAnchor(ctx, &PutAnchorRequest{
+		Name: name,
+		Ref:  ref[:],
+		At:   timestamppb.New(at),
+	})
+	return err
+}
+
 func (c *Client) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
 	lc, err := c.sc.ListAnchors(ctx, &ListAnchorsRequest{Start: start})
 	if code := status.Code(err); code == codes.Unimplemented {

@@ -2,6 +2,7 @@
 package transform
 
 import (
+	"bytes"
 	"compress/lzw"
 	"context"
 	"fmt"
@@ -23,7 +24,7 @@ var _ bs.Store = &Store{}
 type Store struct {
 	s anchor.Store
 	x Transformer
-	a string // anchor name at which the ref map lives in the nested stored
+	a string // anchor name at which the ref map lives in the nested store
 
 	mu sync.Mutex  // protects m
 	m  *schema.Map // maps untransformed-blob refs to transformed-blob refs
@@ -111,13 +112,16 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "consulting ref map")
 	}
-
+	if ok && bytes.Equal(got, cref[:]) {
+		// No need to update the map, ref already points to cref.
+		return ref, false, nil
+	}
 	mref, _, err := s.m.Set(ctx, s.s, ref[:], cref[:])
 	if err != nil {
 		return bs.Ref{}, false, errors.Wrap(err, "updating ref map")
 	}
 
-	_, _, err = anchor.Put(ctx, s.s, s.a, mref, time.Now())
+	err = s.s.PutAnchor(ctx, s.a, mref, time.Now())
 	return ref, added, errors.Wrap(err, "updating ref map anchor")
 }
 

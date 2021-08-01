@@ -72,6 +72,12 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 	return result, errors.Wrapf(err, "getting anchor %s", name)
 }
 
+func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+	const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+	_, err := s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))
+	return err
+}
+
 // ListAnchors implements anchor.Getter.
 func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
 	const q = `SELECT name, ref, at FROM anchors WHERE name > $1 ORDER BY name, at`

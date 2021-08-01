@@ -26,15 +26,15 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 		t2 = t1.Add(time.Hour)
 	)
 
-	_, _, err := anchor.Put(ctx, store, a1, r1a, t1)
+	err := store.PutAnchor(ctx, a1, r1a, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = anchor.Put(ctx, store, a1, r1b, t2)
+	err = store.PutAnchor(ctx, a1, r1b, t2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = anchor.Put(ctx, store, a2, r2, t1)
+	err = store.PutAnchor(ctx, a2, r2, t1)
 	if err != nil {
 		t.Fatal(err)
 	}

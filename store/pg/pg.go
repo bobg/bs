@@ -101,6 +101,12 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
+func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+	const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
+	_, err := s.db.ExecContext(ctx, q, name, ref, at)
+	return err
+}
+
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > $1 ORDER BY blobs.ref`

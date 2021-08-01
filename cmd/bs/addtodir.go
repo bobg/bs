@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/fs"
 )
 
@@ -60,7 +59,7 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 	}
 
 	if a != "" {
-		_, _, err = anchor.Put(ctx, c.s, a, ref, at)
+		err = c.s.PutAnchor(ctx, a, ref, at)
 		if err != nil {
 			return errors.Wrapf(err, "adding anchor %s for dir %s as of %s", a, ref, at)
 		}

@@ -103,6 +103,15 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 	return ref, errors.Wrapf(err, "parsing ref %s", string(h))
 }
 
+func (s *Store) PutAnchor(_ context.Context, name string, ref bs.Ref, at time.Time) error {
+	dir := s.anchorpath(name)
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return errors.Wrapf(err, "creating %s", dir)
+	}
+	return os.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
+}
+
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (

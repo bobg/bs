@@ -33,7 +33,7 @@ func TestSet(t *testing.T) {
 
 	for sc.Scan() {
 		blob := bs.Blob(sc.Text())
-		ref, added, err := store.Put(ctx, blob, nil)
+		ref, added, err := store.Put(ctx, blob)
 		if err != nil {
 			t.Fatal(err)
 		}

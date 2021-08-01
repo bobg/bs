@@ -27,16 +27,6 @@ type Getter interface {
 }
 
 // Store is a blob store that can also store and retrieve anchors.
-//
-// Implementation note: the Put method (from bs.Store)
-// must detect the case where the type ref is non-nil and equal to TypeRef().
-// In that case, the implementation must unmarshal the blob as an Anchor
-// in order to record it.
-// The function Check can assist with that.
-// In a call to Put,
-// if both the blob and its type were already present,
-// it is not necessary to check that the type is TypeRef().
-// The implementation can assume the anchor has already been recorded.
 type Store interface {
 	bs.Store
 	Getter

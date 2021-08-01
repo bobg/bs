@@ -30,11 +30,7 @@ func (s *Server) Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	if errors.Is(err, bs.ErrNotFound) {
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
-	if err != nil {
-		return nil, err
-	}
-	var tbytes [][]byte
-	return &GetResponse{Blob: blob}, nil
+	return &GetResponse{Blob: blob}, err
 }
 
 func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error) {
@@ -70,6 +66,18 @@ func (s *Server) GetAnchor(ctx context.Context, req *GetAnchorRequest) (*GetAnch
 	}
 
 	return &GetAnchorResponse{Ref: ref[:]}, nil
+}
+
+var singletonPutAnchorResponse PutAnchorResponse
+
+func (s *Server) PutAnchor(ctx context.Context, req *PutAnchorRequest) (*PutAnchorResponse, error) {
+	astore, ok := s.s.(anchor.Store)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, ErrNotAnchorStore.Error())
+	}
+
+	err := astore.PutAnchor(ctx, req.Name, bs.RefFromBytes(req.Ref), req.At.AsTime())
+	return &singletonPutAnchorResponse, err
 }
 
 func (s *Server) ListAnchors(req *ListAnchorsRequest, srv Store_ListAnchorsServer) error {

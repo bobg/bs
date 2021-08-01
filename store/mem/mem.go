@@ -107,6 +107,19 @@ func (s *Store) GetAnchor(_ context.Context, name string, at time.Time) (bs.Ref,
 	return anchors[index-1].r, nil
 }
 
+func (s *Store) PutAnchor(_ context.Context, name string, ref bs.Ref, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tr := timeref{r: ref, t: at}
+	anchors := append(s.anchors[name], tr)
+	sort.Slice(anchors, func(i, j int) bool {
+		return anchors[i].t.Before(anchors[j].t)
+	})
+	s.anchors[name] = anchors
+	return nil
+}
+
 // ListAnchors implements anchor.Store.ListAnchors.
 func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
 	var names []string

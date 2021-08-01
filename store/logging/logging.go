@@ -68,6 +68,10 @@ func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Re
 	return ref, err
 }
 
+func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+	return s.s.PutAnchor(ctx, name, ref, at)
+}
+
 func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
 	log.Printf("ListAnchors, start=%s", start)
 	return s.s.ListAnchors(ctx, start, func(name string, ref bs.Ref, at time.Time) error {
