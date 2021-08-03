@@ -46,6 +46,8 @@ github.com/bobg/hashsplit v0.0.0-20200915194103-403fb9e135fb h1:fjPU+ykKSEApUg6I
 github.com/bobg/hashsplit v0.0.0-20200915194103-403fb9e135fb/go.mod h1:E/Fz4uUsNvhN9xrneh5rMP5I5vEhxunaNU2UlTxFoUg=
 github.com/bobg/hashsplit v0.0.0-20201028050146-aa38a0f27675 h1:TPZZxWzzzxyfnfgt9ntiwvvYn0nY6/RWvK3AO3PsdTs=
 github.com/bobg/hashsplit v0.0.0-20201028050146-aa38a0f27675/go.mod h1:E/Fz4uUsNvhN9xrneh5rMP5I5vEhxunaNU2UlTxFoUg=
+github.com/bobg/hashsplit v1.0.2 h1:uY4tnffnYFmICdOauVGv4apl0scDLqRRt1RREFovq1M=
+github.com/bobg/hashsplit v1.0.2/go.mod h1:E/Fz4uUsNvhN9xrneh5rMP5I5vEhxunaNU2UlTxFoUg=
 github.com/bobg/sqlutil v1.0.0 h1:UYyM8pNLsEYPINtH717SEXo/th9B6hQOKzUBTN4ApgA=
 github.com/bobg/sqlutil v1.0.0/go.mod h1:gI/qD+aW30zA+38MzLZMzbRf4KrK3Qs1dtpQ9AEBeCQ=
 github.com/bobg/subcmd v0.0.0-20200801171533-60fffb8b342a h1:pPPyLHxa+IDPuGOozhpR+jdvh6iCzd7JyDGgCX0oLns=

@@ -118,7 +118,8 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 			"anchor", subcmd.String, "", "anchor to assign to added ref",
 			"split", subcmd.Bool, false, "get a split tree instead of a single blob",
 			"at", subcmd.String, "", "timestamp for anchor (default: now)",
-			"bits", subcmd.Uint, 0, "with -split, the number of bits to split on (to control chunk size)",
+			"bits", subcmd.Uint, 14, "with -split, the number of bits to split on (to control chunk size)",
+			"fanout", subcmd.Uint, 4, "with -split, divisor for each node's level, to control fan-out (higher numbers = more children per node)",
 		),
 		"serve", c.serve, subcmd.Params(
 			"addr", subcmd.String, ":2969", "server listen address",

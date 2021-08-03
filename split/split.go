@@ -13,55 +13,82 @@ import (
 	"github.com/bobg/bs"
 )
 
-// Write writes the contents of `r` to the blob store `s`,
-// splitting the input into a tree of blobs according to `splitter`.
-// It returns the ref of the root blob,
-// which is a serialized Node.
-//
-// Splitting is done with the "hashsplitting" technique,
-// which finds blob boundaries based on the content of the data
-// rather than by position.
-// If a new version of the same data is written to the store,
-// but with a change,
-// only the region of the change will need a new blob;
-// the others will be unaffected.
-//
-// If splitter is nil,
-// a default splitter is used that produces chunks that are typically 5-10kb in size.
-func Write(ctx context.Context, s bs.Store, r io.Reader, splitter *hashsplit.Splitter) (bs.Ref, error) {
-	if splitter == nil {
-		splitter = &hashsplit.Splitter{
-			MinSize: 1024, // xxx ?
-		}
-	}
+// Writer is an io.WriteCloser that splits its input with a hashsplit.Splitter,
+// writing the chunks to a bs.Store as separate blobs.
+// It additionally assembles those chunks into a tree with a hashsplit.TreeBuilder.
+// The tree nodes are also written to the bs.Store as serialized Node objects.
+// The bs.Ref of the tree root is available as Writer.Root after a call to Close.
+type Writer struct {
+	Ctx    context.Context
+	Root   bs.Ref // populated by Close
+	st     bs.Store
+	spl    *hashsplit.Splitter
+	tb     *hashsplit.TreeBuilder
+	fanout uint
+}
 
+// NewWriter produces a new Writer writing to the given blob store.
+// The given context object is stored in the Writer and used in subsequent calls to Write and Close.
+// This is an antipattern but acceptable when an object must adhere to a context-free stdlib interface
+// (https://github.com/golang/go/wiki/CodeReviewComments#contexts).
+// Callers may replace the context object during the lifetime of the Writer as needed.
+func NewWriter(ctx context.Context, st bs.Store, opts ...Option) *Writer {
 	tb := hashsplit.NewTreeBuilder()
-
-	err := splitter.Split(ctx, r, func(bytes []byte, level uint) error {
+	w := &Writer{
+		Ctx:    ctx,
+		st:     st,
+		tb:     tb,
+		fanout: 4, // TODO: does this provide the best fan-out?
+	}
+	spl := hashsplit.NewSplitter(func(bytes []byte, level uint) error {
 		size := len(bytes)
-		ref, _, err := s.Put(ctx, bytes)
+		ref, _, err := st.Put(ctx, bytes)
 		if err != nil {
 			return errors.Wrap(err, "writing split chunk to store")
 		}
-		tb.Add(ref[:], size, level/2) // TODO: does level/2 produce the best fan-out?
+		tb.Add(ref[:], size, level/w.fanout)
 		return nil
 	})
-	if err != nil {
-		return bs.Ref{}, err
+	spl.MinSize = 1024
+	spl.SplitBits = 14
+	w.spl = spl
+	for _, opt := range opts {
+		opt(w)
 	}
-
-	root := tb.Root()
-
-	return splitWrite(ctx, s, root)
+	return w
 }
 
-func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, error) {
+// Write implements io.Writer.
+func (w *Writer) Write(inp []byte) (int, error) {
+	return w.spl.Write(inp)
+}
+
+// Close implements io.Closer.
+func (w *Writer) Close() error {
+	if w.tb == nil {
+		return nil
+	}
+	err := w.spl.Close()
+	if err != nil {
+		return err
+	}
+	root := w.tb.Root()
+	rootRef, err := storeTree(w.Ctx, w.st, root)
+	if err != nil {
+		return err
+	}
+	w.Root = rootRef
+	w.tb = nil
+	return nil
+}
+
+func storeTree(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, error) {
 	tn := &Node{Size: n.Size}
 	if len(n.Leaves) > 0 {
 		tn.Leaves = n.Leaves
 	} else {
 		for _, child := range n.Nodes {
-			childRef, err := splitWrite(ctx, s, child)
+			childRef, err := storeTree(ctx, s, child)
 			if err != nil {
 				return bs.Ref{}, err
 			}
@@ -70,6 +97,26 @@ func splitWrite(ctx context.Context, s bs.Store, n *hashsplit.Node) (bs.Ref, err
 	}
 	ref, _, err := bs.PutProto(ctx, s, tn)
 	return ref, err
+}
+
+type Option func(*Writer)
+
+func Bits(n uint) Option {
+	return func(w *Writer) {
+		w.spl.SplitBits = n
+	}
+}
+
+func MinSize(n int) Option {
+	return func(w *Writer) {
+		w.spl.MinSize = n
+	}
+}
+
+func Fanout(n uint) Option {
+	return func(w *Writer) {
+		w.fanout = n
+	}
 }
 
 // Read reads blobs from `g`,

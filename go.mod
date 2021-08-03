@@ -5,7 +5,7 @@ go 1.14
 require (
 	cloud.google.com/go v0.60.0 // indirect
 	cloud.google.com/go/storage v1.8.0
-	github.com/bobg/hashsplit v0.0.0-20201028050146-aa38a0f27675
+	github.com/bobg/hashsplit v1.0.2
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v0.0.0-20200910040509-543baff89e3e
 	github.com/davecgh/go-spew v1.1.0

@@ -2,35 +2,35 @@ package main
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"time"
 
-	"github.com/bobg/hashsplit"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits uint, args []string) error {
+func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits, fanout uint, args []string) error {
 	var (
 		ref   bs.Ref
 		err   error
 		added bool
 	)
 	if dosplit {
-		var splitter *hashsplit.Splitter
-		if bits > 0 {
-			splitter = &hashsplit.Splitter{
-				SplitBits: bits,
-			}
-		}
-		ref, err = split.Write(ctx, c.s, os.Stdin, splitter)
+		w := split.NewWriter(ctx, c.s, split.Bits(bits))
+		_, err = io.Copy(w, os.Stdin)
 		if err != nil {
 			return errors.Wrap(err, "splitting stdin to store")
 		}
+		err = w.Close()
+		if err != nil {
+			return errors.Wrap(err, "finishing splitting stdin to store")
+		}
+		ref = w.Root
 	} else {
 		blob, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {

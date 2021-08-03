@@ -3,6 +3,7 @@ package testutil
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -15,10 +16,17 @@ import (
 // then reading it back out to make sure it's the same.
 func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	t1 := time.Now()
-	ref, err := split.Write(ctx, store, bytes.NewReader(data), nil)
+
+	w := split.NewWriter(ctx, store)
+	_, err := io.Copy(w, bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = w.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := w.Root
 	t.Logf("wrote %d bytes in %s", len(data), time.Since(t1))
 
 	buf := new(bytes.Buffer)
