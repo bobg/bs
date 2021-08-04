@@ -5,12 +5,23 @@ option go_package = ".;split";
 
 // Node is a node in a hashsplit tree created with split.Write.
 message Node {
-  // Refs of other Nodes.
-  repeated bytes nodes = 1;
+  // Offsets and refs of other Nodes.
+  repeated Child nodes = 1;
 
-  // Refs of leaf blobs.
-  repeated bytes leaves = 2;
+  // Offsets and refs of leaf blobs.
+  repeated Child leaves = 2;
+
+  // Offset in the input stream of the beginning of the bytes represented by this child.
+  uint64 offset = 3;
 
   // Number of bytes represented by this node.
-  uint64 size = 3;
+  uint64 size = 4;
+}
+
+message Child {
+  // Ref of child (node or blob).
+  bytes ref = 1;
+
+  // Offset of this child (duplicates Node.off).
+  uint64 offset = 2;
 }

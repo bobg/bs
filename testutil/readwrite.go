@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -29,13 +30,16 @@ func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	ref := w.Root
 	t.Logf("wrote %d bytes in %s", len(data), time.Since(t1))
 
-	buf := new(bytes.Buffer)
 	t2 := time.Now()
-	err = split.Read(ctx, store, ref, buf)
+
+	r, err := split.NewReader(ctx, store, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := buf.Bytes()
+	got, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Logf("read %d bytes in %s", len(got), time.Since(t2))
 
 	if len(got) != len(data) {

@@ -194,6 +194,13 @@ func extractInto(ctx context.Context, g bs.Getter, d *Dir, dest string) error {
 			return errors.Wrapf(err, "opening %s/%s", dest, name)
 		}
 		defer f.Close()
-		return split.Read(ctx, g, ref, f)
+
+		r, err := split.NewReader(ctx, g, ref)
+		if err != nil {
+			return errors.Wrapf(err, "creating split reader for %s", ref)
+		}
+
+		_, err = io.Copy(f, r)
+		return errors.Wrapf(err, "copying to %s/%s", dest, name)
 	})
 }

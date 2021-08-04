@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -49,7 +50,12 @@ func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool,
 	}
 
 	if dosplit {
-		return split.Read(ctx, c.s, ref, os.Stdout)
+		r, err := split.NewReader(ctx, c.s, ref)
+		if err != nil {
+			return errors.Wrapf(err, "creating split reader for %s", ref)
+		}
+		_, err = io.Copy(os.Stdout, r)
+		return errors.Wrap(err, "copying to stdout")
 	}
 
 	blob, err := c.s.Get(ctx, ref)

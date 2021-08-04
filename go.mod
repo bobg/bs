@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go v0.60.0 // indirect
 	cloud.google.com/go/storage v1.8.0
 	github.com/bobg/hashsplit v1.0.2
+	github.com/bobg/hashsplit/v2 v2.0.0-20210804000927-1e808747354b // indirect
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v0.0.0-20200910040509-543baff89e3e
 	github.com/davecgh/go-spew v1.1.0

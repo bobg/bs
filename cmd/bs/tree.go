@@ -62,9 +62,9 @@ func doTree(ctx context.Context, g bs.Getter, ref bs.Ref, depth int) error {
 	fmt.Printf("%ssize: %d\n", indent, tn.Size)
 	if len(tn.Nodes) > 0 {
 		fmt.Printf("%snodes:\n", indent)
-		for _, n := range tn.Nodes {
+		for _, child := range tn.Nodes {
 			var subref bs.Ref
-			copy(subref[:], n)
+			copy(subref[:], child.Ref)
 			fmt.Printf("%s %s:\n", indent, subref)
 			err = doTree(ctx, g, subref, depth+1)
 			if err != nil {
