@@ -47,8 +47,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
-github.com/bobg/hashsplit/v2 v2.0.0-20210804000927-1e808747354b h1:u9UM8fVXyZLU9ntlHvykqoDqZ6j3YoWba+36AnAV/7M=
-github.com/bobg/hashsplit/v2 v2.0.0-20210804000927-1e808747354b/go.mod h1:NVn2nNwuefNYa7GvbDmfOyGY/1zcav0lIc3NuJBCR1Y=
+github.com/bobg/hashsplit v1.1.1 h1:/O/JoroR7SYkaxioh73xsblKiV+eWsPPidzb11EVrGg=
+github.com/bobg/hashsplit v1.1.1/go.mod h1:2JjSYhF/skYn30fNpk1CL7gYmh1sZf+YDb12ZNxTa4M=
 github.com/bobg/sqlutil v1.0.0 h1:UYyM8pNLsEYPINtH717SEXo/th9B6hQOKzUBTN4ApgA=
 github.com/bobg/sqlutil v1.0.0/go.mod h1:gI/qD+aW30zA+38MzLZMzbRf4KrK3Qs1dtpQ9AEBeCQ=
 github.com/bobg/subcmd v1.0.1 h1:j0er3VBsBFof7Xy3TpmVj6pm4unzFOE1nHedDanbNqY=

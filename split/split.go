@@ -7,7 +7,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/bobg/hashsplit/v2"
+	"github.com/bobg/hashsplit"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"

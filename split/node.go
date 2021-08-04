@@ -3,7 +3,7 @@ package split
 import (
 	"context"
 
-	"github.com/bobg/hashsplit/v2"
+	"github.com/bobg/hashsplit"
 
 	"github.com/bobg/bs"
 )
