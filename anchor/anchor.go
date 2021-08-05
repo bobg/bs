@@ -10,6 +10,8 @@ import (
 	"github.com/bobg/bs"
 )
 
+// TODO: implement anchors in terms of vanilla bs.Stores and schema.Maps.
+
 // Getter is a read-only blob and anchor store.
 type Getter interface {
 	bs.Getter

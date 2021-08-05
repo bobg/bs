@@ -36,6 +36,18 @@ type Store interface {
 	Put(ctx context.Context, b Blob) (ref Ref, added bool, err error)
 }
 
+// DeleterStore is the type of a Store that can also delete blobs.
+type DeleterStore interface {
+	Store
+
+	// Delete deletes the blob identified by the given ref from the store.
+	// Implementations may choose to return nil or ErrNotFound in the case where the ref does not exist.
+	//
+	// TODO: What if the store is also an anchor.Store and this deletes the target of an anchor?
+	// Probably should delete that anchor, too.
+	Delete(context.Context, Ref) error
+}
+
 // ErrNotFound is the error returned
 // when a Getter tries to access a non-existent ref.
 var ErrNotFound = errors.New("not found")
