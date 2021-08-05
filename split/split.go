@@ -262,3 +262,7 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 
 	return int64(r.pos), nil
 }
+
+func (r *Reader) Size() uint64 {
+	return r.stack[0].Size
+}

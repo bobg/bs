@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/split"
 )
 
 // IsDir tells whether d refers to a directory.
@@ -33,4 +34,19 @@ func (d *Dirent) Dir(ctx context.Context, g bs.Getter) (*Dir, error) {
 // If it does, then d.Item is the target of the link.
 func (d *Dirent) IsLink() bool {
 	return (d.Mode & uint32(os.ModeSymlink)) == uint32(os.ModeSymlink)
+}
+
+func (d *Dirent) Size(ctx context.Context, g bs.Getter) (int64, error) {
+	if d.IsDir() || d.IsLink() {
+		return 0, nil
+	}
+	ref, err := bs.RefFromHex(d.Item)
+	if err != nil {
+		return 0, errors.Wrapf(err, "parsing ref %s", d.Item)
+	}
+	r, err := split.NewReader(ctx, g, ref)
+	if err != nil {
+		return 0, errors.Wrapf(err, "creating split.Reader for file ref %s", ref)
+	}
+	return int64(r.Size()), nil
 }

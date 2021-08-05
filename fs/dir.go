@@ -4,6 +4,7 @@ package fs
 import (
 	"context"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -150,7 +151,7 @@ func add(ctx context.Context, store bs.Store, path string) (*Dirent, error) {
 	}
 
 	if (mode & uint32(os.ModeType)) != 0 {
-		return nil, errors.Wrapf(err, "unsupported file type 0%o for %s", mode&uint32(os.ModeType), path)
+		return nil, errors.Wrapf(err, "unsupported file type 0%o for %s", fs.FileMode(mode).Type(), path)
 	}
 
 	f, err := os.Open(path)
