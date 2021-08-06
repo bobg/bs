@@ -1,3 +1,4 @@
+// Package gc implements garbage collection for blob stores.
 package gc
 
 import (
@@ -29,8 +30,8 @@ type ProtectPair struct {
 type ProtectFunc func(context.Context, bs.Getter, bs.Ref) ([]ProtectPair, error)
 
 // Protect adds a given Ref, and all Refs reachable from it, to a Keep.
-// A callback is responsible for traversing the given Ref
-// and reporting its child Refs (if any), plus their own traversal functions.
+// An optional callback is responsible for traversing the given Ref
+// and reporting its child Refs (if any), plus their own optional traversal functions.
 func Protect(ctx context.Context, g bs.Getter, k Keep, ref bs.Ref, traverse ProtectFunc) error {
 	ok, err := k.Contains(ctx, ref)
 	if err != nil {

@@ -1,3 +1,4 @@
+// Package sqlite3 implements a blob store in a Sqlite3 relational database schema.
 package sqlite3
 
 import (
