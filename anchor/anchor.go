@@ -4,6 +4,7 @@
 package anchor
 
 import (
+	"bytes"
 	"context"
 	"sort"
 	"time"
@@ -56,20 +57,20 @@ func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, erro
 		return bs.Ref{}, errors.Wrap(err, "looking up anchor")
 	}
 	if !found {
-		// xxx
+		return bs.Ref{}, bs.ErrNotFound
 	}
 
 	var list schema.List
 	err = proto.Unmarshal(listBytes, &list)
 	if err != nil {
-		// xxx
+		return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor list")
 	}
 
 	for i := len(list.Members) - 1; i >= 0; i-- {
 		var item Anchor
 		err = proto.Unmarshal(list.Members[i], &item)
 		if err != nil {
-			// xxx
+			return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor")
 		}
 		itemTime := item.At.AsTime()
 		if !itemTime.After(at) {
@@ -84,14 +85,14 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 	return s.UpdateAnchorMap(ctx, func(m *schema.Map) (bs.Ref, error) {
 		listBytes, found, err := m.Lookup(ctx, s, []byte(name))
 		if err != nil {
-			// xxx
+			return bs.Ref{}, errors.Wrap(err, "looking up anchor")
 		}
 
 		var list schema.List
 		if found {
 			err = proto.Unmarshal(listBytes, &list)
 			if err != nil {
-				// xxx
+				return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor list")
 			}
 		}
 
@@ -99,29 +100,78 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 			Ref: ref[:],
 			At:  timestamppb.New(at),
 		}
-		newAnchorBytes, err := proto.Marshal(newAnchor)
-		if err != nil {
-			// xxx
+
+		var doSort bool
+
+		if len(list.Members) > 0 {
+			var latest Anchor
+			err = proto.Unmarshal(list.Members[len(list.Members)-1], &latest)
+			if err != nil {
+				return bs.Ref{}, errors.Wrap(err, "unmarshaling previous anchor")
+			}
+
+			if latest.At.AsTime().Before(at) {
+				// latest and newAnchor are in chronological order
+				if bytes.Equal(latest.Ref, ref[:]) {
+					// Don't add a new anchor if it's for the same ref but later.
+					return bs.ProtoRef(m)
+				}
+			} else {
+				doSort = true
+			}
 		}
 
+		newAnchorBytes, err := proto.Marshal(newAnchor)
+		if err != nil {
+			return bs.Ref{}, errors.Wrap(err, "marshaling new anchor")
+		}
 		list.Members = append(list.Members, newAnchorBytes)
-		sort.Slice(list.Members, func(i, j int) bool { // TODO: skip this if newAnchor.At > latestAnchor.At
-			var a, b Anchor
 
-			proto.Unmarshal(list.Members[i], &a)
-			proto.Unmarshal(list.Members[j], &b)
+		if doSort {
+			sort.Slice(list.Members, func(i, j int) bool { // TODO: skip this if newAnchor.At > latestAnchor.At
+				var a, b Anchor
 
-			var (
-				t1 = a.At.AsTime()
-				t2 = b.At.AsTime()
-			)
+				proto.Unmarshal(list.Members[i], &a)
+				proto.Unmarshal(list.Members[j], &b)
 
-			return t1.Before(t2)
-		})
+				var (
+					t1 = a.At.AsTime()
+					t2 = b.At.AsTime()
+				)
+
+				return t1.Before(t2)
+			})
+
+			if len(list.Members) > 1 {
+				// Go through and make sure two adjacent anchors aren't for the same ref.
+				// (The earlier one wins.)
+				var a Anchor
+				err = proto.Unmarshal(list.Members[0], &a)
+				if err != nil {
+					return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor during deduplication")
+				}
+				for i := 1; i < len(list.Members); { // n.b. no i++
+					var b Anchor
+					err = proto.Unmarshal(list.Members[i], &b)
+					if err != nil {
+						return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor during deduplication")
+					}
+					if bytes.Equal(a.Ref, b.Ref) {
+						// Splice out list.Members[i]
+						copy(list.Members[i:], list.Members[i+1:])
+						list.Members[len(list.Members)-1] = nil
+						list.Members = list.Members[:len(list.Members)-1]
+					} else {
+						a = b
+						i++
+					}
+				}
+			}
+		}
 
 		listBytes, err = proto.Marshal(&list)
 		if err != nil {
-			// xxx
+			return bs.Ref{}, errors.Wrap(err, "marshaling anchor list")
 		}
 
 		newMapRef, _, err := m.Set(ctx, s, []byte(name), listBytes)

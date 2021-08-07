@@ -44,6 +44,11 @@ func MapFromGo(ctx context.Context, s bs.Store, m map[string][]byte) (*Map, bs.R
 	return t.(*Map), ref, err
 }
 
+// IsEmpty tells whether the map is empty.
+func (m *Map) IsEmpty() bool {
+	return len(m.Members) == 0 && m.Node.Size == 0
+}
+
 // Set sets the payload for a given key in a Map.
 // It returns the Map's possibly-updated Ref and an Outcome:
 // ONone if no change was needed (the key was already present and had the same payload),

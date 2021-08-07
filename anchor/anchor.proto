@@ -5,7 +5,7 @@ option go_package = ".;anchor";
 
 import "google/protobuf/timestamp.proto";
 
-// Anchor maps a name to a blob ref as of a given time.
+// Anchor is a timestamped ref.
 message Anchor {
   bytes                     ref  = 1;
   google.protobuf.Timestamp at   = 2;

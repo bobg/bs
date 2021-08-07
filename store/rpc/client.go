@@ -66,6 +66,9 @@ func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 
 func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	resp, err := c.sc.AnchorMapRef(ctx, &AnchorMapRefRequest{})
+	if code := status.Code(err); code == codes.NotFound {
+		return bs.Ref{}, anchor.ErrNoAnchorMap
+	}
 	if err != nil {
 		return bs.Ref{}, err
 	}
@@ -73,15 +76,15 @@ func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 }
 
 func (c *Client) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
-	oldRef, err := c.AnchorMapRef(ctx)
-	if err != nil {
-		return errors.Wrap(err, "getting anchor map ref")
-	}
-
 	var m *schema.Map
-	if oldRef == (bs.Ref{}) {
+	oldRef, err := c.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
 		m = schema.NewMap()
+		oldRef = bs.Ref{}
 	} else {
+		if err != nil {
+			return errors.Wrap(err, "getting anchor map ref")
+		}
 		m, err = schema.LoadMap(ctx, c, oldRef)
 		if err != nil {
 			return errors.Wrap(err, "loading anchor map")

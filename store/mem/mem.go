@@ -82,7 +82,11 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.anchorMapRef, nil
+	var err error
+	if s.anchorMapRef == (bs.Ref{}) {
+		err = anchor.ErrNoAnchorMap
+	}
+	return s.anchorMapRef, err
 }
 
 // UpdateAnchorMap implements anchor.Store.

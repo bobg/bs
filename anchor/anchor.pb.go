@@ -21,7 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Anchor maps a name to a blob ref as of a given time.
+// Anchor is a timestamped ref.
 type Anchor struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

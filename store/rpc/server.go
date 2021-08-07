@@ -8,6 +8,8 @@ import (
 	status "google.golang.org/grpc/status"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 )
 
 var _ StoreServer = &Server{}
@@ -42,4 +44,47 @@ func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error 
 	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {
 		return srv.Send(&ListRefsResponse{Ref: ref[:]})
 	})
+}
+
+func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*AnchorMapRefResponse, error) {
+	astore, ok := s.s.(anchor.Getter)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
+	}
+	ref, err := astore.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
+		return nil, status.Error(codes.NotFound, err.Error())
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &AnchorMapRefResponse{Ref: ref[:]}, nil
+}
+
+func (s *Server) UpdateAnchorMap(ctx context.Context, req *UpdateAnchorMapRequest) (*UpdateAnchorMapResponse, error) {
+	astore, ok := s.s.(anchor.Store)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
+	}
+	err := astore.UpdateAnchorMap(ctx, func(m *schema.Map) (bs.Ref, error) {
+		reqOldRef := bs.RefFromBytes(req.OldRef)
+		if reqOldRef == (bs.Ref{}) {
+			if !m.IsEmpty() {
+				return bs.Ref{}, anchor.ErrUpdateConflict
+			}
+		} else {
+			oldRef, err := bs.ProtoRef(m)
+			if err != nil {
+				return bs.Ref{}, err
+			}
+			if oldRef != reqOldRef {
+				return bs.Ref{}, anchor.ErrUpdateConflict
+			}
+		}
+		return bs.RefFromBytes(req.NewRef), nil
+	})
+	if errors.Is(err, anchor.ErrUpdateConflict) {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return &UpdateAnchorMapResponse{}, err
 }
