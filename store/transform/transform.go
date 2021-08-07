@@ -43,7 +43,7 @@ type Transformer interface {
 func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, error) {
 	var m *schema.Map
 
-	ref, err := s.GetAnchor(ctx, a, time.Now())
+	ref, err := anchor.Get(ctx, s, a, time.Now())
 	if errors.Is(err, bs.ErrNotFound) {
 		m = schema.NewMap()
 	} else if err != nil {
@@ -121,7 +121,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 		return bs.Ref{}, false, errors.Wrap(err, "updating ref map")
 	}
 
-	err = s.s.PutAnchor(ctx, s.a, mref, time.Now())
+	err = anchor.Put(ctx, s.s, s.a, mref, time.Now())
 	return ref, added, errors.Wrap(err, "updating ref map anchor")
 }
 

@@ -6,12 +6,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -58,31 +58,12 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, err
 }
 
-func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
-	ref, err := s.s.GetAnchor(ctx, name, at)
-	if err != nil {
-		log.Printf("ERROR in GetAnchor(%s, %s): %s", name, at, err)
-	} else {
-		log.Printf("GetAnchor(%s, %s): %s", name, at, ref)
-	}
-	return ref, err
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	return s.s.AnchorMapRef(ctx)
 }
 
-func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
-	return s.s.PutAnchor(ctx, name, ref, at)
-}
-
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	log.Printf("ListAnchors, start=%s", start)
-	return s.s.ListAnchors(ctx, start, func(name string, ref bs.Ref, at time.Time) error {
-		err := f(name, ref, at)
-		if err != nil {
-			log.Printf("  ERROR in ListAnchors at (%s, %s, %s): %s", name, at, ref, err)
-		} else {
-			log.Printf("  ListAnchors: (%s, %s, %s)", name, at, ref)
-		}
-		return err
-	})
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+	return s.s.UpdateAnchorMap(ctx, f)
 }
 
 func init() {

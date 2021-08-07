@@ -315,6 +315,53 @@ func (x *Map) GetMembers() []*MapPair {
 	return nil
 }
 
+type List struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Members [][]byte `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
+}
+
+func (x *List) Reset() {
+	*x = List{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_schema_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*List) ProtoMessage() {}
+
+func (x *List) ProtoReflect() protoreflect.Message {
+	mi := &file_schema_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use List.ProtoReflect.Descriptor instead.
+func (*List) Descriptor() ([]byte, []int) {
+	return file_schema_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *List) GetMembers() [][]byte {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
 var File_schema_proto protoreflect.FileDescriptor
 
 var file_schema_proto_rawDesc = []byte{
@@ -344,8 +391,10 @@ var file_schema_proto_rawDesc = []byte{
 	0x04, 0x6e, 0x6f, 0x64, 0x65, 0x12, 0x29, 0x0a, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73,
 	0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0f, 0x2e, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x2e,
 	0x4d, 0x61, 0x70, 0x50, 0x61, 0x69, 0x72, 0x52, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x73,
-	0x42, 0x0a, 0x5a, 0x08, 0x2e, 0x3b, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0x20, 0x0a, 0x04, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x6d, 0x62,
+	0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0c, 0x52, 0x07, 0x6d, 0x65, 0x6d, 0x62, 0x65,
+	0x72, 0x73, 0x42, 0x0a, 0x5a, 0x08, 0x2e, 0x3b, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -360,13 +409,14 @@ func file_schema_proto_rawDescGZIP() []byte {
 	return file_schema_proto_rawDescData
 }
 
-var file_schema_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_schema_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_schema_proto_goTypes = []interface{}{
 	(*TreeNode)(nil), // 0: schema.TreeNode
 	(*SubNode)(nil),  // 1: schema.SubNode
 	(*Set)(nil),      // 2: schema.Set
 	(*MapPair)(nil),  // 3: schema.MapPair
 	(*Map)(nil),      // 4: schema.Map
+	(*List)(nil),     // 5: schema.List
 }
 var file_schema_proto_depIdxs = []int32{
 	1, // 0: schema.TreeNode.left:type_name -> schema.SubNode
@@ -447,6 +497,18 @@ func file_schema_proto_init() {
 				return nil
 			}
 		}
+		file_schema_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*List); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -454,7 +516,7 @@ func file_schema_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_schema_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

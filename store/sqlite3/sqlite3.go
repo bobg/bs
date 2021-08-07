@@ -4,18 +4,18 @@ package sqlite3
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/bobg/sqlutil"
-	_ "github.com/mattn/go-sqlite3" // register the sqlite3 type for sql.Open
+	"github.com/mattn/go-sqlite3"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
-var _ anchor.Store = &Store{}
+var _ anchor.Store = (*Store)(nil)
 
 // Store is a Sqlite-based blob store.
 type Store struct {
@@ -23,21 +23,16 @@ type Store struct {
 }
 
 // Schema is the SQL that New executes.
-// It creates the `blobs` and `anchors` tables if they do not exist.
-// (If they do exist, they must have the columns, constraints, and indexing described here.)
 const Schema = `
 CREATE TABLE IF NOT EXISTS blobs (
   ref BLOB PRIMARY KEY NOT NULL,
   data BLOB NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS anchors (
-  name TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS anchor_map_ref (
   ref BLOB NOT NULL,
-  at TEXT NOT NULL
+  singleton INT NOT NULL UNIQUE DEFAULT 1 CHECK (singleton = 1)
 );
-
-CREATE INDEX IF NOT EXISTS anchor_idx ON anchors (name, at);
 `
 
 // New produces a new Store using `db` for storage.
@@ -59,36 +54,6 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 		return nil, bs.ErrNotFound
 	}
 	return b, errors.Wrapf(err, "querying db for ref %s", ref)
-}
-
-// GetAnchor implements anchor.Store.GetAnchor.
-func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
-	const q = `SELECT ref FROM anchors WHERE name = $1 AND at <= $2 ORDER BY at DESC LIMIT 1`
-
-	var result bs.Ref
-	err := s.db.QueryRowContext(ctx, q, name, at.UTC().Format(time.RFC3339Nano)).Scan(&result)
-	if errors.Is(err, sql.ErrNoRows) {
-		return bs.Ref{}, bs.ErrNotFound
-	}
-	return result, errors.Wrapf(err, "getting anchor %s", name)
-}
-
-func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
-	const q = `INSERT INTO anchors (name, ref, at) VALUES ($1, $2, $3)`
-	_, err := s.db.ExecContext(ctx, q, name, ref, at.UTC().Format(time.RFC3339Nano))
-	return err
-}
-
-// ListAnchors implements anchor.Getter.
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	const q = `SELECT name, ref, at FROM anchors WHERE name > $1 ORDER BY name, at`
-	return sqlutil.ForQueryRows(ctx, s.db, q, start, func(name string, ref bs.Ref, atstr string) error {
-		at, err := time.Parse(time.RFC3339Nano, atstr)
-		if err != nil {
-			return errors.Wrapf(err, "parsing time %s", atstr)
-		}
-		return f(name, ref, at)
-	})
 }
 
 // Put adds a blob to the store if it wasn't already present.
@@ -138,6 +103,67 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	const q = `SELECT ref FROM anchor_map_ref`
+
+	var ref bs.Ref
+	err := s.db.QueryRowContext(ctx, q).Scan(&ref)
+	if errors.Is(err, sql.ErrNoRows) {
+		return bs.Ref{}, anchor.ErrNoAnchorMap
+	}
+	return ref, err
+}
+
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+	var (
+		m        *schema.Map
+		wasNoMap bool
+	)
+
+	oldRef, err := s.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
+		m = schema.NewMap()
+		wasNoMap = true
+	} else {
+		if err != nil {
+			return errors.Wrap(err, "getting anchor map ref")
+		}
+		m, err = schema.LoadMap(ctx, s, oldRef)
+		if err != nil {
+			return errors.Wrap(err, "loading anchor map")
+		}
+	}
+
+	newRef, err := f(m)
+	if err != nil {
+		return err
+	}
+
+	if wasNoMap {
+		const q = `INSERT INTO anchor_map_ref (ref) VALUES ($1)`
+		_, err = s.db.ExecContext(ctx, q, newRef)
+		var e sqlite3.Error
+		if errors.As(err, &e) && e.Code == sqlite3.ErrConstraint {
+			return anchor.ErrUpdateConflict
+		}
+		return err
+	}
+
+	const q = `UPDATE anchor_map_ref SET ref = $1 WHERE ref = $2`
+	res, err := s.db.ExecContext(ctx, q, newRef, oldRef)
+	if err != nil {
+		return err
+	}
+	aff, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if aff == 0 {
+		return anchor.ErrUpdateConflict
 	}
 	return nil
 }

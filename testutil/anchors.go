@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -26,15 +27,21 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 		t2 = t1.Add(time.Hour)
 	)
 
-	err := store.PutAnchor(ctx, a1, r1a, t1)
+	// This presumes that store starts with no anchor map.
+	_, err := store.AnchorMapRef(ctx)
+	if !errors.Is(err, anchor.ErrNoAnchorMap) {
+		t.Fatalf("wanted anchor.ErrNoAnchorMap, got %v", err)
+	}
+
+	err = anchor.Put(ctx, store, a1, r1a, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = store.PutAnchor(ctx, a1, r1b, t2)
+	err = anchor.Put(ctx, store, a1, r1b, t2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = store.PutAnchor(ctx, a2, r2, t1)
+	err = anchor.Put(ctx, store, a2, r2, t1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +68,7 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 
 	for i, c := range cases {
 		t.Run(fmt.Sprintf("case_%02d", i+1), func(t *testing.T) {
-			got, err := store.GetAnchor(ctx, c.a, c.tm)
+			got, err := anchor.Get(ctx, store, c.a, c.tm)
 			if c.wantErr != nil && errors.Is(err, c.wantErr) {
 				// ok
 				return
@@ -95,13 +102,37 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 			return nil
 		}
 
-		err = store.ListAnchors(ctx, "", gotAnchorFn)
+		err = anchor.Each(ctx, store, gotAnchorFn)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if len(gotAnchorTimeRefs) != len(wantAnchorTimeRefs) {
 			t.Fatalf("got %d anchors, want %d", len(gotAnchorTimeRefs), len(wantAnchorTimeRefs))
 		}
+
+		sort.Slice(gotAnchorTimeRefs, func(i, j int) bool {
+			var (
+				a = gotAnchorTimeRefs[i]
+				b = gotAnchorTimeRefs[j]
+			)
+
+			if a.a < b.a {
+				return true
+			}
+			if a.a > b.a {
+				return false
+			}
+
+			if a.ref.Less(b.ref) {
+				return true
+			}
+			if b.ref.Less(a.ref) {
+				return false
+			}
+
+			return a.at.Before(b.at)
+		})
+
 		for i, gotAnchorTimeRef := range gotAnchorTimeRefs {
 			wantAnchorTimeRef := wantAnchorTimeRefs[i]
 			if gotAnchorTimeRef.a != wantAnchorTimeRef.a ||

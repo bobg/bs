@@ -98,9 +98,7 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 		"get-anchor", c.getAnchor, subcmd.Params(
 			"at", subcmd.String, "", "timestamp for anchor (default: now)",
 		),
-		"list-anchors", c.listAnchors, subcmd.Params(
-			"start", subcmd.String, "", "start after this anchor name",
-		),
+		"list-anchors", c.listAnchors, nil,
 		"list-refs", c.listRefs, subcmd.Params(
 			"start", subcmd.String, "", "start after this ref",
 		),

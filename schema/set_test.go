@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"bufio"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bobg/bs"
+	. "github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store/mem"
 )
 
@@ -167,7 +168,7 @@ func TestSetFromRefs(t *testing.T) {
 	}
 }
 
-func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
+func dumpSet(ctx context.Context, s *Set, g bs.Getter, depth int) error {
 	indent := strings.Repeat("  ", depth)
 	fmt.Printf("%sSize: %d, Depth: %d\n", indent, s.Node.Size, s.Node.Depth)
 	if s.Node.Left != nil {
@@ -177,7 +178,7 @@ func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 		if err != nil {
 			return err
 		}
-		err = sub.dump(ctx, g, depth+1)
+		err = dumpSet(ctx, &sub, g, depth+1)
 		if err != nil {
 			return err
 		}
@@ -187,7 +188,7 @@ func (s *Set) dump(ctx context.Context, g bs.Getter, depth int) error {
 		if err != nil {
 			return err
 		}
-		return sub.dump(ctx, g, depth+1)
+		return dumpSet(ctx, &sub, g, depth+1)
 	}
 
 	for _, m := range s.Members {
