@@ -14,16 +14,21 @@ import (
 
 var _ StoreServer = &Server{}
 
+// Server is the type of an RPC server that is an interface to a bs.Store.
+// Use Client to communicate with a Server (qv).
 type Server struct {
 	UnimplementedStoreServer // "All implementations must embed UnimplementedStoreServer for forward compatibility."
 
 	s bs.Store
 }
 
+// NewServer produces a new Server interacting with a given bs.Store.
+// The given store may optionally be an anchor.Store as well.
 func NewServer(s bs.Store) *Server {
 	return &Server{s: s}
 }
 
+// Get implements StoreServer.Get.
 func (s *Server) Get(ctx context.Context, req *GetRequest) (*GetResponse, error) {
 	blob, err := s.s.Get(ctx, bs.RefFromBytes(req.Ref))
 	if errors.Is(err, bs.ErrNotFound) {
@@ -32,6 +37,7 @@ func (s *Server) Get(ctx context.Context, req *GetRequest) (*GetResponse, error)
 	return &GetResponse{Blob: blob}, err
 }
 
+// Put implements StoreServer.Put.
 func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error) {
 	ref, added, err := s.s.Put(ctx, req.Blob)
 	if err != nil {
@@ -40,12 +46,14 @@ func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error)
 	return &PutResponse{Ref: ref[:], Added: added}, nil
 }
 
+// ListRefs implements StoreServer.ListRefs.
 func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error {
 	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {
 		return srv.Send(&ListRefsResponse{Ref: ref[:]})
 	})
 }
 
+// AnchorMapRef implements StoreServer.AnchorMapRef.
 func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*AnchorMapRefResponse, error) {
 	astore, ok := s.s.(anchor.Getter)
 	if !ok {
@@ -61,6 +69,7 @@ func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*A
 	return &AnchorMapRefResponse{Ref: ref[:]}, nil
 }
 
+// UpdateAnchorMap implements StoreServer.UpdateAnchorMap.
 // TODO: revisit this implementation, something seems fishy about it.
 func (s *Server) UpdateAnchorMap(ctx context.Context, req *UpdateAnchorMapRequest) (*UpdateAnchorMapResponse, error) {
 	astore, ok := s.s.(anchor.Store)

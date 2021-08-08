@@ -15,6 +15,9 @@ type Keep interface {
 	Contains(context.Context, bs.Ref) (bool, error)
 }
 
+// ProtectPair is the type of an item returned by a ProtectFunc.
+// It is a ref to add to a Keep,
+// plus an optional ProtectFunc for traversing the ref and finding additional refs to protect.
 type ProtectPair struct {
 	Ref bs.Ref
 	F   ProtectFunc
@@ -102,11 +105,17 @@ type Store struct {
 	Refs, Deletions int
 }
 
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) { return s.S.Get(ctx, ref) }
+// Get implements bs.Getter.Get.
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+	return s.S.Get(ctx, ref)
+}
+
+// Put implements bs.Store.Put.
 func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	return s.S.Put(ctx, blob)
 }
 
+// ListRefs implements bs.Getter.ListRefs.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	return s.S.ListRefs(ctx, start, func(ref bs.Ref) error {
 		s.Refs++
@@ -114,6 +123,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	})
 }
 
+// Delete implements bs.DeleterStore.
 func (s *Store) Delete(ctx context.Context, ref bs.Ref) error {
 	s.Deletions++
 	return s.S.Delete(ctx, ref)

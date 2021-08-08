@@ -14,16 +14,21 @@ import (
 	"github.com/bobg/bs/store"
 )
 
-var _ anchor.Store = &Store{}
+var _ anchor.Store = (*Store)(nil)
 
+// Store is the type of a logging wrapper around a given bs.Store.
+// The nested store may optionally be an anchor.Store too.
 type Store struct {
-	s anchor.Store
+	s bs.Store
 }
 
-func New(s anchor.Store) *Store {
+// New produces a new Store that embeds a given bs.Store,
+// which is optionally also an anchor.Store.
+func New(s bs.Store) *Store {
 	return &Store{s: s}
 }
 
+// Get implements bs.Getter.Get.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	b, err := s.s.Get(ctx, ref)
 	if err != nil {
@@ -34,6 +39,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return b, err
 }
 
+// ListRefs implements bs.Getter.ListRefs.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	log.Printf("ListRefs, start=%s", start)
 	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
@@ -47,6 +53,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	})
 }
 
+// Put implements bs.Store.Put.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.s.Put(ctx, b)
 	if err != nil {
@@ -57,12 +64,24 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, err
 }
 
+// AnchorMapRef implements anchor.Getter.
+// If the nested store is not an anchor.Store,
+// this returns anchor.ErrNotAnchorStore.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
-	return s.s.AnchorMapRef(ctx)
+	if a, ok := s.s.(anchor.Getter); ok {
+		return a.AnchorMapRef(ctx)
+	}
+	return bs.Ref{}, anchor.ErrNotAnchorStore
 }
 
+// UpdateAnchorMap implements anchor.Store.
+// If the nested store is not an anchor.Store,
+// this returns anchor.ErrNotAnchorStore.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
-	return s.s.UpdateAnchorMap(ctx, f)
+	if a, ok := s.s.(anchor.Store); ok {
+		return s.s.UpdateAnchorMap(ctx, f)
+	}
+	return bs.Ref{}, anchor.ErrNotAnchorStore
 }
 
 func init() {
@@ -79,9 +98,9 @@ func init() {
 		if err != nil {
 			return nil, errors.Wrap(err, "creating nested store")
 		}
-		if a, ok := nestedStore.(anchor.Store); ok {
+		if a, ok := nestedStore.(bs.Store); ok {
 			return New(a), nil
 		}
-		return nil, fmt.Errorf("nested store is a %T and not an anchor.Store", nestedStore)
+		return nil, fmt.Errorf("nested store is a %T and not a bs.Store", nestedStore)
 	})
 }

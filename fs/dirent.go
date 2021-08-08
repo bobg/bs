@@ -36,6 +36,9 @@ func (d *Dirent) IsLink() bool {
 	return (d.Mode & uint32(os.ModeSymlink)) == uint32(os.ModeSymlink)
 }
 
+// Size returns the size of the file represented by the given entry.
+// This is 0 for directories and symlinks.
+// TODO: this should not be 0 for directories and symlinks.
 func (d *Dirent) Size(ctx context.Context, g bs.Getter) (int64, error) {
 	if d.IsDir() || d.IsLink() {
 		return 0, nil

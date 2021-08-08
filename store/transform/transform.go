@@ -40,15 +40,21 @@ type Transformer interface {
 	Out(context.Context, []byte) ([]byte, error)
 }
 
+// New produces a new Store.
+// It uses s as backing storage,
+// containing transformed blobs and the mapping from blob refs to transformed-blob refs.
+// Blobs are transformed into and out of s using the Transformer x.
+// The ref mapping is a schema.Map in s whose root ref is given by the anchor name a.
 func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, error) {
 	var m *schema.Map
 
 	ref, err := anchor.Get(ctx, s, a, time.Now())
 	if errors.Is(err, anchor.ErrNoAnchorMap) {
 		m = schema.NewMap()
-	} else if err != nil {
-		return nil, err
 	} else {
+		if err != nil {
+			return nil, err
+		}
 		m, err = schema.LoadMap(ctx, s, ref)
 		if err != nil {
 			return nil, err
@@ -58,6 +64,7 @@ func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, 
 	return &Store{s: s, x: x, a: a, m: m}, nil
 }
 
+// Get implements bs.Getter.Get.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	cref, err := func() (bs.Ref, error) {
 		s.mu.Lock()
@@ -91,6 +98,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return blob, nil
 }
 
+// Put implements bs.Store.Put.
 func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	ref := blob.Ref()
 	cblob, err := s.x.In(ctx, blob)
@@ -125,6 +133,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, errors.Wrap(err, "updating ref map anchor")
 }
 
+// ListRefs implements bs.Getter.ListRefs.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
 		s.mu.Lock()

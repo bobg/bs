@@ -93,6 +93,7 @@ func (f *FS) Open(name string) (result fs.File, err error) {
 	}, nil
 }
 
+// ReadDir implements io/fs.ReadDirFS.
 func (f *FS) ReadDir(name string) (result []fs.DirEntry, err error) {
 	defer func() {
 		if err != nil {
@@ -131,6 +132,7 @@ func (f *FS) ReadDir(name string) (result []fs.DirEntry, err error) {
 	return result, errors.Wrapf(err, "iterating over entries at %s", name)
 }
 
+// Stat implements io/fs.StatFS.
 func (f *FS) Stat(name string) (result fs.FileInfo, err error) {
 	defer func() {
 		if err != nil {

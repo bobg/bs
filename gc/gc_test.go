@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/gc"
 	. "github.com/bobg/bs/gc"
 	"github.com/bobg/bs/split"
 	"github.com/bobg/bs/store/mem"
@@ -55,7 +56,7 @@ func (k *memKeep) Contains(_ context.Context, ref bs.Ref) (bool, error) {
 // }
 
 func TestGC(t *testing.T) {
-	store := mem.New()
+	store := &gc.Store{S: mem.New()}
 
 	f, err := os.Open("../testdata/commonsense.txt")
 	if err != nil {
@@ -111,6 +112,10 @@ func TestGC(t *testing.T) {
 	err = Run(ctx, store, k)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if store.Deletions == 0 {
+		t.Error("got 0 deletions during gc.Run")
 	}
 
 	var got []bs.Ref

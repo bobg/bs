@@ -18,8 +18,14 @@ import (
 )
 
 var (
-	ErrNoAnchorMap    = errors.New("no anchor map")
+	// ErrNoAnchorMap is the error produced by AnchorMapRef when no anchor map yet exists.
+	ErrNoAnchorMap = errors.New("no anchor map")
+
+	// ErrUpdateConflict is the error produced by UpdateAnchorMap when "optimistic locking" fails.
 	ErrUpdateConflict = errors.New("update conflict")
+
+	// ErrNotAnchorStore is an error that implementations should use
+	// to indicate that a bs.Store is being used as an anchor.Store but isn't one.
 	ErrNotAnchorStore = errors.New("not anchor store")
 )
 
@@ -28,22 +34,41 @@ var (
 // The members of each schema.List are serialized Anchor protos
 // (n.b. not refs to Anchor protos).
 
+// Getter is a bs.Getter than can additional get anchors.
+// See Store.
 type Getter interface {
 	bs.Getter
 
+	// AnchorMapRef produces the ref of the Getter's anchor map.
+	// If no anchor map yet exists, this must return ErrNoAnchorMap.
 	AnchorMapRef(context.Context) (bs.Ref, error)
 }
 
+// Store is a bs.Store that can additionally store anchors.
+// Anchors are in a schema.Map that lives in the store.
+// The store tracks the anchor map's changing ref.
 type Store interface {
 	Getter
 	bs.Store
 
-	// xxx require the ref passed to the callback to be the zero ref when there is no anchor map yet?
+	// UpdateAnchorMap is used to update the anchor map in the Store.
+	// Implementations must call the given UpdateFunc with the ref of the current anchor map.
+	// If no anchor map yet exists, this must be the zero Ref.
+	// The callback will presumably perform updates on the map, returning its new ref.
+	// The implementation should store this as the new anchor map ref.
+	// However, concurrent callers may make conflicting updates to the anchor map.
+	// Therefore implementations are encouraged to use "optimistic locking":
+	// after the callback returns, check that the anchor map still lives at the original ref and,
+	// if it does, perform the update,
+	// and if it doesn't, then return ErrUpdateConflict
+	// (because some other caller has updated the map in the meantime).
 	UpdateAnchorMap(context.Context, UpdateFunc) error
 }
 
+// UpdateFunc is the type of the callback passed to UpdateAnchorMap.
 type UpdateFunc = func(bs.Ref, *schema.Map) (bs.Ref, error)
 
+// Get gets the latest ref for the anchor with the given name whose timestamp is not later than the given time.
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
 	ref, err := g.AnchorMapRef(ctx)
 	if err != nil {
@@ -84,6 +109,10 @@ func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, erro
 	return bs.Ref{}, bs.ErrNotFound
 }
 
+// Put stores a new anchor with the given name, ref, and timestamp.
+// If an anchor for the given name already exists with the same ref at the same time,
+// this silently does nothing.
+// TODO: accept "oldest" and "limit" options here (as in Expire)?
 func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) error {
 	return s.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
 		listBytes, found, err := m.Lookup(ctx, s, []byte(name))
@@ -182,6 +211,10 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 	})
 }
 
+// Each iterates through all anchors in g in an indeterminate order,
+// calling a callback for each one.
+// If the callback returns an error,
+// Each exits early with that error.
 func Each(ctx context.Context, g Getter, f func(string, bs.Ref, time.Time) error) error {
 	ref, err := g.AnchorMapRef(ctx)
 	if errors.Is(err, ErrNoAnchorMap) {

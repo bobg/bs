@@ -13,7 +13,7 @@ import (
 	"github.com/bobg/bs/store"
 )
 
-var _ anchor.Store = &Store{}
+var _ anchor.Store = (*Store)(nil)
 
 // Store implements a memory-based least-recently-used cache for a blob store.
 // Writes pass through to the underlying blob store.
@@ -61,6 +61,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return s.s.ListRefs(ctx, start, f)
 }
 
+// AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	a, ok := s.s.(anchor.Getter)
 	if !ok {
@@ -69,6 +70,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return a.AnchorMapRef(ctx)
 }
 
+// UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	a, ok := s.s.(anchor.Store)
 	if !ok {

@@ -106,6 +106,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return nil
 }
 
+// AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	const q = `SELECT ref FROM anchor_map_ref`
 
@@ -117,6 +118,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return ref, err
 }
 
+// UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	var (
 		m        *schema.Map

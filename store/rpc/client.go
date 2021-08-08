@@ -15,16 +15,22 @@ import (
 	"github.com/bobg/bs/store"
 )
 
-var _ anchor.Store = &Client{}
+var _ anchor.Store = (*Client)(nil)
 
+// Client is the type of a client for Server.
+// It implements anchor.Store.
 type Client struct {
 	sc StoreClient
 }
 
+// NewClient produces a new Client capable of communicating with a Server.
+// The ClientConnInterface specifies the necessary communication channel
+// and can be obtained by calling gprc.Dial or grpc.DialContext (qv).
 func NewClient(cc grpc.ClientConnInterface) *Client {
 	return &Client{sc: NewStoreClient(cc)}
 }
 
+// Get implements bs.Getter.Get.
 func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	resp, err := c.sc.Get(ctx, &GetRequest{Ref: ref[:]})
 	if code := status.Code(err); code == codes.NotFound {
@@ -36,6 +42,7 @@ func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return resp.Blob, nil
 }
 
+// ListRefs implements bs.Getter.ListRefs.
 func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	lc, err := c.sc.ListRefs(ctx, &ListRefsRequest{Start: start[:]})
 	if err != nil {
@@ -56,6 +63,7 @@ func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) erro
 	}
 }
 
+// Put implements bs.Store.Put.
 func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	resp, err := c.sc.Put(ctx, &PutRequest{Blob: blob})
 	if err != nil {
@@ -64,10 +72,16 @@ func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	return bs.RefFromBytes(resp.Ref), resp.Added, nil
 }
 
+// AnchorMapRef implements anchor.Getter.
 func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	resp, err := c.sc.AnchorMapRef(ctx, &AnchorMapRefRequest{})
-	if code := status.Code(err); code == codes.NotFound {
+
+	code := status.Code(err)
+	switch code {
+	case codes.NotFound:
 		return bs.Ref{}, anchor.ErrNoAnchorMap
+	case codes.Unimplemented:
+		return bs.Ref{}, anchor.ErrNotAnchorStore
 	}
 	if err != nil {
 		return bs.Ref{}, err
@@ -75,6 +89,7 @@ func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return bs.RefFromBytes(resp.Ref), nil
 }
 
+// UpdateAnchorMap implements anchor.Store.
 func (c *Client) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	var m *schema.Map
 	oldRef, err := c.AnchorMapRef(ctx)
@@ -97,6 +112,13 @@ func (c *Client) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error
 	}
 
 	_, err = c.sc.UpdateAnchorMap(ctx, &UpdateAnchorMapRequest{OldRef: oldRef[:], NewRef: newRef[:]})
+	code := status.Code(err)
+	switch code {
+	case codes.Unimplemented:
+		return anchor.ErrNotAnchorStore
+	case codes.FailedPrecondition:
+		return anchor.ErrUpdateConflict
+	}
 	return err
 }
 

@@ -133,6 +133,7 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) erro
 
 const anchorMapRefObjName = "anchormapref"
 
+// AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	ref, _, err := s.anchorMapRef(ctx)
 	return ref, err
@@ -159,6 +160,7 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, int64, error) {
 	return ref, attrs.Generation, errors.Wrap(err, "reading anchor map ref")
 }
 
+// UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	var (
 		m        *schema.Map

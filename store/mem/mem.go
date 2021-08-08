@@ -78,6 +78,7 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
+// Delete implements bs.DeleterStore.
 func (s *Store) Delete(_ context.Context, ref bs.Ref) error {
 	s.mu.Lock()
 	delete(s.blobs, ref)
@@ -85,6 +86,7 @@ func (s *Store) Delete(_ context.Context, ref bs.Ref) error {
 	return nil
 }
 
+// AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(_ context.Context) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

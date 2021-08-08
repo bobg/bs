@@ -43,7 +43,7 @@ func NewWriter(ctx context.Context, st bs.Store, opts ...Option) *Writer {
 	w := &Writer{
 		Ctx:    ctx,
 		st:     st,
-		fanout: 4, // TODO: does this provide the best fan-out?
+		fanout: 8, // TODO: does this provide the best fan-out?
 	}
 
 	tb := hashsplit.TreeBuilder{
@@ -121,26 +121,51 @@ func (w *Writer) Close() error {
 	return nil
 }
 
-type Option func(*Writer)
+// Option is the type of an option passed to NewWriter.
+type Option = func(*Writer)
 
+// Bits is an option for NewWriter that changes the number of trailing zero bits in the rolling checksum used to identify chunk boundaries.
+// A chunk boundary occurs on average once every 2^n bytes.
+// (But the actual median chunk size is the logarithm, base (2^n-1)/(2^n), of 0.5.)
+// The default value for n is 14,
+// producing a chunk boundary every 16,384 bytes,
+// and a median chunk size of 11,356 bytes.
 func Bits(n uint) Option {
 	return func(w *Writer) {
 		w.spl.SplitBits = n
 	}
 }
 
+// MinSize is an option for NewWriter that sets a lower bound on the size of a chunk.
+// No chunk may be smaller than this,
+// except for the final one in the input stream.
+// The value must be 64 or higher.
+// The default is 1024.
 func MinSize(n int) Option {
 	return func(w *Writer) {
 		w.spl.MinSize = n
 	}
 }
 
+// Fanout is an option for NewWriter that can change the fanout of the nodes in the tree produced.
+// The value of n must be 1 or higher.
+// The default is 8.
+// In a nutshell,
+// nodes in the hashsplit tree will tend to have around 2n children each,
+// because each chunk's "level" is reduced by dividing it by n.
+// For more information see https://pkg.go.dev/github.com/bobg/hashsplit#TreeBuilder.Add.
 func Fanout(n uint) Option {
 	return func(w *Writer) {
 		w.fanout = n
 	}
 }
 
+// Reader traverses the nodes of a hashsplit tree to produce the original (unsplit) input.
+// It implements io.ReadSeeker.
+// The given context object is stored in the Reader and used in subsequent calls to Read.
+// This is an antipattern but acceptable when an object must adhere to a context-free stdlib interface
+// (https://github.com/golang/go/wiki/CodeReviewComments#contexts).
+// Callers may replace the context object during the lifetime of the Reader as needed.
 type Reader struct {
 	Ctx   context.Context
 	g     bs.Getter
@@ -148,6 +173,7 @@ type Reader struct {
 	stack []*Node // stack[0] is always filled and is the root of the split tree
 }
 
+// NewReader produces a new Reader for the hashsplit tree stored in g and rooted at ref.
 func NewReader(ctx context.Context, g bs.Getter, ref bs.Ref) (*Reader, error) {
 	var root Node
 	err := bs.GetProto(ctx, g, ref, &root)
@@ -161,6 +187,7 @@ func NewReader(ctx context.Context, g bs.Getter, ref bs.Ref) (*Reader, error) {
 	}, nil
 }
 
+// Read implements io.Reader.
 func (r *Reader) Read(buf []byte) (int, error) {
 	var n int
 	for len(buf) > 0 {
@@ -242,6 +269,7 @@ func (r *Reader) Read(buf []byte) (int, error) {
 	return n, nil
 }
 
+// Seek implements io.Seeker.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case io.SeekStart:
@@ -265,10 +293,12 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return int64(r.pos), nil
 }
 
+// Size returns the number of (unsplit) input bytes represented by the full hashsplit tree.
 func (r *Reader) Size() uint64 {
 	return r.stack[0].Size
 }
 
+// Protect is a gc.ProtectFunc for use on split.Node refs.
 func Protect(ctx context.Context, g bs.Getter, ref bs.Ref) ([]gc.ProtectPair, error) {
 	var n Node
 	err := bs.GetProto(ctx, g, ref, &n)

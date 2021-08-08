@@ -176,6 +176,7 @@ func (s *Store) unlockAnchorRefMap() error {
 	return s.flocker.Unlock(s.anchorMapRefFilePath())
 }
 
+// AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	err := s.lockAnchorRefMap()
 	if err != nil {
@@ -198,6 +199,7 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return bs.RefFromBytes(b), nil
 }
 
+// UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	var (
 		m        *schema.Map
