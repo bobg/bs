@@ -5,35 +5,27 @@ import (
 	"context"
 	"sort"
 	"sync"
-	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
-var _ anchor.Store = &Store{}
+var _ anchor.Store = (*Store)(nil)
 
 // Store is a memory-based implementation of a blob store.
-type (
-	Store struct {
-		mu      sync.Mutex
-		blobs   map[bs.Ref]bs.Blob
-		anchors map[string][]timeref
-	}
-
-	timeref struct {
-		r bs.Ref
-		t time.Time
-	}
-)
+type Store struct {
+	mu           sync.Mutex
+	blobs        map[bs.Ref]bs.Blob
+	anchorMapRef bs.Ref
+}
 
 // New produces a new Store.
 func New() *Store {
-	return &Store{
-		blobs:   make(map[bs.Ref]bs.Blob),
-		anchors: make(map[string][]timeref),
-	}
+	return &Store{blobs: make(map[bs.Ref]bs.Blob)}
 }
 
 // Get gets the blob with hash `ref`.
@@ -86,69 +78,49 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
-// GetAnchor implements anchor.Store.GetAnchor.
-func (s *Store) GetAnchor(_ context.Context, name string, at time.Time) (bs.Ref, error) {
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	anchors := s.anchors[name]
-	if len(anchors) == 0 {
-		return bs.Ref{}, bs.ErrNotFound
+	var err error
+	if s.anchorMapRef == (bs.Ref{}) {
+		err = anchor.ErrNoAnchorMap
 	}
-	index := sort.Search(len(anchors), func(n int) bool {
-		return !anchors[n].t.Before(at)
-	})
-	if index < len(anchors) && anchors[index].t.Equal(at) {
-		return anchors[index].r, nil
-	}
-	if index == 0 {
-		return bs.Ref{}, bs.ErrNotFound
-	}
-	return anchors[index-1].r, nil
+	return s.anchorMapRef, err
 }
 
-func (s *Store) PutAnchor(_ context.Context, name string, ref bs.Ref, at time.Time) error {
+// UpdateAnchorMap implements anchor.Store.
+// It uses optimistic locking and can return anchor.ErrUpdateConflict.
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	tr := timeref{r: ref, t: at}
-	anchors := append(s.anchors[name], tr)
-	sort.Slice(anchors, func(i, j int) bool {
-		return anchors[i].t.Before(anchors[j].t)
-	})
-	s.anchors[name] = anchors
-	return nil
-}
-
-// ListAnchors implements anchor.Store.ListAnchors.
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	var names []string
-	s.mu.Lock()
-	for name := range s.anchors {
-		if name > start {
-			names = append(names, name)
-		}
-	}
+	oldRef := s.anchorMapRef
 	s.mu.Unlock()
 
-	sort.StringSlice(names).Sort()
-
-	for _, name := range names {
-		s.mu.Lock()
-		timerefs := s.anchors[name]
-		s.mu.Unlock()
-
-		for _, tr := range timerefs {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			err := f(name, tr.r, tr.t)
-			if err != nil {
-				return err
-			}
+	var (
+		m   *schema.Map
+		err error
+	)
+	if oldRef == (bs.Ref{}) {
+		m = schema.NewMap()
+	} else {
+		m, err = schema.LoadMap(ctx, s, oldRef)
+		if err != nil {
+			return errors.Wrap(err, "loading anchor map")
 		}
 	}
 
+	newRef, err := f(oldRef, m)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.anchorMapRef != oldRef {
+		return anchor.ErrUpdateConflict
+	}
+	s.anchorMapRef = newRef
 	return nil
 }
 

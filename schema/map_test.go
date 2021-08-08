@@ -1,4 +1,4 @@
-package schema
+package schema_test
 
 import (
 	"bufio"
@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	. "github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store/mem"
 )
 
@@ -32,15 +33,11 @@ func TestMap(t *testing.T) {
 		store = mem.New()
 		m     = NewMap()
 		mref  bs.Ref
-		lines []string
 		refs  []bs.Ref
 	)
 
 	var linenum int
 	for sc.Scan() {
-		text := sc.Text()
-		lines = append(lines, text)
-
 		blob := bs.Blob(sc.Text())
 		ref, _, err := store.Put(ctx, blob)
 		if err != nil {
@@ -219,7 +216,7 @@ func TestMapFromGo(t *testing.T) {
 	}
 }
 
-func (m *Map) dump(ctx context.Context, g bs.Getter, depth int) error {
+func dumpMap(ctx context.Context, m *Map, g bs.Getter, depth int) error {
 	indent := strings.Repeat("  ", depth)
 	fmt.Printf("%sSize: %d, Depth: %d\n", indent, m.Node.Size, m.Node.Depth)
 	if m.Node.Left != nil {
@@ -229,7 +226,7 @@ func (m *Map) dump(ctx context.Context, g bs.Getter, depth int) error {
 		if err != nil {
 			return err
 		}
-		err = sub.dump(ctx, g, depth+1)
+		err = dumpMap(ctx, &sub, g, depth+1)
 		if err != nil {
 			return err
 		}
@@ -239,7 +236,7 @@ func (m *Map) dump(ctx context.Context, g bs.Getter, depth int) error {
 		if err != nil {
 			return err
 		}
-		return sub.dump(ctx, g, depth+1)
+		return dumpMap(ctx, &sub, g, depth+1)
 	}
 
 	for _, pair := range m.Members {
