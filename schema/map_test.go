@@ -33,15 +33,11 @@ func TestMap(t *testing.T) {
 		store = mem.New()
 		m     = NewMap()
 		mref  bs.Ref
-		lines []string
 		refs  []bs.Ref
 	)
 
 	var linenum int
 	for sc.Scan() {
-		text := sc.Text()
-		lines = append(lines, text)
-
 		blob := bs.Blob(sc.Text())
 		ref, _, err := store.Put(ctx, blob)
 		if err != nil {

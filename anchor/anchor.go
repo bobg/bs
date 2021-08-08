@@ -263,3 +263,55 @@ func Expire(ctx context.Context, s Store, oldest time.Time, min int) error {
 		return m2ref, err
 	})
 }
+
+// Sync copies every store's anchors to every other store.
+// Strategy: each store does a one-way copy to its immediate neighbor to the right (mod N).
+// Then each store does a one-way copy to its second neighbor to the right (mod N).
+// This repeats len(stores)-1 times, at which point all stores have all anchors.
+func Sync(ctx context.Context, stores []Store) error {
+	for delta := 1; delta < len(stores); delta++ {
+		maps := make([]*schema.Map, len(stores))
+		for i, store := range stores {
+			ref, err := store.AnchorMapRef(ctx)
+			if errors.Is(err, ErrNoAnchorMap) {
+				maps[i] = schema.NewMap()
+			} else {
+				if err != nil {
+					return errors.Wrap(err, "getting anchor map ref")
+				}
+				maps[i], err = schema.LoadMap(ctx, store, ref)
+				if err != nil {
+					return errors.Wrap(err, "loading anchor map")
+				}
+			}
+		}
+		for i, src := range stores {
+			neighbor := stores[(i+delta)%len(stores)]
+			err := maps[i].Each(ctx, src, func(pair *schema.MapPair) error {
+				key := string(pair.Key)
+				var list schema.List
+				err := proto.Unmarshal(pair.Payload, &list)
+				if err != nil {
+					return errors.Wrap(err, "unmarshaling anchor list")
+				}
+				for _, anchorBytes := range list.Members {
+					var a Anchor
+					err = proto.Unmarshal(anchorBytes, &a)
+					if err != nil {
+						return errors.Wrap(err, "unmarshaling anchor")
+					}
+					err = Put(ctx, neighbor, key, bs.RefFromBytes(a.Ref), a.At.AsTime())
+					if err != nil {
+						return errors.Wrap(err, "storing anchor")
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
