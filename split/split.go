@@ -10,6 +10,8 @@ import (
 	"github.com/bobg/hashsplit"
 	"github.com/pkg/errors"
 
+	"github.com/bobg/bs/gc"
+
 	"github.com/bobg/bs"
 )
 
@@ -265,4 +267,22 @@ func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 
 func (r *Reader) Size() uint64 {
 	return r.stack[0].Size
+}
+
+func Protect(ctx context.Context, g bs.Getter, ref bs.Ref) ([]gc.ProtectPair, error) {
+	var n Node
+	err := bs.GetProto(ctx, g, ref, &n)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []gc.ProtectPair
+	for _, child := range n.Nodes {
+		result = append(result, gc.ProtectPair{Ref: bs.RefFromBytes(child.Ref), F: Protect})
+	}
+	for _, child := range n.Leaves {
+		result = append(result, gc.ProtectPair{Ref: bs.RefFromBytes(child.Ref)})
+	}
+
+	return result, nil
 }

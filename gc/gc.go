@@ -27,7 +27,7 @@ type ProtectPair struct {
 // (However, it safely may, as long as it does its own loop detection.
 // [Assuming loops are even a thing in content-addressable storage systems, which they probably aren't.])
 // It produces the refs it finds, along with their own ProtectFuncs.
-type ProtectFunc func(context.Context, bs.Getter, bs.Ref) ([]ProtectPair, error)
+type ProtectFunc = func(context.Context, bs.Getter, bs.Ref) ([]ProtectPair, error)
 
 // Protect adds a given Ref, and all Refs reachable from it, to a Keep.
 // An optional callback is responsible for traversing the given Ref

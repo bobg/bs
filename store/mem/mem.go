@@ -78,7 +78,14 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
-func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+func (s *Store) Delete(_ context.Context, ref bs.Ref) error {
+	s.mu.Lock()
+	delete(s.blobs, ref)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Store) AnchorMapRef(_ context.Context) (bs.Ref, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
