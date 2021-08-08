@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 	"github.com/bobg/bs/split"
 )
 
@@ -51,7 +52,7 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 			}
 		}
 
-		err = c.s.PutAnchor(ctx, a, ref, at)
+		err = anchor.Put(ctx, c.s, a, ref, at)
 		if err != nil {
 			return errors.Wrapf(err, "associating anchor %s with blob %s at time %s", a, ref, at)
 		}

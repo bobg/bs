@@ -5,6 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go v0.90.0 // indirect
 	cloud.google.com/go/storage v1.16.0
+	github.com/bobg/flock v0.0.0-20210807151335-599054c8997d // indirect
 	github.com/bobg/hashsplit v1.1.1
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v1.0.1

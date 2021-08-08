@@ -38,7 +38,7 @@ func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool,
 			return fmt.Errorf("%T is not an anchor.Store", c.s)
 		}
 
-		ref, err = as.GetAnchor(ctx, a, at)
+		ref, err = anchor.Get(ctx, as, a, at)
 		if err != nil {
 			return errors.Wrapf(err, "getting anchor %s at time %s", a, at)
 		}
@@ -89,7 +89,7 @@ func (c maincmd) getAnchor(ctx context.Context, atstr string, args []string) err
 		return fmt.Errorf("%T is not an anchor.Store", c.s)
 	}
 
-	ref, err := as.GetAnchor(ctx, a, at)
+	ref, err := anchor.Get(ctx, as, a, at)
 	if err != nil {
 		return errors.Wrapf(err, "getting anchor %s at time %s", a, at)
 	}

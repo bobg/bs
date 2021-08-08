@@ -2,15 +2,14 @@ package rpc
 
 import (
 	context "context"
-	"time"
 
 	"github.com/pkg/errors"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 )
 
 var _ StoreServer = &Server{}
@@ -47,46 +46,42 @@ func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error 
 	})
 }
 
-// ErrNotAnchorStore is the error returned when trying to call an anchor.Store method on a plain bs.Store.
-// It is represented with codes.Unimplemented in RPC status objects.
-var ErrNotAnchorStore = errors.New("not an anchor store")
-
-func (s *Server) GetAnchor(ctx context.Context, req *GetAnchorRequest) (*GetAnchorResponse, error) {
-	astore, ok := s.s.(anchor.Store)
+func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*AnchorMapRefResponse, error) {
+	astore, ok := s.s.(anchor.Getter)
 	if !ok {
-		return nil, status.Error(codes.Unimplemented, ErrNotAnchorStore.Error())
+		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
 	}
-
-	ref, err := astore.GetAnchor(ctx, req.Name, req.At.AsTime())
-	if err == bs.ErrNotFound {
+	ref, err := astore.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
 		return nil, status.Error(codes.NotFound, err.Error())
 	}
 	if err != nil {
 		return nil, err
 	}
-
-	return &GetAnchorResponse{Ref: ref[:]}, nil
+	return &AnchorMapRefResponse{Ref: ref[:]}, nil
 }
 
-var singletonPutAnchorResponse PutAnchorResponse
-
-func (s *Server) PutAnchor(ctx context.Context, req *PutAnchorRequest) (*PutAnchorResponse, error) {
+// TODO: revisit this implementation, something seems fishy about it.
+func (s *Server) UpdateAnchorMap(ctx context.Context, req *UpdateAnchorMapRequest) (*UpdateAnchorMapResponse, error) {
 	astore, ok := s.s.(anchor.Store)
 	if !ok {
-		return nil, status.Error(codes.Unimplemented, ErrNotAnchorStore.Error())
+		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
 	}
-
-	err := astore.PutAnchor(ctx, req.Name, bs.RefFromBytes(req.Ref), req.At.AsTime())
-	return &singletonPutAnchorResponse, err
-}
-
-func (s *Server) ListAnchors(req *ListAnchorsRequest, srv Store_ListAnchorsServer) error {
-	astore, ok := s.s.(anchor.Store)
-	if !ok {
-		return status.Error(codes.Unimplemented, ErrNotAnchorStore.Error())
-	}
-
-	return astore.ListAnchors(srv.Context(), req.Start, func(name string, ref bs.Ref, at time.Time) error {
-		return srv.Send(&ListAnchorsResponse{Name: name, Ref: ref[:], At: timestamppb.New(at)})
+	err := astore.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
+		reqOldRef := bs.RefFromBytes(req.OldRef)
+		if reqOldRef == (bs.Ref{}) {
+			if !m.IsEmpty() {
+				return bs.Ref{}, anchor.ErrUpdateConflict
+			}
+		} else {
+			if mref != reqOldRef {
+				return bs.Ref{}, anchor.ErrUpdateConflict
+			}
+		}
+		return bs.RefFromBytes(req.NewRef), nil
 	})
+	if errors.Is(err, anchor.ErrUpdateConflict) {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	return &UpdateAnchorMapResponse{}, err
 }

@@ -3,16 +3,15 @@ package rpc
 import (
 	context "context"
 	"io"
-	"time"
 
 	"github.com/pkg/errors"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -65,14 +64,10 @@ func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	return bs.RefFromBytes(resp.Ref), resp.Added, nil
 }
 
-func (c *Client) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
-	resp, err := c.sc.GetAnchor(ctx, &GetAnchorRequest{Name: name, At: timestamppb.New(at)})
-	code := status.Code(err)
-	switch code {
-	case codes.NotFound:
-		return bs.Ref{}, bs.ErrNotFound
-	case codes.Unimplemented:
-		return bs.Ref{}, ErrNotAnchorStore
+func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	resp, err := c.sc.AnchorMapRef(ctx, &AnchorMapRefRequest{})
+	if code := status.Code(err); code == codes.NotFound {
+		return bs.Ref{}, anchor.ErrNoAnchorMap
 	}
 	if err != nil {
 		return bs.Ref{}, err
@@ -80,36 +75,29 @@ func (c *Client) GetAnchor(ctx context.Context, name string, at time.Time) (bs.R
 	return bs.RefFromBytes(resp.Ref), nil
 }
 
-func (c *Client) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
-	_, err := c.sc.PutAnchor(ctx, &PutAnchorRequest{
-		Name: name,
-		Ref:  ref[:],
-		At:   timestamppb.New(at),
-	})
-	return err
-}
-
-func (c *Client) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	lc, err := c.sc.ListAnchors(ctx, &ListAnchorsRequest{Start: start})
-	if code := status.Code(err); code == codes.Unimplemented {
-		return ErrNotAnchorStore
+func (c *Client) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
+	var m *schema.Map
+	oldRef, err := c.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
+		m = schema.NewMap()
+		oldRef = bs.Ref{}
+	} else {
+		if err != nil {
+			return errors.Wrap(err, "getting anchor map ref")
+		}
+		m, err = schema.LoadMap(ctx, c, oldRef)
+		if err != nil {
+			return errors.Wrap(err, "loading anchor map")
+		}
 	}
+
+	newRef, err := f(oldRef, m)
 	if err != nil {
 		return err
 	}
-	for {
-		resp, err := lc.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return errors.Wrap(err, "receiving response")
-		}
-		err = f(resp.Name, bs.RefFromBytes(resp.Ref), resp.At.AsTime())
-		if err != nil {
-			return err
-		}
-	}
+
+	_, err = c.sc.UpdateAnchorMap(ctx, &UpdateAnchorMapRequest{OldRef: oldRef[:], NewRef: newRef[:]})
+	return err
 }
 
 func init() {

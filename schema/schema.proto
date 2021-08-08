@@ -36,3 +36,7 @@ message Map {
   // Mutually exclusive with node.left and node.right.
   repeated MapPair members = 2;
 }
+
+message List {
+  repeated bytes members = 1;
+}

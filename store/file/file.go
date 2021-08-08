@@ -4,17 +4,17 @@ package file
 import (
 	"context"
 	"io/ioutil"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
-	"time"
 
+	"github.com/bobg/flock"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -22,7 +22,8 @@ var _ anchor.Store = &Store{}
 
 // Store is a file-based implementation of a blob store.
 type Store struct {
-	root string
+	root    string
+	flocker flock.Locker
 }
 
 // New produces a new Store storing data beneath `root`.
@@ -39,19 +40,6 @@ func (s *Store) blobpath(ref bs.Ref) string {
 	return filepath.Join(s.blobroot(), h[:2], h[:4], h)
 }
 
-func (s *Store) typepath(ref bs.Ref) string {
-	p := s.blobpath(ref)
-	return p + ".types"
-}
-
-func (s *Store) anchorroot() string {
-	return filepath.Join(s.root, "anchors")
-}
-
-func (s *Store) anchorpath(name string) string {
-	return filepath.Join(s.anchorroot(), encodeAnchor(name))
-}
-
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	path := s.blobpath(ref)
@@ -60,56 +48,6 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 		return nil, bs.ErrNotFound
 	}
 	return blob, errors.Wrapf(err, "opening %s", path)
-}
-
-// GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
-	dir := s.anchorpath(name)
-	entries, err := ioutil.ReadDir(dir)
-	if os.IsNotExist(err) {
-		return bs.Ref{}, bs.ErrNotFound
-	}
-	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading dir %s", dir)
-	}
-
-	// We might use sort.Search here (since ReadDir returns entries sorted by name),
-	// which is O(log N),
-	// but we want to be robust in the face of filenames that time.Parse fails to parse,
-	// so O(N) it is.
-	// Oh, also: filenames are times that may be expressed in different timezones.
-	var best string
-	for _, entry := range entries {
-		name := entry.Name()
-		parsed, err := time.Parse(time.RFC3339Nano, name)
-		if err != nil {
-			continue
-		}
-		if parsed.After(at) {
-			break
-		}
-		best = name
-	}
-	if best == "" {
-		return bs.Ref{}, bs.ErrNotFound
-	}
-
-	h, err := ioutil.ReadFile(filepath.Join(dir, best))
-	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading file %s/%s", dir, best)
-	}
-
-	ref, err := bs.RefFromHex(string(h))
-	return ref, errors.Wrapf(err, "parsing ref %s", string(h))
-}
-
-func (s *Store) PutAnchor(_ context.Context, name string, ref bs.Ref, at time.Time) error {
-	dir := s.anchorpath(name)
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		return errors.Wrapf(err, "creating %s", dir)
-	}
-	return os.WriteFile(filepath.Join(dir, at.Format(time.RFC3339Nano)), []byte(ref.String()), 0644)
 }
 
 // Put adds a blob to the store if it wasn't already present.
@@ -142,61 +80,6 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	}
 
 	return ref, added, nil
-}
-
-// ListAnchors implements anchor.Getter.
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	infos, err := ioutil.ReadDir(s.anchorroot())
-	if err != nil {
-		return errors.Wrap(err, "reading anchor root")
-	}
-
-	var names []string
-	for _, info := range infos {
-		if !info.IsDir() {
-			continue
-		}
-		name, err := decodeAnchor(info.Name())
-		if err != nil {
-			return errors.Wrapf(err, "decoding anchor %s", info.Name())
-		}
-		if name <= start {
-			continue
-		}
-		names = append(names, name)
-	}
-
-	sort.StringSlice(names).Sort()
-
-	for _, name := range names {
-		dir := s.anchorpath(name)
-		aInfos, err := ioutil.ReadDir(dir)
-		if err != nil {
-			return errors.Wrapf(err, "reading dir %s", dir)
-		}
-		for _, aInfo := range aInfos {
-			if err = ctx.Err(); err != nil {
-				return err
-			}
-			at, err := time.Parse(time.RFC3339Nano, aInfo.Name())
-			if err != nil {
-				return errors.Wrapf(err, "parsing filename %s in %s", aInfo.Name(), dir)
-			}
-			refHex, err := ioutil.ReadFile(filepath.Join(dir, aInfo.Name()))
-			if err != nil {
-				return errors.Wrapf(err, "reading %s/%s", dir, aInfo.Name())
-			}
-			ref, err := bs.RefFromHex(string(refHex))
-			if err != nil {
-				return errors.Wrapf(err, "parsing ref from string %s", refHex)
-			}
-			err = f(name, ref, at)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
@@ -279,12 +162,84 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return nil
 }
 
-func encodeAnchor(name string) string {
-	return url.PathEscape(name)
+const anchorMapRefFileBaseName = "anchormapref"
+
+func (s *Store) anchorMapRefFilePath() string {
+	return filepath.Join(s.root, anchorMapRefFileBaseName)
 }
 
-func decodeAnchor(inp string) (string, error) {
-	return url.PathUnescape(inp)
+func (s *Store) lockAnchorRefMap() error {
+	return s.flocker.Lock(s.anchorMapRefFilePath())
+}
+
+func (s *Store) unlockAnchorRefMap() error {
+	return s.flocker.Unlock(s.anchorMapRefFilePath())
+}
+
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	err := s.lockAnchorRefMap()
+	if err != nil {
+		return bs.Ref{}, errors.Wrap(err, "locking anchor map ref file")
+	}
+	defer s.unlockAnchorRefMap()
+
+	return s.anchorMapRef(ctx)
+}
+
+// File lock must be held.
+func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, error) {
+	b, err := os.ReadFile(s.anchorMapRefFilePath())
+	if errors.Is(err, os.ErrNotExist) {
+		return bs.Ref{}, anchor.ErrNoAnchorMap
+	}
+	if err != nil {
+		return bs.Ref{}, errors.Wrap(err, "reading anchor map ref")
+	}
+	return bs.RefFromBytes(b), nil
+}
+
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
+	var (
+		m        *schema.Map
+		wasNoMap bool
+	)
+
+	oldRef, err := s.AnchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
+		m = schema.NewMap()
+		wasNoMap = true
+	} else {
+		if err != nil {
+			return errors.Wrap(err, "getting old anchor map ref")
+		}
+		m, err = schema.LoadMap(ctx, s, oldRef)
+		if err != nil {
+			return errors.Wrap(err, "loading anchor map")
+		}
+	}
+
+	newRef, err := f(oldRef, m)
+	if err != nil {
+		return err
+	}
+
+	err = s.lockAnchorRefMap()
+	if err != nil {
+		return errors.Wrap(err, "relocking anchor map ref file")
+	}
+	defer s.unlockAnchorRefMap()
+
+	if wasNoMap {
+		f, err := os.OpenFile(s.anchorMapRefFilePath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if err != nil {
+			return errors.Wrap(err, "creating anchor map ref file")
+		}
+		defer f.Close()
+		_, err = f.Write(newRef[:])
+		return errors.Wrap(err, "writing anchor map ref file")
+	}
+
+	return os.WriteFile(s.anchorMapRefFilePath(), newRef[:], 0644)
 }
 
 func init() {

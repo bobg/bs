@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/anchor"
 )
 
 // Sync synchronizes two or more stores.
@@ -78,7 +79,10 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		}
 		if !any {
 			// We've reached the end of input on all channels.
-			return <-errch
+			if err := <-errch; err != nil {
+				return err
+			}
+			break
 		}
 
 		sort.Slice(tuples, func(i, j int) bool {
@@ -120,4 +124,13 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 			}
 		}
 	}
+
+	// Now synchronize anchors.
+	var astores []anchor.Store
+	for _, store := range stores {
+		if astore, ok := store.(anchor.Store); ok {
+			astores = append(astores, astore)
+		}
+	}
+	return anchor.Sync(ctx, astores)
 }

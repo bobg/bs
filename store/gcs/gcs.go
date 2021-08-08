@@ -3,13 +3,9 @@ package gcs
 
 import (
 	"context"
-	"encoding/hex"
-	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
@@ -19,6 +15,7 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -52,8 +49,6 @@ type Store struct {
 func New(bucket *storage.BucketHandle) *Store {
 	return &Store{bucket: bucket}
 }
-
-const typeKey = "type"
 
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
@@ -136,111 +131,74 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) erro
 	}
 }
 
-// GetAnchor gets the latest blob ref for a given anchor as of a given time.
-func (s *Store) GetAnchor(ctx context.Context, a string, when time.Time) (bs.Ref, error) {
-	var (
-		prefix = anchorPrefix(a)
-		iter   = s.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
-	)
+const anchorMapRefObjName = "anchormapref"
 
-	// Anchors come back in reverse chronological order
-	// (since we usually want the latest one).
-	// Find the first one whose timestamp is `when` or earlier.
-	for {
-		attrs, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			return bs.Ref{}, bs.ErrNotFound
-		}
-		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "iterating over anchor objects")
-		}
-		_, atime, err := anchorTimeFromObjName(attrs.Name)
-		if err != nil {
-			return bs.Ref{}, errors.Wrapf(err, "decoding object name %s", attrs.Name)
-		}
-		if atime.After(when) {
-			continue
-		}
-
-		ref, err := s.getAnchorRef(ctx, attrs.Name)
-		return ref, errors.Wrapf(err, "reading object %s", attrs.Name)
-	}
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	ref, _, err := s.anchorMapRef(ctx)
+	return ref, err
 }
 
-func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
+func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, int64, error) {
+	obj := s.bucket.Object(anchorMapRefObjName)
+	r, err := obj.NewReader(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return bs.Ref{}, 0, anchor.ErrNoAnchorMap
+	}
+	if err != nil {
+		return bs.Ref{}, 0, errors.Wrap(err, "getting anchor map ref object")
+	}
+	defer r.Close()
+
+	attrs, err := obj.Attrs(ctx)
+	if err != nil {
+		return bs.Ref{}, 0, errors.Wrap(err, "getting anchor map ref object attrs")
+	}
+
+	var ref bs.Ref
+	_, err = io.ReadFull(r, ref[:])
+	return ref, attrs.Generation, errors.Wrap(err, "reading anchor map ref")
+}
+
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	var (
-		objname = anchorObjName(name, at)
-		obj     = s.bucket.Object(objname)
-		w       = obj.NewWriter(ctx)
+		m        *schema.Map
+		wasNoMap bool
 	)
+
+	oldRef, gen, err := s.anchorMapRef(ctx)
+	if errors.Is(err, anchor.ErrNoAnchorMap) {
+		m = schema.NewMap()
+		wasNoMap = true
+	} else {
+		if err != nil {
+			return err
+		}
+		m, err = schema.LoadMap(ctx, s, oldRef)
+		if err != nil {
+			return errors.Wrap(err, "loading anchor map")
+		}
+	}
+
+	newRef, err := f(oldRef, m)
+	if err != nil {
+		return err
+	}
+
+	obj := s.bucket.Object(anchorMapRefObjName)
+	if wasNoMap {
+		obj = obj.If(storage.Conditions{DoesNotExist: true})
+	} else {
+		obj = obj.If(storage.Conditions{GenerationMatch: gen})
+	}
+	w := obj.NewWriter(ctx)
 	defer w.Close()
 
-	_, err := w.Write(ref[:])
+	_, err = w.Write(newRef[:])
+	var e *googleapi.Error
+	if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
+		return anchor.ErrUpdateConflict
+	}
 	return err
-}
-
-// ListAnchors implements anchor.Getter.
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(name string, ref bs.Ref, at time.Time) error) error {
-	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
-	// But they can filter by object-name prefix.
-	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
-	// If `start` is e67a, for example, the sequence of generated prefixes is:
-	//   e67b e67c e67d e67e e67f
-	//   e68 e69 e6a e6b e6c e6d e6e e6f
-	//   e7 e8 e9 ea eb ec ed ee ef
-	//   f
-	startHex := hex.EncodeToString([]byte(start))
-	return eachHexPrefix(startHex+"0", true, func(prefix string) error {
-		return s.listAnchors(ctx, prefix, f)
-	})
-}
-
-type anchorTuple struct {
-	name string
-	ref  bs.Ref
-	at   time.Time
-}
-
-func (s *Store) listAnchors(ctx context.Context, prefix string, f func(name string, ref bs.Ref, at time.Time) error) error {
-	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "a:" + prefix})
-	var tuples []anchorTuple
-	emit := func() error {
-		if len(tuples) > 0 {
-			for i := len(tuples) - 1; i >= 0; i-- {
-				tup := tuples[i]
-				err := f(tup.name, tup.ref, tup.at)
-				if err != nil {
-					return err
-				}
-			}
-			tuples = nil
-		}
-		return nil
-	}
-	for {
-		attrs, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			return emit()
-		}
-		if err != nil {
-			return err
-		}
-		name, at, err := anchorTimeFromObjName(attrs.Name)
-		if err != nil {
-			return err
-		}
-		if len(tuples) > 0 && name != tuples[0].name {
-			err = emit()
-			if err != nil {
-				return err
-			}
-		}
-		ref, err := s.getAnchorRef(ctx, attrs.Name)
-		if err != nil {
-			return err
-		}
-		tuples = append(tuples, anchorTuple{name: name, ref: ref, at: at})
-	}
 }
 
 func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
@@ -286,59 +244,6 @@ func blobObjName(ref bs.Ref) string {
 
 func refFromBlobObjName(name string) (bs.Ref, error) {
 	return bs.RefFromHex(name[2:])
-}
-
-func (s *Store) getAnchorRef(ctx context.Context, objName string) (bs.Ref, error) {
-	obj := s.bucket.Object(objName)
-	r, err := obj.NewReader(ctx)
-	if err != nil {
-		return bs.Ref{}, errors.Wrapf(err, "reading info of object %s", objName)
-	}
-	defer r.Close()
-
-	var ref bs.Ref
-	if r.Attrs.Size != int64(len(ref)) {
-		return bs.Ref{}, errors.Wrapf(err, "object %s has wrong size %d (want %d)", objName, r.Attrs.Size, len(ref))
-	}
-
-	_, err = io.ReadFull(r, ref[:])
-	return ref, errors.Wrapf(err, "reading contents of object %s", objName)
-}
-
-func anchorPrefix(a string) string {
-	return "a:" + hex.EncodeToString([]byte(a)) + ":"
-}
-
-func anchorObjName(a string, when time.Time) string {
-	return fmt.Sprintf("%s%s", anchorPrefix(a), nanosToStr(timeToInvNanos(when)))
-}
-
-var anchorNameRegex = regexp.MustCompile(`^a:([0-9a-f]+):(\d+)$`)
-
-func anchorTimeFromObjName(name string) (string, time.Time, error) {
-	m := anchorNameRegex.FindStringSubmatch(name)
-	if len(m) < 3 {
-		return "", time.Time{}, errors.New("malformed name")
-	}
-	at := invNanosToTime(strToNanos(m[2]))
-	a, err := hex.DecodeString(m[1])
-	return string(a), at, errors.Wrap(err, "hex-decoding anchor")
-}
-
-func typePrefix(ref bs.Ref) string {
-	return fmt.Sprintf("t:%s:", ref)
-}
-
-func typeObjName(ref, typ bs.Ref) string {
-	return typePrefix(ref) + typ.String()
-}
-
-func refFromTypeObjName(name string) (bs.Ref, error) {
-	parts := strings.Split(name, ":")
-	if len(parts) != 3 {
-		return bs.Ref{}, fmt.Errorf("got %d part(s), want 3", len(parts))
-	}
-	return bs.RefFromHex(parts[2])
 }
 
 func init() {

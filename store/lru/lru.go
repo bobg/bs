@@ -4,14 +4,13 @@ package lru
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -63,27 +62,20 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 	return s.s.ListRefs(ctx, start, f)
 }
 
-func (s *Store) GetAnchor(ctx context.Context, name string, at time.Time) (bs.Ref, error) {
-	// TODO: add caching for anchors lookups too
-	if astore, ok := s.s.(anchor.Store); ok {
-		return astore.GetAnchor(ctx, name, at)
+func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
+	a, ok := s.s.(anchor.Getter)
+	if !ok {
+		return bs.Ref{}, anchor.ErrNotAnchorStore
 	}
-	return bs.Ref{}, fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
+	return a.AnchorMapRef(ctx)
 }
 
-func (s *Store) PutAnchor(ctx context.Context, name string, ref bs.Ref, at time.Time) error {
-	if astore, ok := s.s.(anchor.Store); ok {
-		return astore.PutAnchor(ctx, name, ref, at)
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
+	a, ok := s.s.(anchor.Store)
+	if !ok {
+		return anchor.ErrNotAnchorStore
 	}
-	return fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
-}
-
-func (s *Store) ListAnchors(ctx context.Context, start string, f func(string, bs.Ref, time.Time) error) error {
-	// TODO: add caching for anchors lookups too
-	if astore, ok := s.s.(anchor.Store); ok {
-		return astore.ListAnchors(ctx, start, f)
-	}
-	return fmt.Errorf("nested store is a %T and not an anchor.Store", s.s)
+	return a.UpdateAnchorMap(ctx, f)
 }
 
 func init() {

@@ -47,6 +47,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
+github.com/bobg/flock v0.0.0-20210807151335-599054c8997d h1:145/HQh1674Ao8rIzITsnLGzsrBz4UN6Q93Cvgwp/W0=
+github.com/bobg/flock v0.0.0-20210807151335-599054c8997d/go.mod h1:68a0BuBvxTS6POzXlk5Da/PYsZ1Y6eFcENMC39G6zT8=
 github.com/bobg/hashsplit v1.1.1 h1:/O/JoroR7SYkaxioh73xsblKiV+eWsPPidzb11EVrGg=
 github.com/bobg/hashsplit v1.1.1/go.mod h1:2JjSYhF/skYn30fNpk1CL7gYmh1sZf+YDb12ZNxTa4M=
 github.com/bobg/sqlutil v1.0.0 h1:UYyM8pNLsEYPINtH717SEXo/th9B6hQOKzUBTN4ApgA=
