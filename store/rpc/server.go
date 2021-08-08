@@ -9,7 +9,6 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 )
 
 var _ StoreServer = &Server{}
@@ -76,17 +75,7 @@ func (s *Server) UpdateAnchorMap(ctx context.Context, req *UpdateAnchorMapReques
 	if !ok {
 		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
 	}
-	err := astore.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
-		reqOldRef := bs.RefFromBytes(req.OldRef)
-		if reqOldRef == (bs.Ref{}) {
-			if !m.IsEmpty() {
-				return bs.Ref{}, anchor.ErrUpdateConflict
-			}
-		} else {
-			if mref != reqOldRef {
-				return bs.Ref{}, anchor.ErrUpdateConflict
-			}
-		}
+	err := astore.UpdateAnchorMap(ctx, func(bs.Ref) (bs.Ref, error) {
 		return bs.RefFromBytes(req.NewRef), nil
 	})
 	if errors.Is(err, anchor.ErrUpdateConflict) {

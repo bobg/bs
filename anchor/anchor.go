@@ -66,7 +66,7 @@ type Store interface {
 }
 
 // UpdateFunc is the type of the callback passed to UpdateAnchorMap.
-type UpdateFunc = func(bs.Ref, *schema.Map) (bs.Ref, error)
+type UpdateFunc = func(bs.Ref) (bs.Ref, error)
 
 // Get gets the latest ref for the anchor with the given name whose timestamp is not later than the given time.
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
@@ -114,7 +114,20 @@ func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, erro
 // this silently does nothing.
 // TODO: accept "oldest" and "limit" options here (as in Expire)?
 func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) error {
-	return s.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
+	return s.UpdateAnchorMap(ctx, func(mref bs.Ref) (bs.Ref, error) {
+		var (
+			m   *schema.Map
+			err error
+		)
+		if mref.IsZero() {
+			m = schema.NewMap()
+		} else {
+			m, err = schema.LoadMap(ctx, s, mref)
+			if err != nil {
+				return bs.Ref{}, errors.Wrap(err, "loading anchor map")
+			}
+		}
+
 		listBytes, found, err := m.Lookup(ctx, s, []byte(name))
 		if err != nil {
 			return mref, errors.Wrap(err, "looking up anchor")
@@ -253,9 +266,16 @@ func Each(ctx context.Context, g Getter, f func(string, bs.Ref, time.Time) error
 // Expire expires anchors older than oldest.
 // However, it never shortens an anchor's history to fewer than min items.
 func Expire(ctx context.Context, s Store, oldest time.Time, min int) error {
-	return s.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
+	return s.UpdateAnchorMap(ctx, func(mref bs.Ref) (bs.Ref, error) {
+		if mref.IsZero() { return mref, nil }
+
+		m, err := schema.LoadMap(ctx, s, mref)
+		if err != nil {
+			return bs.Ref{}, errors.Wrap(err, "loading anchor map")
+		}
+
 		// Get a second copy of the map to mutate during the call to m.Each.
-		m2, err := schema.LoadMap(ctx, s, mref) // xxx check mref is not the zero ref
+		m2, err := schema.LoadMap(ctx, s, mref)
 		if err != nil {
 			return mref, errors.Wrap(err, "loading second copy of anchor map")
 		}

@@ -6,11 +6,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/pkg/errors"
-
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -92,7 +89,7 @@ func (s *Store) AnchorMapRef(_ context.Context) (bs.Ref, error) {
 	defer s.mu.Unlock()
 
 	var err error
-	if s.anchorMapRef == (bs.Ref{}) {
+	if s.anchorMapRef.IsZero() {
 		err = anchor.ErrNoAnchorMap
 	}
 	return s.anchorMapRef, err
@@ -105,20 +102,7 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error 
 	oldRef := s.anchorMapRef
 	s.mu.Unlock()
 
-	var (
-		m   *schema.Map
-		err error
-	)
-	if oldRef == (bs.Ref{}) {
-		m = schema.NewMap()
-	} else {
-		m, err = schema.LoadMap(ctx, s, oldRef)
-		if err != nil {
-			return errors.Wrap(err, "loading anchor map")
-		}
-	}
-
-	newRef, err := f(oldRef, m)
+	newRef, err := f(oldRef)
 	if err != nil {
 		return err
 	}

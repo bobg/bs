@@ -11,7 +11,6 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -91,22 +90,14 @@ func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 
 // UpdateAnchorMap implements anchor.Store.
 func (c *Client) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
-	var m *schema.Map
 	oldRef, err := c.AnchorMapRef(ctx)
 	if errors.Is(err, anchor.ErrNoAnchorMap) {
-		m = schema.NewMap()
-		oldRef = bs.Ref{}
-	} else {
-		if err != nil {
-			return errors.Wrap(err, "getting anchor map ref")
-		}
-		m, err = schema.LoadMap(ctx, c, oldRef)
-		if err != nil {
-			return errors.Wrap(err, "loading anchor map")
-		}
+		oldRef = bs.Zero
+	} else if err != nil {
+		return errors.Wrap(err, "getting anchor map ref")
 	}
 
-	newRef, err := f(oldRef, m)
+	newRef, err := f(oldRef)
 	if err != nil {
 		return err
 	}

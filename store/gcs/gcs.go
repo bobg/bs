@@ -15,7 +15,6 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -162,32 +161,20 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, int64, error) {
 
 // UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
-	var (
-		m        *schema.Map
-		wasNoMap bool
-	)
-
 	oldRef, gen, err := s.anchorMapRef(ctx)
 	if errors.Is(err, anchor.ErrNoAnchorMap) {
-		m = schema.NewMap()
-		wasNoMap = true
-	} else {
-		if err != nil {
-			return err
-		}
-		m, err = schema.LoadMap(ctx, s, oldRef)
-		if err != nil {
-			return errors.Wrap(err, "loading anchor map")
-		}
+		oldRef = bs.Zero
+	} else if err != nil {
+		return err
 	}
 
-	newRef, err := f(oldRef, m)
+	newRef, err := f(oldRef)
 	if err != nil {
 		return err
 	}
 
 	obj := s.bucket.Object(anchorMapRefObjName)
-	if wasNoMap {
+	if oldRef.IsZero() {
 		obj = obj.If(storage.Conditions{DoesNotExist: true})
 	} else {
 		obj = obj.If(storage.Conditions{GenerationMatch: gen})

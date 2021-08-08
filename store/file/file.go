@@ -14,7 +14,6 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -168,21 +167,21 @@ func (s *Store) anchorMapRefFilePath() string {
 	return filepath.Join(s.root, anchorMapRefFileBaseName)
 }
 
-func (s *Store) lockAnchorRefMap() error {
+func (s *Store) lockAnchorMapRef() error {
 	return s.flocker.Lock(s.anchorMapRefFilePath())
 }
 
-func (s *Store) unlockAnchorRefMap() error {
+func (s *Store) unlockAnchorMapRef() error {
 	return s.flocker.Unlock(s.anchorMapRefFilePath())
 }
 
 // AnchorMapRef implements anchor.Getter.
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
-	err := s.lockAnchorRefMap()
+	err := s.lockAnchorMapRef()
 	if err != nil {
 		return bs.Ref{}, errors.Wrap(err, "locking anchor map ref file")
 	}
-	defer s.unlockAnchorRefMap()
+	defer s.unlockAnchorMapRef()
 
 	return s.anchorMapRef(ctx)
 }
@@ -201,37 +200,25 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, error) {
 
 // UpdateAnchorMap implements anchor.Store.
 func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
-	var (
-		m        *schema.Map
-		wasNoMap bool
-	)
-
 	oldRef, err := s.AnchorMapRef(ctx)
 	if errors.Is(err, anchor.ErrNoAnchorMap) {
-		m = schema.NewMap()
-		wasNoMap = true
-	} else {
-		if err != nil {
-			return errors.Wrap(err, "getting old anchor map ref")
-		}
-		m, err = schema.LoadMap(ctx, s, oldRef)
-		if err != nil {
-			return errors.Wrap(err, "loading anchor map")
-		}
+		oldRef = bs.Zero
+	} else if err != nil {
+		return errors.Wrap(err, "getting old anchor map ref")
 	}
 
-	newRef, err := f(oldRef, m)
+	newRef, err := f(oldRef)
 	if err != nil {
 		return err
 	}
 
-	err = s.lockAnchorRefMap()
+	err = s.lockAnchorMapRef()
 	if err != nil {
 		return errors.Wrap(err, "relocking anchor map ref file")
 	}
-	defer s.unlockAnchorRefMap()
+	defer s.unlockAnchorMapRef()
 
-	if wasNoMap {
+	if oldRef.IsZero() {
 		f, err := os.OpenFile(s.anchorMapRefFilePath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 		if err != nil {
 			return errors.Wrap(err, "creating anchor map ref file")

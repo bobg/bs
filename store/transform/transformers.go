@@ -42,7 +42,7 @@ func (f Flate) In(_ context.Context, inp []byte) ([]byte, error) {
 	if level < -2 || level > 9 {
 		level = -1
 	}
-	w, _ := flate.NewWriter(buf, f.Level)
+	w, _ := flate.NewWriter(buf, level)
 	w.Write(inp)
 	w.Close()
 	return buf.Bytes(), nil

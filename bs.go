@@ -17,6 +17,9 @@ type (
 	Ref [sha256.Size]byte
 )
 
+// Zero is the zero ref.
+var Zero Ref
+
 // Ref computes the Ref of a blob.
 func (b Blob) Ref() Ref {
 	return sha256.Sum256(b)
@@ -30,6 +33,11 @@ func (r Ref) String() string {
 // Less tells whether `r` is lexicographically less than `other`.
 func (r Ref) Less(other Ref) bool {
 	return bytes.Compare(r[:], other[:]) < 0
+}
+
+// IsZero tells whether r is the zero ref.
+func (r Ref) IsZero() bool {
+	return r == Ref{}
 }
 
 // FromHex parses the hex string `s` and places the result in `r`.
