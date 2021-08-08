@@ -35,7 +35,7 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		ch := make(chan bs.Ref)
 		eg.Go(func() error {
 			defer close(ch)
-			return s.ListRefs(ctx2, bs.Ref{}, func(ref bs.Ref) error {
+			return s.ListRefs(ctx2, bs.Zero, func(ref bs.Ref) error {
 				select {
 				case <-ctx2.Done():
 					return ctx2.Err()

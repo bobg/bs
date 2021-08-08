@@ -84,7 +84,7 @@ func TestGC(t *testing.T) {
 	}
 
 	var want []bs.Ref
-	err = store.ListRefs(ctx, bs.Ref{}, func(ref bs.Ref) error {
+	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
 		want = append(want, ref)
 		return nil
 	})
@@ -119,7 +119,7 @@ func TestGC(t *testing.T) {
 	}
 
 	var got []bs.Ref
-	err = store.ListRefs(ctx, bs.Ref{}, func(ref bs.Ref) error {
+	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
 		got = append(got, ref)
 		return nil
 	})

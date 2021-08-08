@@ -71,7 +71,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	if a, ok := s.s.(anchor.Getter); ok {
 		return a.AnchorMapRef(ctx)
 	}
-	return bs.Ref{}, anchor.ErrNotAnchorStore
+	return bs.Zero, anchor.ErrNotAnchorStore
 }
 
 // UpdateAnchorMap implements anchor.Store.

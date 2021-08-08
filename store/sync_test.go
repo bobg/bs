@@ -41,7 +41,7 @@ func TestSync(t *testing.T) {
 	}
 
 	var refs []bs.Ref
-	err = stores[0].ListRefs(ctx, bs.Ref{}, func(ref bs.Ref) error {
+	err = stores[0].ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
 		refs = append(refs, ref)
 		return nil
 	})
@@ -52,7 +52,7 @@ func TestSync(t *testing.T) {
 	for i := 1; i < len(stores); i++ {
 		s := stores[i]
 		var refs2 []bs.Ref
-		err = s.ListRefs(ctx, bs.Ref{}, func(ref bs.Ref) error {
+		err = s.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
 			refs2 = append(refs2, ref)
 			return nil
 		})

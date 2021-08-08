@@ -69,7 +69,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref, added, err := s.putBlob(ctx, b)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "storing blob")
+		return bs.Zero, false, errors.Wrap(err, "storing blob")
 	}
 
 	return ref, added, nil
@@ -142,16 +142,16 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, int64, error) {
 	obj := s.bucket.Object(anchorMapRefObjName)
 	r, err := obj.NewReader(ctx)
 	if errors.Is(err, storage.ErrObjectNotExist) {
-		return bs.Ref{}, 0, anchor.ErrNoAnchorMap
+		return bs.Zero, 0, anchor.ErrNoAnchorMap
 	}
 	if err != nil {
-		return bs.Ref{}, 0, errors.Wrap(err, "getting anchor map ref object")
+		return bs.Zero, 0, errors.Wrap(err, "getting anchor map ref object")
 	}
 	defer r.Close()
 
 	attrs, err := obj.Attrs(ctx)
 	if err != nil {
-		return bs.Ref{}, 0, errors.Wrap(err, "getting anchor map ref object attrs")
+		return bs.Zero, 0, errors.Wrap(err, "getting anchor map ref object attrs")
 	}
 
 	var ref bs.Ref

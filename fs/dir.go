@@ -56,7 +56,7 @@ func (d *Dir) Each(ctx context.Context, g bs.Getter, f func(string, *Dirent) err
 func (d *Dir) Set(ctx context.Context, store bs.Store, name string, dirent *Dirent) (bs.Ref, schema.Outcome, error) {
 	direntBytes, err := proto.Marshal(dirent)
 	if err != nil {
-		return bs.Ref{}, schema.ONone, errors.Wrapf(err, "marshaling dirent for %s", name)
+		return bs.Zero, schema.ONone, errors.Wrapf(err, "marshaling dirent for %s", name)
 	}
 	return (*schema.Map)(d).Set(ctx, store, []byte(name), direntBytes)
 }
@@ -112,7 +112,7 @@ func (d *Dir) Find(ctx context.Context, g bs.Getter, path string) (*Dirent, erro
 func (d *Dir) Add(ctx context.Context, store bs.Store, path string) (bs.Ref, error) {
 	dirent, err := add(ctx, store, path)
 	if err != nil {
-		return bs.Ref{}, err
+		return bs.Zero, err
 	}
 	ref, _, err := d.Set(ctx, store, filepath.Base(path), dirent)
 	return ref, err
@@ -182,12 +182,12 @@ func (d *Dir) AddDir(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 		return nil
 	})
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "iterating over existing dir")
+		return bs.Zero, errors.Wrap(err, "iterating over existing dir")
 	}
 
 	err = addDirToMap(ctx, store, path, m)
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "populating dir map")
+		return bs.Zero, errors.Wrap(err, "populating dir map")
 	}
 
 	_, ref, err := schema.MapFromGo(ctx, store, m)

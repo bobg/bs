@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
 
@@ -59,9 +59,9 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 	}
 
 	if dosplit {
-		log.Printf("ref %s", ref)
+		fmt.Printf("ref %s\n", ref)
 	} else {
-		log.Printf("ref %s (added: %v)", ref, added)
+		fmt.Printf("ref %s (added: %v)\n", ref, added)
 	}
 
 	return nil

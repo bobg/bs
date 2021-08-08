@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -44,14 +44,14 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 	}
 
 	var dir *fs.Dir
-	if ref != (bs.Ref{}) {
+	if ref.IsZero() {
+		dir = fs.NewDir()
+	} else {
 		dir = new(fs.Dir)
 		err = dir.Load(ctx, c.s, ref)
 		if err != nil {
 			return errors.Wrapf(err, "loading dir at %s", ref)
 		}
-	} else {
-		dir = fs.NewDir()
 	}
 
 	ref, err = dir.Add(ctx, c.s, args[0])
@@ -66,7 +66,7 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 		}
 	}
 
-	log.Printf("ref %s", ref)
+	fmt.Printf("ref %s\n", ref)
 
 	return nil
 }

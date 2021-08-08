@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net"
 
 	"github.com/pkg/errors"
@@ -23,7 +23,7 @@ func (c maincmd) serve(ctx context.Context, addr string, args []string) error {
 	}
 	defer lis.Close()
 
-	log.Printf("listening on %s", lis.Addr())
+	fmt.Printf("Listening on %s\n", lis.Addr())
 
 	return gs.Serve(lis)
 }

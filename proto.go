@@ -22,7 +22,7 @@ func GetProto(ctx context.Context, g Getter, ref Ref, m proto.Message) error {
 func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) {
 	b, err := proto.Marshal(m)
 	if err != nil {
-		return Ref{}, false, errors.Wrap(err, "marshaling protobuf")
+		return Zero, false, errors.Wrap(err, "marshaling protobuf")
 	}
 
 	return s.Put(ctx, b)
@@ -32,7 +32,7 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 func ProtoRef(m proto.Message) (Ref, error) {
 	b, err := proto.Marshal(m)
 	if err != nil {
-		return Ref{}, err
+		return Zero, err
 	}
 	return Blob(b).Ref(), nil
 }

@@ -65,7 +65,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	a, ok := s.s.(anchor.Getter)
 	if !ok {
-		return bs.Ref{}, anchor.ErrNotAnchorStore
+		return bs.Zero, anchor.ErrNotAnchorStore
 	}
 	return a.AnchorMapRef(ctx)
 }

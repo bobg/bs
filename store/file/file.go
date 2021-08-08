@@ -52,10 +52,9 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
-		ref   = b.Ref()
-		path  = s.blobpath(ref)
-		dir   = filepath.Dir(path)
-		added bool
+		ref  = b.Ref()
+		path = s.blobpath(ref)
+		dir  = filepath.Dir(path)
 	)
 
 	err := os.MkdirAll(dir, 0755)
@@ -65,20 +64,19 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if os.IsExist(err) {
-		// ok
-	} else if err != nil {
-		return bs.Ref{}, false, errors.Wrapf(err, "creating %s", path)
-	} else {
-		defer f.Close()
-		added = true
+		return ref, false, nil
+	}
+	if err != nil {
+		return bs.Zero, false, errors.Wrapf(err, "creating %s", path)
+	}
+	defer f.Close()
 
-		_, err = f.Write(b)
-		if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "writing data to %s", path)
-		}
+	_, err = f.Write(b)
+	if err != nil {
+		return bs.Zero, false, errors.Wrapf(err, "writing data to %s", path)
 	}
 
-	return ref, added, nil
+	return ref, true, nil
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
@@ -179,7 +177,7 @@ func (s *Store) unlockAnchorMapRef() error {
 func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	err := s.lockAnchorMapRef()
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "locking anchor map ref file")
+		return bs.Zero, errors.Wrap(err, "locking anchor map ref file")
 	}
 	defer s.unlockAnchorMapRef()
 
@@ -190,10 +188,10 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, error) {
 	b, err := os.ReadFile(s.anchorMapRefFilePath())
 	if errors.Is(err, os.ErrNotExist) {
-		return bs.Ref{}, anchor.ErrNoAnchorMap
+		return bs.Zero, anchor.ErrNoAnchorMap
 	}
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "reading anchor map ref")
+		return bs.Zero, errors.Wrap(err, "reading anchor map ref")
 	}
 	return bs.RefFromBytes(b), nil
 }

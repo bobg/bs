@@ -86,11 +86,11 @@ func treeFromGoHelper(ctx context.Context, s bs.Store, items []treeItem, level i
 		}
 		_, leftRef, err := treeFromGoHelper(ctx, s, leftItems, level+1, newAt)
 		if err != nil {
-			return nil, bs.Ref{}, errors.Wrap(err, "computing left node child")
+			return nil, bs.Zero, errors.Wrap(err, "computing left node child")
 		}
 		_, rightRef, err := treeFromGoHelper(ctx, s, rightItems, level+1, newAt)
 		if err != nil {
-			return nil, bs.Ref{}, errors.Wrap(err, "computing right node child")
+			return nil, bs.Zero, errors.Wrap(err, "computing right node child")
 		}
 		tn.Left = &SubNode{
 			Ref:  leftRef[:],
@@ -123,12 +123,12 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 		sub := t.newAt(0)
 		err := bs.GetProto(ctx, store, bs.RefFromBytes(subref), sub)
 		if err != nil {
-			return bs.Ref{}, ONone, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
+			return bs.Zero, ONone, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
 		}
 
 		newSubref, outcome, err := treeSet(ctx, sub, store, keyHash, mutate)
 		if err != nil {
-			return bs.Ref{}, ONone, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
+			return bs.Zero, ONone, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
 		}
 		if outcome == ONone {
 			selfRef, err := bs.ProtoRef(t)
@@ -172,11 +172,11 @@ func treeSet(ctx context.Context, t tree, store bs.Store, keyHash []byte, mutate
 		}
 		leftRef, _, err := bs.PutProto(ctx, store, leftChild)
 		if err != nil {
-			return bs.Ref{}, ONone, errors.Wrap(err, "storing new left child after split")
+			return bs.Zero, ONone, errors.Wrap(err, "storing new left child after split")
 		}
 		rightRef, _, err := bs.PutProto(ctx, store, rightChild)
 		if err != nil {
-			return bs.Ref{}, ONone, errors.Wrap(err, "storing new right child after split")
+			return bs.Zero, ONone, errors.Wrap(err, "storing new right child after split")
 		}
 		tn.Left = &SubNode{
 			Ref:  leftRef[:],
@@ -242,12 +242,12 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 		sub := t.newAt(0)
 		err := bs.GetProto(ctx, store, bs.RefFromBytes(subref), sub)
 		if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
+			return bs.Zero, false, errors.Wrapf(err, "getting child %x at depth %d", subref, tn.Depth+1)
 		}
 
 		newSubref, removed, err := treeRemove(ctx, sub, store, keyhash)
 		if err != nil {
-			return bs.Ref{}, false, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
+			return bs.Zero, false, errors.Wrapf(err, "updating child %x at depth %d", subref, tn.Depth+1)
 		}
 		if !removed {
 			selfRef, err := bs.ProtoRef(t)
@@ -268,14 +268,14 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 				left = t.newAt(0)
 				err = bs.GetProto(ctx, store, bs.RefFromBytes(tn.Left.Ref), left)
 				if err != nil {
-					return bs.Ref{}, false, errors.Wrapf(err, "getting left child %x at depth %d", tn.Left.Ref, tn.Depth+1)
+					return bs.Zero, false, errors.Wrapf(err, "getting left child %x at depth %d", tn.Left.Ref, tn.Depth+1)
 				}
 			} else {
 				left = sub
 				right = t.newAt(0)
 				err = bs.GetProto(ctx, store, bs.RefFromBytes(tn.Right.Ref), right)
 				if err != nil {
-					return bs.Ref{}, false, errors.Wrapf(err, "getting right child %x at depth %d", tn.Right.Ref, tn.Depth+1)
+					return bs.Zero, false, errors.Wrapf(err, "getting right child %x at depth %d", tn.Right.Ref, tn.Depth+1)
 				}
 			}
 
@@ -285,14 +285,14 @@ func treeRemove(ctx context.Context, t tree, store bs.Store, keyhash []byte) (bs
 				return nil
 			})
 			if err != nil {
-				return bs.Ref{}, false, errors.Wrapf(err, "iterating over members of left child %x", tn.Left.Ref)
+				return bs.Zero, false, errors.Wrapf(err, "iterating over members of left child %x", tn.Left.Ref)
 			}
 			err = treeEach(ctx, right, store, func(t3 tree, i int32) error {
 				t2.copyMember(t3, i)
 				return nil
 			})
 			if err != nil {
-				return bs.Ref{}, false, errors.Wrapf(err, "iterating over members of right child %x", tn.Right.Ref)
+				return bs.Zero, false, errors.Wrapf(err, "iterating over members of right child %x", tn.Right.Ref)
 			}
 			t2.sortMembers()
 

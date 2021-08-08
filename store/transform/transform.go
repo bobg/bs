@@ -72,10 +72,10 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 
 		got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
 		if err != nil {
-			return bs.Ref{}, err
+			return bs.Zero, err
 		}
 		if !ok {
-			return bs.Ref{}, bs.ErrNotFound
+			return bs.Zero, bs.ErrNotFound
 		}
 		return bs.RefFromBytes(got), nil
 	}()
@@ -103,14 +103,14 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	ref := blob.Ref()
 	cblob, err := s.x.In(ctx, blob)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "transforming blob")
+		return bs.Zero, false, errors.Wrap(err, "transforming blob")
 	}
 
 	cref := bs.Blob(cblob).Ref()
 
 	_, added, err := s.s.Put(ctx, cblob)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "storing transformed blob")
+		return bs.Zero, false, errors.Wrap(err, "storing transformed blob")
 	}
 
 	s.mu.Lock()
@@ -118,7 +118,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 
 	got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "consulting ref map")
+		return bs.Zero, false, errors.Wrap(err, "consulting ref map")
 	}
 	if ok && bytes.Equal(got, cref[:]) {
 		// No need to update the map, ref already points to cref.
@@ -126,7 +126,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	}
 	mref, _, err := s.m.Set(ctx, s.s, ref[:], cref[:])
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "updating ref map")
+		return bs.Zero, false, errors.Wrap(err, "updating ref map")
 	}
 
 	err = anchor.Put(ctx, s.s, s.a, mref, time.Now())

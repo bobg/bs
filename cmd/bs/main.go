@@ -4,10 +4,11 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"fmt"
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/bobg/subcmd"
@@ -40,11 +41,11 @@ func main() {
 	if *cpuprof != "" {
 		f, err := os.Create(*cpuprof)
 		if err != nil {
-			log.Fatalf("could not create CPU profile: %s", err)
+			fatalf("Could not create CPU profile: %s", err)
 		}
 		defer f.Close()
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatalf("could not start CPU profile: %s", err)
+			fatalf("Could not start CPU profile: %s", err)
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -52,34 +53,34 @@ func main() {
 	if *memprof != "" {
 		f, err := os.Create(*memprof)
 		if err != nil {
-			log.Fatalf("could not create memory profile: %s", err)
+			fatalf("Could not create memory profile: %s", err)
 		}
 		defer f.Close()
 		runtime.GC() // get up-to-date statistics
 		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatalf("could not write memory profile: %s", err)
+			fatalf("Could not write memory profile: %s", err)
 		}
 	}
 
 	if *config == "" {
-		log.Fatal("Config value not set")
+		fatal("Config value not set")
 	}
 
 	ctx := context.Background()
 
 	s, err := storeFromConfig(ctx, *config)
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 
 	ss, ok := s.(anchor.Store)
 	if !ok {
-		log.Fatal("not an anchor store")
+		fatal("Not an anchor store")
 	}
 
 	err = subcmd.Run(ctx, maincmd{s: ss}, flag.Args())
 	if err != nil {
-		log.Fatal(err)
+		fatal(err)
 	}
 }
 
@@ -143,4 +144,14 @@ func parsetime(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, errors.New("could not parse time")
+}
+
+func fatal(arg ...interface{}) {
+	fatalf(strings.Repeat("%s ", len(arg)), arg...)
+}
+
+func fatalf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintln(os.Stderr)
+	os.Exit(1)
 }

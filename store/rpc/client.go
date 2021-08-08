@@ -66,7 +66,7 @@ func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) erro
 func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 	resp, err := c.sc.Put(ctx, &PutRequest{Blob: blob})
 	if err != nil {
-		return bs.Ref{}, false, err
+		return bs.Zero, false, err
 	}
 	return bs.RefFromBytes(resp.Ref), resp.Added, nil
 }
@@ -78,12 +78,12 @@ func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	code := status.Code(err)
 	switch code {
 	case codes.NotFound:
-		return bs.Ref{}, anchor.ErrNoAnchorMap
+		return bs.Zero, anchor.ErrNoAnchorMap
 	case codes.Unimplemented:
-		return bs.Ref{}, anchor.ErrNotAnchorStore
+		return bs.Zero, anchor.ErrNotAnchorStore
 	}
 	if err != nil {
-		return bs.Ref{}, err
+		return bs.Zero, err
 	}
 	return bs.RefFromBytes(resp.Ref), nil
 }

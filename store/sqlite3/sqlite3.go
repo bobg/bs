@@ -62,12 +62,12 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	ref := b.Ref()
 	res, err := s.db.ExecContext(ctx, q, ref, b)
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "inserting blob")
+		return bs.Zero, false, errors.Wrap(err, "inserting blob")
 	}
 
 	aff, err := res.RowsAffected()
 	if err != nil {
-		return bs.Ref{}, false, errors.Wrap(err, "counting affected rows")
+		return bs.Zero, false, errors.Wrap(err, "counting affected rows")
 	}
 
 	added := aff > 0
@@ -113,7 +113,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	var ref bs.Ref
 	err := s.db.QueryRowContext(ctx, q).Scan(&ref)
 	if errors.Is(err, sql.ErrNoRows) {
-		return bs.Ref{}, anchor.ErrNoAnchorMap
+		return bs.Zero, anchor.ErrNoAnchorMap
 	}
 	return ref, err
 }

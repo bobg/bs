@@ -72,33 +72,33 @@ type UpdateFunc = func(bs.Ref) (bs.Ref, error)
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
 	ref, err := g.AnchorMapRef(ctx)
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "getting anchor map ref")
+		return bs.Zero, errors.Wrap(err, "getting anchor map ref")
 	}
 
 	m, err := schema.LoadMap(ctx, g, ref)
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "loading anchor map")
+		return bs.Zero, errors.Wrap(err, "loading anchor map")
 	}
 
 	listBytes, found, err := m.Lookup(ctx, g, []byte(name))
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "looking up anchor")
+		return bs.Zero, errors.Wrap(err, "looking up anchor")
 	}
 	if !found {
-		return bs.Ref{}, bs.ErrNotFound
+		return bs.Zero, bs.ErrNotFound
 	}
 
 	var list schema.List
 	err = proto.Unmarshal(listBytes, &list)
 	if err != nil {
-		return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor list")
+		return bs.Zero, errors.Wrap(err, "unmarshaling anchor list")
 	}
 
 	for i := len(list.Members) - 1; i >= 0; i-- {
 		var item Anchor
 		err = proto.Unmarshal(list.Members[i], &item)
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor")
+			return bs.Zero, errors.Wrap(err, "unmarshaling anchor")
 		}
 		itemTime := item.At.AsTime()
 		if !itemTime.After(at) {
@@ -106,7 +106,7 @@ func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, erro
 		}
 	}
 
-	return bs.Ref{}, bs.ErrNotFound
+	return bs.Zero, bs.ErrNotFound
 }
 
 // Put stores a new anchor with the given name, ref, and timestamp.
@@ -124,7 +124,7 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 		} else {
 			m, err = schema.LoadMap(ctx, s, mref)
 			if err != nil {
-				return bs.Ref{}, errors.Wrap(err, "loading anchor map")
+				return bs.Zero, errors.Wrap(err, "loading anchor map")
 			}
 		}
 
@@ -267,11 +267,13 @@ func Each(ctx context.Context, g Getter, f func(string, bs.Ref, time.Time) error
 // However, it never shortens an anchor's history to fewer than min items.
 func Expire(ctx context.Context, s Store, oldest time.Time, min int) error {
 	return s.UpdateAnchorMap(ctx, func(mref bs.Ref) (bs.Ref, error) {
-		if mref.IsZero() { return mref, nil }
+		if mref.IsZero() {
+			return mref, nil
+		}
 
 		m, err := schema.LoadMap(ctx, s, mref)
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "loading anchor map")
+			return bs.Zero, errors.Wrap(err, "loading anchor map")
 		}
 
 		// Get a second copy of the map to mutate during the call to m.Each.
