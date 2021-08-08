@@ -70,7 +70,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return a.AnchorMapRef(ctx)
 }
 
-func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	a, ok := s.s.(anchor.Store)
 	if !ok {
 		return anchor.ErrNotAnchorStore

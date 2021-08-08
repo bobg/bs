@@ -61,23 +61,20 @@ func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*A
 	return &AnchorMapRefResponse{Ref: ref[:]}, nil
 }
 
+// TODO: revisit this implementation, something seems fishy about it.
 func (s *Server) UpdateAnchorMap(ctx context.Context, req *UpdateAnchorMapRequest) (*UpdateAnchorMapResponse, error) {
 	astore, ok := s.s.(anchor.Store)
 	if !ok {
 		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
 	}
-	err := astore.UpdateAnchorMap(ctx, func(m *schema.Map) (bs.Ref, error) {
+	err := astore.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
 		reqOldRef := bs.RefFromBytes(req.OldRef)
 		if reqOldRef == (bs.Ref{}) {
 			if !m.IsEmpty() {
 				return bs.Ref{}, anchor.ErrUpdateConflict
 			}
 		} else {
-			oldRef, err := bs.ProtoRef(m)
-			if err != nil {
-				return bs.Ref{}, err
-			}
-			if oldRef != reqOldRef {
+			if mref != reqOldRef {
 				return bs.Ref{}, anchor.ErrUpdateConflict
 			}
 		}

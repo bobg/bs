@@ -91,7 +91,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 
 // UpdateAnchorMap implements anchor.Store.
 // It uses optimistic locking and can return anchor.ErrUpdateConflict.
-func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	s.mu.Lock()
 	oldRef := s.anchorMapRef
 	s.mu.Unlock()
@@ -109,7 +109,7 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref
 		}
 	}
 
-	newRef, err := f(m)
+	newRef, err := f(oldRef, m)
 	if err != nil {
 		return err
 	}

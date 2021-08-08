@@ -38,7 +38,7 @@ type Store interface {
 	Getter
 	bs.Store
 
-	UpdateAnchorMap(context.Context, func(*schema.Map) (bs.Ref, error)) error
+	UpdateAnchorMap(context.Context, func(bs.Ref, *schema.Map) (bs.Ref, error)) error
 }
 
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
@@ -82,17 +82,17 @@ func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, erro
 }
 
 func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) error {
-	return s.UpdateAnchorMap(ctx, func(m *schema.Map) (bs.Ref, error) {
+	return s.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
 		listBytes, found, err := m.Lookup(ctx, s, []byte(name))
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "looking up anchor")
+			return mref, errors.Wrap(err, "looking up anchor")
 		}
 
 		var list schema.List
 		if found {
 			err = proto.Unmarshal(listBytes, &list)
 			if err != nil {
-				return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor list")
+				return mref, errors.Wrap(err, "unmarshaling anchor list")
 			}
 		}
 
@@ -107,14 +107,14 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 			var latest Anchor
 			err = proto.Unmarshal(list.Members[len(list.Members)-1], &latest)
 			if err != nil {
-				return bs.Ref{}, errors.Wrap(err, "unmarshaling previous anchor")
+				return mref, errors.Wrap(err, "unmarshaling previous anchor")
 			}
 
 			if latest.At.AsTime().Before(at) {
 				// latest and newAnchor are in chronological order
 				if bytes.Equal(latest.Ref, ref[:]) {
 					// Don't add a new anchor if it's for the same ref but later.
-					return bs.ProtoRef(m)
+					return mref, nil
 				}
 			} else {
 				doSort = true
@@ -123,7 +123,7 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 
 		newAnchorBytes, err := proto.Marshal(newAnchor)
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "marshaling new anchor")
+			return mref, errors.Wrap(err, "marshaling new anchor")
 		}
 		list.Members = append(list.Members, newAnchorBytes)
 
@@ -148,13 +148,13 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 				var a Anchor
 				err = proto.Unmarshal(list.Members[0], &a)
 				if err != nil {
-					return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor during deduplication")
+					return mref, errors.Wrap(err, "unmarshaling anchor during deduplication")
 				}
 				for i := 1; i < len(list.Members); { // n.b. no i++
 					var b Anchor
 					err = proto.Unmarshal(list.Members[i], &b)
 					if err != nil {
-						return bs.Ref{}, errors.Wrap(err, "unmarshaling anchor during deduplication")
+						return mref, errors.Wrap(err, "unmarshaling anchor during deduplication")
 					}
 					if bytes.Equal(a.Ref, b.Ref) {
 						// Splice out list.Members[i]
@@ -162,7 +162,7 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 						list.Members[len(list.Members)-1] = nil
 						list.Members = list.Members[:len(list.Members)-1]
 					} else {
-						a = b
+						a.Ref, a.At = b.Ref, b.At
 						i++
 					}
 				}
@@ -171,7 +171,7 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 
 		listBytes, err = proto.Marshal(&list)
 		if err != nil {
-			return bs.Ref{}, errors.Wrap(err, "marshaling anchor list")
+			return mref, errors.Wrap(err, "marshaling anchor list")
 		}
 
 		newMapRef, _, err := m.Set(ctx, s, []byte(name), listBytes)

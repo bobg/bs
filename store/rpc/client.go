@@ -75,7 +75,7 @@ func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return bs.RefFromBytes(resp.Ref), nil
 }
 
-func (c *Client) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+func (c *Client) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	var m *schema.Map
 	oldRef, err := c.AnchorMapRef(ctx)
 	if errors.Is(err, anchor.ErrNoAnchorMap) {
@@ -91,7 +91,7 @@ func (c *Client) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Re
 		}
 	}
 
-	newRef, err := f(m)
+	newRef, err := f(oldRef, m)
 	if err != nil {
 		return err
 	}

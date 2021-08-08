@@ -198,7 +198,7 @@ func (s *Store) anchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return bs.RefFromBytes(b), nil
 }
 
-func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref, error)) error {
+func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
 	var (
 		m        *schema.Map
 		wasNoMap bool
@@ -218,7 +218,7 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f func(*schema.Map) (bs.Ref
 		}
 	}
 
-	newRef, err := f(m)
+	newRef, err := f(oldRef, m)
 	if err != nil {
 		return err
 	}
