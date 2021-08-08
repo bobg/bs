@@ -69,8 +69,12 @@ type Store interface {
 type UpdateFunc = func(bs.Ref) (bs.Ref, error)
 
 // Get gets the latest ref for the anchor with the given name whose timestamp is not later than the given time.
+// If no such anchor is found, this returns bs.ErrNotFound.
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
 	ref, err := g.AnchorMapRef(ctx)
+	if errors.Is(err, ErrNoAnchorMap) {
+		return bs.Zero, bs.ErrNotFound
+	}
 	if err != nil {
 		return bs.Zero, errors.Wrap(err, "getting anchor map ref")
 	}

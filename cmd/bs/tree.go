@@ -74,7 +74,7 @@ func doTree(ctx context.Context, g bs.Getter, ref bs.Ref, depth int) error {
 	} else {
 		fmt.Printf("%sleaves:\n", indent)
 		for _, l := range tn.Leaves {
-			fmt.Printf("%s %x\n", indent, l)
+			fmt.Printf("%s %x\n", indent, l.Ref)
 		}
 	}
 	return nil
