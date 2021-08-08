@@ -10,7 +10,6 @@ import (
 
 	"github.com/bobg/bs"
 	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
 	"github.com/bobg/bs/store"
 )
 
@@ -70,7 +69,7 @@ func (s *Store) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	return a.AnchorMapRef(ctx)
 }
 
-func (s *Store) UpdateAnchorMap(ctx context.Context, f func(bs.Ref, *schema.Map) (bs.Ref, error)) error {
+func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error {
 	a, ok := s.s.(anchor.Store)
 	if !ok {
 		return anchor.ErrNotAnchorStore

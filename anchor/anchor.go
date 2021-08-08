@@ -39,8 +39,10 @@ type Store interface {
 	bs.Store
 
 	// xxx require the ref passed to the callback to be the zero ref when there is no anchor map yet?
-	UpdateAnchorMap(context.Context, func(bs.Ref, *schema.Map) (bs.Ref, error)) error
+	UpdateAnchorMap(context.Context, UpdateFunc) error
 }
+
+type UpdateFunc = func(bs.Ref, *schema.Map) (bs.Ref, error)
 
 func Get(ctx context.Context, g Getter, name string, at time.Time) (bs.Ref, error) {
 	ref, err := g.AnchorMapRef(ctx)
