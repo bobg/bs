@@ -17,5 +17,5 @@ func TestStore(t *testing.T) {
 }
 
 func TestAnchors(t *testing.T) {
-	testutil.Anchors(context.Background(), t, New())
+	testutil.Anchors(context.Background(), t, New(), true)
 }

@@ -49,6 +49,6 @@ func TestRPC(t *testing.T) {
 		testutil.ReadWrite(ctx, t, c, data)
 	})
 	t.Run("anchors", func(t *testing.T) {
-		testutil.Anchors(ctx, t, c)
+		testutil.Anchors(ctx, t, c, true)
 	})
 }

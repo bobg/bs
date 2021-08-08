@@ -13,7 +13,9 @@ import (
 )
 
 // Anchors tests writing, reading, and listing anchors.
-func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
+// Argument isNew tells whether to expect store to be a new, empty store.
+// (If it is, Anchors tests that AnchorMapRef returns ErrNoAnchorMap.)
+func Anchors(ctx context.Context, t *testing.T, store anchor.Store, isNew bool) {
 	var (
 		a1 = "anchor1"
 		a2 = "anchor2"
@@ -27,13 +29,14 @@ func Anchors(ctx context.Context, t *testing.T, store anchor.Store) {
 		t2 = t1.Add(time.Hour)
 	)
 
-	// This presumes that store starts with no anchor map.
-	_, err := store.AnchorMapRef(ctx)
-	if !errors.Is(err, anchor.ErrNoAnchorMap) {
-		t.Fatalf("wanted anchor.ErrNoAnchorMap, got %v", err)
+	if isNew {
+		_, err := store.AnchorMapRef(ctx)
+		if !errors.Is(err, anchor.ErrNoAnchorMap) {
+			t.Fatalf("wanted anchor.ErrNoAnchorMap, got %v", err)
+		}
 	}
 
-	err = anchor.Put(ctx, store, a1, r1a, t1)
+	err := anchor.Put(ctx, store, a1, r1a, t1)
 	if err != nil {
 		t.Fatal(err)
 	}

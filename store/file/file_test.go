@@ -31,5 +31,5 @@ func TestAnchors(t *testing.T) {
 	}
 	defer os.RemoveAll(dirname)
 
-	testutil.Anchors(context.Background(), t, New(dirname))
+	testutil.Anchors(context.Background(), t, New(dirname), true)
 }

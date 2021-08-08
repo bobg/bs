@@ -29,7 +29,7 @@ func TestStore(t *testing.T) {
 func TestAnchors(t *testing.T) {
 	ctx := context.Background()
 	err := withTestStore(ctx, func(s *Store) error {
-		testutil.Anchors(ctx, t, s)
+		testutil.Anchors(ctx, t, s, true)
 		return nil
 	})
 	if err != nil {

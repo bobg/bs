@@ -54,7 +54,7 @@ func TestStore(t *testing.T) {
 
 func TestAnchors(t *testing.T) {
 	withStore(t, func(ctx context.Context, store *Store) {
-		testutil.Anchors(ctx, t, store)
+		testutil.Anchors(ctx, t, store, false)
 	})
 }
 
