@@ -38,6 +38,7 @@ type Store interface {
 	Getter
 	bs.Store
 
+	// xxx require the ref passed to the callback to be the zero ref when there is no anchor map yet?
 	UpdateAnchorMap(context.Context, func(bs.Ref, *schema.Map) (bs.Ref, error)) error
 }
 
@@ -211,5 +212,54 @@ func Each(ctx context.Context, g Getter, f func(string, bs.Ref, time.Time) error
 			}
 		}
 		return nil
+	})
+}
+
+// Expire expires anchors older than oldest.
+// However, it never shortens an anchor's history to fewer than min items.
+func Expire(ctx context.Context, s Store, oldest time.Time, min int) error {
+	return s.UpdateAnchorMap(ctx, func(mref bs.Ref, m *schema.Map) (bs.Ref, error) {
+		// Get a second copy of the map to mutate during the call to m.Each.
+		m2, err := schema.LoadMap(ctx, s, mref) // xxx check mref is not the zero ref
+		if err != nil {
+			return mref, errors.Wrap(err, "loading second copy of anchor map")
+		}
+		m2ref := mref
+		err = m.Each(ctx, s, func(pair *schema.MapPair) error {
+			var list schema.List
+			err := proto.Unmarshal(pair.Payload, &list)
+			if err != nil {
+				return errors.Wrap(err, "unmarshaling list")
+			}
+
+			var doUpdate bool
+			for len(list.Members) > min {
+				var a Anchor
+				err = proto.Unmarshal(list.Members[0], &a)
+				if err != nil {
+					return errors.Wrap(err, "unmarshaling anchor")
+				}
+				if !a.At.AsTime().Before(oldest) {
+					break
+				}
+				doUpdate = true
+				list.Members = list.Members[1:]
+			}
+
+			if doUpdate {
+				listBytes, err := proto.Marshal(&list)
+				if err != nil {
+					return errors.Wrap(err, "marshaling list")
+				}
+				m2ref, _, err = m2.Set(ctx, s, pair.Key, listBytes)
+				if err != nil {
+					return errors.Wrap(err, "updating second copy of anchor map")
+				}
+			}
+
+			return nil
+		})
+
+		return m2ref, err
 	})
 }
