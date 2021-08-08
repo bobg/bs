@@ -49,7 +49,7 @@ func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, 
 	var m *schema.Map
 
 	ref, err := anchor.Get(ctx, s, a, time.Now())
-	if errors.Is(err, anchor.ErrNoAnchorMap) {
+	if errors.Is(err, bs.ErrNotFound) {
 		m = schema.NewMap()
 	} else {
 		if err != nil {
