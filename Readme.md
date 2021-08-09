@@ -31,9 +31,7 @@ so does its ref,
 which can make it tricky to keep track of a piece of data over its lifetime.
 So in addition to a plain blob store,
 this module provides an _anchor_ store.
-An anchor is a structured blob containing a name,
-a timestamp,
-and a blob ref.
+An anchor is a structured blob mapping a name to a timestamp and a blob ref.
 You can give a blob a name
 (such as a filename)
 by storing an anchor pointing to the blob’s ref.
@@ -52,7 +50,7 @@ The bytestream can be reassembled with split.Read.
 When splitting,
 blob boundaries are determined not by position or size but by content,
 using the technique of _hashsplitting_.
-This same technique is used by git and rsync to represent file changes very compactly:
+This same technique is used by rsync and other projects to represent file changes very compactly:
 if two versions of a file have a small difference,
 only the blob containing the difference is affected.
 The other blobs of the file are unchanged.
