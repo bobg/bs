@@ -87,7 +87,7 @@ func init() {
 		}
 		size, err := sizeNum.Int64()
 		if err != nil {
-			return nil, errors.Wrapf(err, "parsing size %d", size)
+			return nil, errors.Wrapf(err, "parsing size %v", sizeNum)
 		}
 
 		nested, ok := conf["nested"].(map[string]interface{})

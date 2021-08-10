@@ -9,6 +9,7 @@ require (
 	github.com/bobg/hashsplit v1.1.1
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v1.0.1
+	github.com/davecgh/go-spew v1.1.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6

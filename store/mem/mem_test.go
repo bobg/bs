@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/bobg/bs"
 	"github.com/bobg/bs/testutil"
 )
 
@@ -18,4 +19,8 @@ func TestStore(t *testing.T) {
 
 func TestAnchors(t *testing.T) {
 	testutil.Anchors(context.Background(), t, New(), true)
+}
+
+func TestAllRefs(t *testing.T) {
+	testutil.AllRefs(context.Background(), t, func() bs.Store { return New() })
 }
