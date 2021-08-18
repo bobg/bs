@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/bobg/bs"
-	"github.com/bobg/bs/gc"
 	. "github.com/bobg/bs/gc"
 	"github.com/bobg/bs/split"
 	"github.com/bobg/bs/store/mem"
@@ -56,7 +55,7 @@ func (k *memKeep) Contains(_ context.Context, ref bs.Ref) (bool, error) {
 // }
 
 func TestGC(t *testing.T) {
-	store := &gc.Store{S: mem.New()}
+	store := &Store{S: mem.New()}
 
 	f, err := os.Open("../testdata/commonsense.txt")
 	if err != nil {

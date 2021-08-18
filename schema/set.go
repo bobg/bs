@@ -6,7 +6,10 @@ import (
 	"context"
 	"sort"
 
+	"github.com/pkg/errors"
+
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/gc"
 )
 
 // NewSet produces a new, empty Set,
@@ -131,4 +134,30 @@ func (s *Set) Each(ctx context.Context, g bs.Getter, f func(bs.Ref) error) error
 		m := ml.(*Set)
 		return f(bs.RefFromBytes(m.Members[i]))
 	})
+}
+
+// ProtectSet returns a gc.ProtectFunc that protects the nodes of a Set and the refs they contain.
+// The parameter f is the function that protects the refs that are members of the Set.
+func ProtectSet(f gc.ProtectFunc) gc.ProtectFunc {
+	return func(ctx context.Context, g bs.Getter, ref bs.Ref) ([]gc.ProtectPair, error) {
+		s, err := LoadSet(ctx, g, ref)
+		if err != nil {
+			return nil, errors.Wrap(err, "loading set")
+		}
+
+		var res []gc.ProtectPair
+
+		if s.Node != nil && s.Node.Left != nil {
+			res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(s.Node.Left.Ref), F: ProtectSet(f)})
+		}
+		if s.Node != nil && s.Node.Right != nil {
+			res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(s.Node.Right.Ref), F: ProtectSet(f)})
+		}
+
+		for _, member := range s.Members {
+			res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(member), F: f})
+		}
+
+		return res, nil
+	}
 }

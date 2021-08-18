@@ -24,6 +24,11 @@ type Getter interface {
 	ListRefs(context.Context, Ref, func(r Ref) error) error
 }
 
+// MultiGetter is an interface that Getters may optionally implement to make the GetMulti function efficient.
+type MultiGetter interface {
+	GetMulti(context.Context, []Ref) (map[Ref]Blob, error)
+}
+
 // Store is a blob store.
 // It stores byte sequences - "blobs" - of arbitrary length.
 // Each blob can be retrieved using its "ref" as a lookup key.
@@ -34,6 +39,11 @@ type Store interface {
 	// Put adds b to the store if it was not already present.
 	// It returns b's ref and a boolean that is true iff the blob had to be added.
 	Put(ctx context.Context, b Blob) (ref Ref, added bool, err error)
+}
+
+// MultiPutter is an interface that Stores may optionally implement to make the PutMulti function efficient.
+type MultiPutter interface {
+	PutMulti(context.Context, []Blob) (map[Ref]bool, error)
 }
 
 // DeleterStore is the type of a Store that can also delete blobs.

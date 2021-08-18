@@ -46,7 +46,7 @@ type asyncChans struct {
 // and canceling the given context object causes those to exit,
 // placing the Store in an error state.
 //
-// Normally, writes to asynchronous stores to not block calls to Put,
+// Normally, writes to asynchronous stores do not block calls to Put,
 // but the queue for each nested store has a fixed length given by n,
 // which must be 1 or greater.
 // If any async store falls too far behind,

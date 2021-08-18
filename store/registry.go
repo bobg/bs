@@ -9,7 +9,7 @@ import (
 )
 
 // Factory is a function that can create a blob store from a configuration object.
-type Factory func(context.Context, map[string]interface{}) (bs.Store, error)
+type Factory = func(context.Context, map[string]interface{}) (bs.Store, error)
 
 var registry = make(map[string]Factory)
 

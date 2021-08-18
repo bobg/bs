@@ -6,7 +6,10 @@ import (
 	"crypto/sha256"
 	"sort"
 
+	"github.com/pkg/errors"
+
 	"github.com/bobg/bs"
+	"github.com/bobg/bs/gc"
 )
 
 // NewMap produces a new, blank map,
@@ -156,4 +159,41 @@ func (m *Map) Each(ctx context.Context, g bs.Getter, f func(*MapPair) error) err
 		m := t.(*Map)
 		return f(m.Members[i])
 	})
+}
+
+// ProtectMap returns a gc.ProtectFunc that protects the nodes of a Map and any refs they contain.
+// The parameters k and v are ProtectFuncs for protecting keys and values found in the Map,
+// if those should be interpreted as refs;
+// they should be nil if not.
+func ProtectMap(k, v gc.ProtectFunc) gc.ProtectFunc {
+	return func(ctx context.Context, g bs.Getter, ref bs.Ref) ([]gc.ProtectPair, error) {
+		m, err := LoadMap(ctx, g, ref)
+		if err != nil {
+			return nil, errors.Wrap(err, "loading map")
+		}
+
+		var res []gc.ProtectPair
+
+		if m.Node != nil && m.Node.Left != nil {
+			res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(m.Node.Left.Ref), F: ProtectMap(k, v)})
+		}
+		if m.Node != nil && m.Node.Right != nil {
+			res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(m.Node.Right.Ref), F: ProtectMap(k, v)})
+		}
+
+		if k == nil && v == nil {
+			return res, nil
+		}
+
+		for _, member := range m.Members {
+			if k != nil {
+				res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(member.Key), F: k})
+			}
+			if v != nil {
+				res = append(res, gc.ProtectPair{Ref: bs.RefFromBytes(member.Payload), F: v})
+			}
+		}
+
+		return res, nil
+	}
 }

@@ -41,7 +41,7 @@ An anchor store lets you retrieve the latest ref for a given name as of a given 
 
 Blob stores work best when blobs are not too big,
 so when storing potentially large bytestreams,
-use the split.Write function
+use a split.Writer
 (in the split subpackage).
 This splits the input into multiple blobs organized as a tree,
 and it returns the ref of the tree’s root.
