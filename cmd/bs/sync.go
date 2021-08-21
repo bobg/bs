@@ -12,7 +12,7 @@ import (
 func (c maincmd) sync(ctx context.Context, args []string) error {
 	stores := []bs.Store{c.s}
 	for _, arg := range args {
-		s, err := storeFromConfig(ctx, arg)
+		s, err := store.FromConfigFile(ctx, arg)
 		if err != nil {
 			return errors.Wrapf(err, "reading %s", arg)
 		}

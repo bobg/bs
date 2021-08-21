@@ -3,7 +3,11 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+
+	"github.com/pkg/errors"
 
 	"github.com/bobg/bs"
 )
@@ -26,4 +30,30 @@ func Create(ctx context.Context, key string, conf map[string]interface{}) (bs.St
 		return nil, fmt.Errorf("key %s not found in registry", key)
 	}
 	return f(ctx, conf)
+}
+
+// FromConfigFile loads a config file in JSON format from the given filename.
+// It creates a bs.Store of the type indicated by its `type` key.
+// The rest of the JSON object must be the config for a store of the given type.
+func FromConfigFile(ctx context.Context, filename string) (bs.Store, error) {
+	var conf map[string]interface{}
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, errors.Wrapf(err, "opening %s", filename)
+	}
+	defer f.Close()
+
+	dec := json.NewDecoder(f)
+	dec.UseNumber()
+	err = dec.Decode(&conf)
+	if err != nil {
+		return nil, errors.Wrapf(err, "decoding %s", filename)
+	}
+
+	typ, ok := conf["type"].(string)
+	if !ok {
+		return nil, fmt.Errorf("config file %s missing `type` parameter", filename)
+	}
+
+	return Create(ctx, typ, conf)
 }

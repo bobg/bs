@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/store"
 	_ "github.com/bobg/bs/store/file"
 	_ "github.com/bobg/bs/store/gcs"
 	_ "github.com/bobg/bs/store/logging"
@@ -68,7 +69,7 @@ func main() {
 
 	ctx := context.Background()
 
-	s, err := storeFromConfig(ctx, *config)
+	s, err := store.FromConfigFile(ctx, *config)
 	if err != nil {
 		fatal(err)
 	}
