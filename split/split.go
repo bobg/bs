@@ -25,6 +25,8 @@ var (
 // It additionally assembles those chunks into a tree with a hashsplit.TreeBuilder.
 // The tree nodes are also written to the bs.Store as serialized Node objects.
 // The bs.Ref of the tree root is available as Writer.Root after a call to Close.
+// If no data was written before the Writer was closed,
+// Root will be bs.Zero.
 type Writer struct {
 	Ctx    context.Context
 	Root   bs.Ref // populated by Close
@@ -111,12 +113,14 @@ func (w *Writer) Close() error {
 	if err != nil {
 		return err
 	}
-	rootNodeWrapper := root.(*nodeWrapper)
-	rootRef, _, err := bs.PutProto(w.Ctx, w.st, rootNodeWrapper.node)
-	if err != nil {
-		return err
+	if root != nil {
+		rootNodeWrapper := root.(*nodeWrapper)
+		rootRef, _, err := bs.PutProto(w.Ctx, w.st, rootNodeWrapper.node)
+		if err != nil {
+			return err
+		}
+		w.Root = rootRef
 	}
-	w.Root = rootRef
 	w.tb = nil
 	return nil
 }
