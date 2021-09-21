@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/bobg/subcmd"
+	"github.com/bobg/subcmd/v2"
 
 	"github.com/bobg/bs/store/rpc"
 )

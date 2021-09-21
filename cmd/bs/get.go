@@ -14,7 +14,7 @@ import (
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool, atstr string, args []string) error {
+func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool, atstr string, _ []string) error {
 	if (a == "" && refstr == "") || (a != "" && refstr != "") {
 		return errors.New("must supply one of -anchor or -ref")
 	}
@@ -66,15 +66,8 @@ func (c maincmd) get(ctx context.Context, a string, refstr string, dosplit bool,
 	return errors.Wrap(err, "writing blob to stdout")
 }
 
-func (c maincmd) getAnchor(ctx context.Context, atstr string, args []string) error {
-	if len(args) == 0 {
-		return errors.New("missing anchor")
-	}
-
-	var (
-		a   = args[0]
-		err error
-	)
+func (c maincmd) getAnchor(ctx context.Context, atstr, a string, _ []string) error {
+	var err error
 
 	at := time.Now()
 	if atstr != "" {

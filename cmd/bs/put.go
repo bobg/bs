@@ -15,7 +15,7 @@ import (
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits, fanout uint, args []string) error {
+func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits, fanout uint, _ []string) error {
 	var (
 		ref   bs.Ref
 		err   error

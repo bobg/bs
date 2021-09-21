@@ -11,7 +11,7 @@ import (
 	"github.com/bobg/bs/store/rpc"
 )
 
-func (c maincmd) serve(ctx context.Context, addr string, args []string) error {
+func (c maincmd) serve(ctx context.Context, addr string, _ []string) error {
 	gs := grpc.NewServer()
 	rs := rpc.NewServer(c.s)
 	rpc.RegisterStoreServer(gs, rs)

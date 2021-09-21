@@ -13,7 +13,7 @@ import (
 	"github.com/bobg/bs/split"
 )
 
-func (c maincmd) tree(ctx context.Context, a, refstr, atstr string, args []string) error {
+func (c maincmd) tree(ctx context.Context, a, refstr, atstr string, _ []string) error {
 	if (a == "" && refstr == "") || (a != "" && refstr != "") {
 		return errors.New("must supply one of -anchor or -ref")
 	}

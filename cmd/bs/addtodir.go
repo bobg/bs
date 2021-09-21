@@ -12,11 +12,7 @@ import (
 	"github.com/bobg/bs/fs"
 )
 
-func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []string) error {
-	if len(args) == 0 {
-		return errors.New("missing path to add")
-	}
-
+func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr, path string, _ []string) error {
 	var (
 		at  = time.Now()
 		err error
@@ -54,9 +50,9 @@ func (c maincmd) addToDir(ctx context.Context, a, atstr, refstr string, args []s
 		}
 	}
 
-	ref, err = dir.Add(ctx, c.s, args[0])
+	ref, err = dir.Add(ctx, c.s, path)
 	if err != nil {
-		return errors.Wrapf(err, "adding %s to dir", args[0])
+		return errors.Wrapf(err, "adding %s to dir", path)
 	}
 
 	if a != "" {
