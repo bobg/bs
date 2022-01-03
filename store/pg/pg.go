@@ -43,10 +43,10 @@ func New(ctx context.Context, db *sql.DB) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	const q = `SELECT data FROM blobs WHERE ref = $1`
 
-	var b bs.Blob
+	var b []byte
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, bs.ErrNotFound
@@ -58,8 +58,8 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	const q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
 
-	ref := b.Ref()
-	res, err := s.db.ExecContext(ctx, q, ref, b)
+	ref := bs.RefOf(b.Bytes())
+	res, err := s.db.ExecContext(ctx, q, ref, b.Bytes())
 	if err != nil {
 		return bs.Zero, false, errors.Wrap(err, "inserting blob")
 	}

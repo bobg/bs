@@ -23,15 +23,15 @@ func TestReplicaSets(t *testing.T) {
 		s  = New(ctx, []bs.Store{m1, m2}, nil, 1)
 	)
 
-	ref1, _, err := m1.Put(ctx, bs.Blob("foo"))
+	ref1, _, err := m1.Put(ctx, bs.Bytes("foo"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref2, _, err := m2.Put(ctx, bs.Blob("bar"))
+	ref2, _, err := m2.Put(ctx, bs.Bytes("bar"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref3, _, err := s.Put(ctx, bs.Blob("baz"))
+	ref3, _, err := s.Put(ctx, bs.Bytes("baz"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 		return Zero, false, errors.Wrap(err, "marshaling protobuf")
 	}
 
-	return s.Put(ctx, b)
+	return s.Put(ctx, Bytes(b))
 }
 
 // ProtoRef is a convenience function for computing the ref of a serialized protobuf.
@@ -34,5 +34,5 @@ func ProtoRef(m proto.Message) (Ref, error) {
 	if err != nil {
 		return Zero, err
 	}
-	return Blob(b).Ref(), nil
+	return RefOf(b), nil
 }

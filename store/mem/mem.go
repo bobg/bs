@@ -16,17 +16,17 @@ var _ anchor.Store = (*Store)(nil)
 // Store is a memory-based implementation of a blob store.
 type Store struct {
 	mu           sync.Mutex
-	blobs        map[bs.Ref]bs.Blob
+	blobs        map[bs.Ref][]byte
 	anchorMapRef bs.Ref
 }
 
 // New produces a new Store.
 func New() *Store {
-	return &Store{blobs: make(map[bs.Ref]bs.Blob)}
+	return &Store{blobs: make(map[bs.Ref][]byte)}
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if p, ok := s.blobs[ref]; ok {
@@ -64,11 +64,11 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	defer s.mu.Unlock()
 
 	var (
-		ref   = b.Ref()
+		ref   = bs.RefOf(b.Bytes())
 		added bool
 	)
 	if _, ok := s.blobs[ref]; !ok {
-		s.blobs[ref] = b
+		s.blobs[ref] = b.Bytes()
 		added = true
 	}
 

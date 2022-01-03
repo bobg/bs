@@ -29,7 +29,7 @@ func New(s bs.Store) *Store {
 }
 
 // Get implements bs.Getter.Get.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	b, err := s.s.Get(ctx, ref)
 	if err != nil {
 		log.Printf("ERROR Get %s: %s", ref, err)

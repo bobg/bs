@@ -69,7 +69,7 @@ func NewWriter(ctx context.Context, st bs.Store, opts ...Option) *Writer {
 			}
 
 			for _, chunk := range n.Chunks {
-				ref, _, err := st.Put(w.Ctx, chunk)
+				ref, _, err := st.Put(w.Ctx, bs.Bytes(chunk))
 				if err != nil {
 					return nil, err
 				}

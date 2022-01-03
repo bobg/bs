@@ -40,7 +40,7 @@ func (s *Store) blobpath(ref bs.Ref) string {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(_ context.Context, ref bs.Ref) ([]byte, error) {
 	path := s.blobpath(ref)
 	blob, err := ioutil.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -52,7 +52,7 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
-		ref  = b.Ref()
+		ref  = bs.RefOf(b.Bytes())
 		path = s.blobpath(ref)
 		dir  = filepath.Dir(path)
 	)
@@ -71,7 +71,7 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	}
 	defer f.Close()
 
-	_, err = f.Write(b)
+	_, err = f.Write(b.Bytes())
 	if err != nil {
 		return bs.Zero, false, errors.Wrapf(err, "writing data to %s", path)
 	}

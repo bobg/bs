@@ -30,7 +30,7 @@ func NewClient(cc grpc.ClientConnInterface) *Client {
 }
 
 // Get implements bs.Getter.Get.
-func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (c *Client) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	resp, err := c.sc.Get(ctx, &GetRequest{Ref: ref[:]})
 	if code := status.Code(err); code == codes.NotFound {
 		return nil, bs.ErrNotFound

@@ -29,9 +29,9 @@ func New(s bs.Store, size int) (*Store, error) {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	if got, ok := s.c.Get(ref); ok {
-		return got.(bs.Blob), nil
+		return got.([]byte), nil
 	}
 	blob, err := s.s.Get(ctx, ref)
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
-	ref := b.Ref()
+	ref := bs.RefOf(b.Bytes())
 	if _, ok := s.c.Get(ref); ok {
 		return ref, false, nil
 	}

@@ -50,7 +50,7 @@ func New(bucket *storage.BucketHandle) *Store {
 }
 
 // Get gets the blob with hash `ref`.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	name := blobObjName(ref)
 	obj := s.bucket.Object(name)
 
@@ -77,14 +77,14 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	var (
-		ref  = b.Ref()
+		ref  = bs.RefOf(b.Bytes())
 		name = blobObjName(ref)
 		obj  = s.bucket.Object(name).If(storage.Conditions{DoesNotExist: true})
 		w    = obj.NewWriter(ctx)
 	)
 	defer w.Close()
 
-	_, err := w.Write(b)
+	_, err := w.Write(b.Bytes())
 	var e *googleapi.Error
 	if errors.As(err, &e) && e.Code == http.StatusPreconditionFailed {
 		return ref, false, nil

@@ -11,17 +11,23 @@ import (
 
 type (
 	// Blob is a data blob.
-	Blob []byte
+	Blob interface {
+		Bytes() []byte
+	}
+
+	// Bytes is a data blob implementing Blob.
+	Bytes []byte
 
 	// Ref is the reference of a blob: its sha256 hash.
 	Ref [sha256.Size]byte
 )
 
+func (b Bytes) Bytes() []byte { return b }
+
 // Zero is the zero ref.
 var Zero Ref
 
-// Ref computes the Ref of a blob.
-func (b Blob) Ref() Ref {
+func RefOf(b []byte) Ref {
 	return sha256.Sum256(b)
 }
 

@@ -8,7 +8,7 @@ import (
 // Getter is a read-only Store (qv).
 type Getter interface {
 	// Get gets a blob by its ref.
-	Get(context.Context, Ref) (Blob, error)
+	Get(context.Context, Ref) ([]byte, error)
 
 	// ListRefs calls a function for each blob ref in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
@@ -26,7 +26,7 @@ type Getter interface {
 
 // MultiGetter is an interface that Getters may optionally implement to make the GetMulti function efficient.
 type MultiGetter interface {
-	GetMulti(context.Context, []Ref) (map[Ref]Blob, error)
+	GetMulti(context.Context, []Ref) (map[Ref][]byte, error)
 }
 
 // Store is a blob store.

@@ -118,7 +118,7 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 		}
 
 		for _, tup := range needers {
-			_, _, err = tup.s.Put(ctx, blob)
+			_, _, err = tup.s.Put(ctx, bs.Bytes(blob))
 			if err != nil {
 				return errors.Wrapf(err, "storing blob for %s", ref)
 			}
