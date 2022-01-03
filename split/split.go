@@ -86,7 +86,7 @@ func NewWriter(ctx context.Context, st bs.Store, opts ...Option) *Writer {
 		return tb.Add(bytes, level/w.fanout)
 	})
 	spl.MinSize = 1024
-	spl.SplitBits = 14
+	spl.SplitBits = 16
 	w.spl = spl
 
 	for _, opt := range opts {
@@ -131,9 +131,9 @@ type Option = func(*Writer)
 // Bits is an option for NewWriter that changes the number of trailing zero bits in the rolling checksum used to identify chunk boundaries.
 // A chunk boundary occurs on average once every 2^n bytes.
 // (But the actual median chunk size is the logarithm, base (2^n-1)/(2^n), of 0.5.)
-// The default value for n is 14,
-// producing a chunk boundary every 16,384 bytes,
-// and a median chunk size of 11,356 bytes.
+// The default value for n is 16,
+// producing a chunk boundary every 65,536 bytes,
+// and a median chunk size of 45,426 bytes.
 func Bits(n uint) Option {
 	return func(w *Writer) {
 		w.spl.SplitBits = n
