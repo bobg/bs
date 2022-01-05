@@ -15,19 +15,19 @@ import (
 // This function may return a successful partial result even in case of error.
 // In particular, when the error return is a MultiErr,
 // every input ref appears in either the result map or the MultiErr map.
-func GetMulti(ctx context.Context, g Getter, refs []Ref) (map[Ref][]byte, error) {
+func GetMulti(ctx context.Context, g Getter, refs []Ref) (map[Ref]Blob, error) {
 	if m, ok := g.(MultiGetter); ok {
 		return m.GetMulti(ctx, refs)
 	}
 
 	type triple struct {
 		ref  Ref
-		blob []byte
+		blob Blob
 		err  error
 	}
 
 	var (
-		res = make(map[Ref][]byte)
+		res = make(map[Ref]Blob)
 		ch  = make(chan triple)
 	)
 

@@ -9,15 +9,18 @@ import (
 	"fmt"
 )
 
+// Blob is a data blob.
+type Blob []byte
+
+// Ref computes the blob's ref.
+func (b Blob) Ref() Ref {
+	return sha256.Sum256(b)
+}
+
 type Ref [sha256.Size]byte
 
 // Zero is the zero ref.
 var Zero Ref
-
-// RefOf computes the ref for the given sequence of bytes.
-func RefOf(b []byte) Ref {
-	return sha256.Sum256(b)
-}
 
 // String converts a Ref to a hexadecimal string.
 func (r Ref) String() string {
@@ -74,3 +77,5 @@ func (r *Ref) Scan(src interface{}) error {
 	}
 	return fmt.Errorf("cannot scan %T into *Ref", src)
 }
+
+var ErrNotTStore = errors.New("not a typed blob store")

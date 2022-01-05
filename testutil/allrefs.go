@@ -19,8 +19,8 @@ func AllRefs(ctx context.Context, t *testing.T, storeFactory func() bs.Store) {
 	}
 }
 
-func allRefsHelper(ctx context.Context, t *testing.T, storeFactory func() bs.Store) func([]bs.Bytes) bool {
-	return func(blobs []bs.Bytes) bool {
+func allRefsHelper(ctx context.Context, t *testing.T, storeFactory func() bs.Store) func([]bs.Blob) bool {
+	return func(blobs []bs.Blob) bool {
 		var (
 			store = storeFactory()
 			want  []bs.Ref

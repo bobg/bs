@@ -38,7 +38,7 @@ func TestMap(t *testing.T) {
 
 	var linenum int
 	for sc.Scan() {
-		blob := bs.Bytes(sc.Text())
+		blob := bs.Blob(sc.Text())
 		ref, _, err := store.Put(ctx, blob)
 		if err != nil {
 			t.Fatal(err)

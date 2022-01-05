@@ -28,7 +28,7 @@ func TestSync(t *testing.T) {
 				continue
 			}
 
-			_, _, err := s.Put(ctx, bs.Bytes(word))
+			_, _, err := s.Put(ctx, bs.Blob(word))
 			if err != nil {
 				t.Fatal(err)
 			}

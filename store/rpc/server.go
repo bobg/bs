@@ -45,6 +45,17 @@ func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error)
 	return &PutResponse{Ref: ref[:], Added: added}, nil
 }
 
+// PutType implements StoreServer.PutType.
+func (s *Server) PutType(ctx context.Context, req *PutTypeRequest) (*PutTypeResponse, error) {
+	ts, ok := s.s.(bs.TStore)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, bs.ErrNotTStore.Error())
+	}
+	ref := bs.RefFromBytes(req.Ref)
+	err := ts.PutType(ctx, ref, req.Type)
+	return &PutTypeResponse{}, err
+}
+
 // ListRefs implements StoreServer.ListRefs.
 func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error {
 	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {

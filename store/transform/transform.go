@@ -34,7 +34,7 @@ type Store struct {
 // Out should be the inverse of In.
 type Transformer interface {
 	// In transforms a blob on its way into the store.
-	In(context.Context, bs.Blob) (bs.Blob, error)
+	In(context.Context, []byte) ([]byte, error)
 
 	// Out transforms a blob on its way out of the store.
 	Out(context.Context, []byte) ([]byte, error)
@@ -65,7 +65,7 @@ func New(ctx context.Context, s anchor.Store, x Transformer, a string) (*Store, 
 }
 
 // Get implements bs.Getter.Get.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	cref, err := func() (bs.Ref, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -100,13 +100,13 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 
 // Put implements bs.Store.Put.
 func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
-	ref := bs.RefOf(blob.Bytes())
+	ref := blob.Ref()
 	cblob, err := s.x.In(ctx, blob)
 	if err != nil {
 		return bs.Zero, false, errors.Wrap(err, "transforming blob")
 	}
 
-	cref := bs.RefOf(cblob.Bytes())
+	cref := bs.Blob(cblob).Ref()
 
 	_, added, err := s.s.Put(ctx, cblob)
 	if err != nil {

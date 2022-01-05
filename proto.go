@@ -26,7 +26,7 @@ func PutProto(ctx context.Context, s Store, m proto.Message) (Ref, bool, error) 
 		return Zero, false, errors.Wrap(err, "marshaling protobuf")
 	}
 
-	ref, added, err := s.Put(ctx, Bytes(b))
+	ref, added, err := s.Put(ctx, b)
 	if err != nil {
 		return Zero, false, errors.Wrap(err, "storing marshaled protobuf")
 	}
@@ -53,5 +53,5 @@ func ProtoRef(m proto.Message) (Ref, error) {
 	if err != nil {
 		return Zero, err
 	}
-	return RefOf(b), nil
+	return Blob(b).Ref(), nil
 }

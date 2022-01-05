@@ -20,6 +20,13 @@ message PutResponse {
   bool  added = 2;
 }
 
+message PutTypeRequest {
+  bytes ref  = 1;
+  bytes type = 2;
+}
+
+message PutTypeResponse {}
+
 message ListRefsRequest {
   bytes start = 1;
 }
@@ -44,6 +51,7 @@ message UpdateAnchorMapResponse {}
 service Store {
   rpc Get (GetRequest) returns (GetResponse);
   rpc Put (PutRequest) returns (PutResponse);
+  rpc PutType (PutTypeRequest) returns (PutTypeResponse);
   rpc ListRefs (ListRefsRequest) returns (stream ListRefsResponse);
 
   rpc AnchorMapRef(AnchorMapRefRequest) returns (AnchorMapRefResponse);

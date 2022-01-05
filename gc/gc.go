@@ -106,7 +106,7 @@ type Store struct {
 }
 
 // Get implements bs.Getter.Get.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	return s.S.Get(ctx, ref)
 }
 

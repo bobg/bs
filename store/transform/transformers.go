@@ -6,8 +6,6 @@ import (
 	"compress/lzw"
 	"context"
 	"io/ioutil"
-
-	"github.com/bobg/bs"
 )
 
 // LZW is a Transformer implementing lzw compression.
@@ -16,12 +14,12 @@ type LZW struct {
 }
 
 // In implements Transformer.In.
-func (l LZW) In(_ context.Context, inp bs.Blob) (bs.Blob, error) {
+func (l LZW) In(_ context.Context, inp []byte) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	w := lzw.NewWriter(buf, l.Order, 8)
-	w.Write(inp.Bytes())
+	w.Write(inp)
 	w.Close()
-	return bs.Bytes(buf.Bytes()), nil
+	return buf.Bytes(), nil
 }
 
 // Out implements Transformer.Out.
@@ -38,16 +36,16 @@ type Flate struct {
 }
 
 // In implements Transformer.In.
-func (f Flate) In(_ context.Context, inp bs.Blob) (bs.Blob, error) {
+func (f Flate) In(_ context.Context, inp []byte) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	level := f.Level
 	if level < -2 || level > 9 {
 		level = -1
 	}
 	w, _ := flate.NewWriter(buf, level)
-	w.Write(inp.Bytes())
+	w.Write(inp)
 	w.Close()
-	return bs.Bytes(buf.Bytes()), nil
+	return buf.Bytes(), nil
 }
 
 // Out implements Transformer.Out.

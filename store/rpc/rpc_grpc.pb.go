@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion6
 type StoreClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
+	PutType(ctx context.Context, in *PutTypeRequest, opts ...grpc.CallOption) (*PutTypeResponse, error)
 	ListRefs(ctx context.Context, in *ListRefsRequest, opts ...grpc.CallOption) (Store_ListRefsClient, error)
 	AnchorMapRef(ctx context.Context, in *AnchorMapRefRequest, opts ...grpc.CallOption) (*AnchorMapRefResponse, error)
 	UpdateAnchorMap(ctx context.Context, in *UpdateAnchorMapRequest, opts ...grpc.CallOption) (*UpdateAnchorMapResponse, error)
@@ -44,6 +45,15 @@ func (c *storeClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.Call
 func (c *storeClient) Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
 	out := new(PutResponse)
 	err := c.cc.Invoke(ctx, "/rpc.Store/Put", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeClient) PutType(ctx context.Context, in *PutTypeRequest, opts ...grpc.CallOption) (*PutTypeResponse, error) {
+	out := new(PutTypeResponse)
+	err := c.cc.Invoke(ctx, "/rpc.Store/PutType", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +116,7 @@ func (c *storeClient) UpdateAnchorMap(ctx context.Context, in *UpdateAnchorMapRe
 type StoreServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Put(context.Context, *PutRequest) (*PutResponse, error)
+	PutType(context.Context, *PutTypeRequest) (*PutTypeResponse, error)
 	ListRefs(*ListRefsRequest, Store_ListRefsServer) error
 	AnchorMapRef(context.Context, *AnchorMapRefRequest) (*AnchorMapRefResponse, error)
 	UpdateAnchorMap(context.Context, *UpdateAnchorMapRequest) (*UpdateAnchorMapResponse, error)
@@ -121,6 +132,9 @@ func (*UnimplementedStoreServer) Get(context.Context, *GetRequest) (*GetResponse
 }
 func (*UnimplementedStoreServer) Put(context.Context, *PutRequest) (*PutResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Put not implemented")
+}
+func (*UnimplementedStoreServer) PutType(context.Context, *PutTypeRequest) (*PutTypeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutType not implemented")
 }
 func (*UnimplementedStoreServer) ListRefs(*ListRefsRequest, Store_ListRefsServer) error {
 	return status.Errorf(codes.Unimplemented, "method ListRefs not implemented")
@@ -169,6 +183,24 @@ func _Store_Put_Handler(srv interface{}, ctx context.Context, dec func(interface
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(StoreServer).Put(ctx, req.(*PutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Store_PutType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutTypeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreServer).PutType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rpc.Store/PutType",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreServer).PutType(ctx, req.(*PutTypeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -241,6 +273,10 @@ var _Store_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Put",
 			Handler:    _Store_Put_Handler,
+		},
+		{
+			MethodName: "PutType",
+			Handler:    _Store_PutType_Handler,
 		},
 		{
 			MethodName: "AnchorMapRef",

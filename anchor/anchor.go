@@ -232,7 +232,7 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 func PutType(ctx context.Context, s Store, ref bs.Ref, typ []byte) error {
 	now := time.Now()
 
-	typeRef, _, err := s.Put(ctx, bs.Bytes(typ))
+	typeRef, _, err := s.Put(ctx, typ)
 	if err != nil {
 		return errors.Wrap(err, "storing type")
 	}

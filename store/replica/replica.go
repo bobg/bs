@@ -179,7 +179,7 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 // and canceling the request to the others.
 // If all synchronous stores respond with an error,
 // one of those errors is returned.
-func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
+func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	if err := s.checkErr(); err != nil {
 		return nil, errors.Wrap(err, "in async-store goroutine")
 	}
@@ -189,7 +189,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 
 	var g errgroup.Group
 
-	ch := make(chan []byte)
+	ch := make(chan bs.Blob)
 	for _, store := range s.sync {
 		store := store
 		g.Go(func() error {
@@ -207,7 +207,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
 	}
 
 	var (
-		blob []byte
+		blob bs.Blob
 		ok   bool
 		err  error
 		done = make(chan struct{})

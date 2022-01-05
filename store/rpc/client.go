@@ -30,7 +30,7 @@ func NewClient(cc grpc.ClientConnInterface) *Client {
 }
 
 // Get implements bs.Getter.Get.
-func (c *Client) Get(ctx context.Context, ref bs.Ref) ([]byte, error) {
+func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 	resp, err := c.sc.Get(ctx, &GetRequest{Ref: ref[:]})
 	if code := status.Code(err); code == codes.NotFound {
 		return nil, bs.ErrNotFound
@@ -69,6 +69,15 @@ func (c *Client) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 		return bs.Zero, false, err
 	}
 	return bs.RefFromBytes(resp.Ref), resp.Added, nil
+}
+
+// Put implements bs.TStore.PutType.
+func (c *Client) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
+	_, err := c.sc.PutType(ctx, &PutTypeRequest{Ref: ref[:], Type: typ})
+	if code := status.Code(err); code == codes.Unimplemented {
+		return bs.ErrNotTStore
+	}
+	return err
 }
 
 // AnchorMapRef implements anchor.Getter.
