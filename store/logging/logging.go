@@ -64,6 +64,10 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, err
 }
 
+func (s *Store) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
+	return anchor.PutType(ctx, s, ref, typ)
+}
+
 // AnchorMapRef implements anchor.Getter.
 // If the nested store is not an anchor.Store,
 // this returns anchor.ErrNotAnchorStore.

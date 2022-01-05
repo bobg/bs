@@ -9,24 +9,12 @@ import (
 	"fmt"
 )
 
-type (
-	// Blob is a data blob.
-	Blob interface {
-		Bytes() []byte
-	}
-
-	// Bytes is a data blob implementing Blob.
-	Bytes []byte
-
-	// Ref is the reference of a blob: its sha256 hash.
-	Ref [sha256.Size]byte
-)
-
-func (b Bytes) Bytes() []byte { return b }
+type Ref [sha256.Size]byte
 
 // Zero is the zero ref.
 var Zero Ref
 
+// RefOf computes the ref for the given sequence of bytes.
 func RefOf(b []byte) Ref {
 	return sha256.Sum256(b)
 }

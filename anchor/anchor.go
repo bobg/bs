@@ -50,7 +50,7 @@ type Getter interface {
 // The store tracks the anchor map's changing ref.
 type Store interface {
 	Getter
-	bs.Store
+	bs.TStore
 
 	// UpdateAnchorMap is used to update the anchor map in the Store.
 	// Implementations must call the given UpdateFunc with the ref of the current anchor map.
@@ -227,6 +227,64 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 		newMapRef, _, err := m.Set(ctx, s, []byte(name), listBytes)
 		return newMapRef, err
 	})
+}
+
+func PutType(ctx context.Context, s Store, ref bs.Ref, typ []byte) error {
+	now := time.Now()
+
+	typeRef, _, err := s.Put(ctx, bs.Bytes(typ))
+	if err != nil {
+		return errors.Wrap(err, "storing type")
+	}
+
+	var typesMap *schema.Map
+
+	typesMapRef, err := Get(ctx, s, protoTypesAnchorName, now)
+	if errors.Is(err, bs.ErrNotFound) {
+		typesMap = schema.NewMap()
+	} else if err != nil {
+		return errors.Wrap(err, "getting proto types map ref")
+	} else {
+		typesMap, err = schema.LoadMap(ctx, s, typesMapRef)
+		if err != nil {
+			return errors.Wrap(err, "loading proto types map")
+		}
+	}
+
+	// TODO: use optimistic locking here in case of concurrent updates to the same typeset.
+
+	var typeSet *schema.Set
+	typeSetRefBytes, found, err := typesMap.Lookup(ctx, s, ref[:])
+	if err != nil {
+		return errors.Wrapf(err, "loading type set for proto ref %s", ref)
+	}
+	if found {
+		typeSet, err = schema.LoadSet(ctx, s, bs.RefFromBytes(typeSetRefBytes))
+		if err != nil {
+			return errors.Wrapf(err, "loading type set for proto ref %s", ref)
+		}
+	} else {
+		typeSet = schema.NewSet()
+	}
+
+	typeSetRef, updated, err := typeSet.Add(ctx, s, typeRef)
+	if err != nil {
+		return errors.Wrapf(err, "adding type for proto ref %s", ref)
+	}
+	if !updated {
+		return nil
+	}
+
+	typesMapRef, outcome, err := typesMap.Set(ctx, s, ref[:], typeSetRef[:])
+	if err != nil {
+		return errors.Wrapf(err, "updating type set for proto ref %s", ref)
+	}
+	if outcome == schema.ONone {
+		return nil
+	}
+
+	err = Put(ctx, s, protoTypesAnchorName, typesMapRef, now)
+	return errors.Wrap(err, "updating proto types map anchor")
 }
 
 // Each iterates through all anchors in g in an indeterminate order,

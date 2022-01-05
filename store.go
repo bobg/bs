@@ -41,6 +41,14 @@ type Store interface {
 	Put(ctx context.Context, b Blob) (ref Ref, added bool, err error)
 }
 
+type TStore interface {
+	Store
+
+	// PutType associates typ with ref.
+	// A given ref may have many types.
+	PutType(ctx context.Context, ref Ref, typ []byte) error
+}
+
 // MultiPutter is an interface that Stores may optionally implement to make the PutMulti function efficient.
 type MultiPutter interface {
 	PutMulti(context.Context, []Blob) (map[Ref]bool, error)

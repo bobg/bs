@@ -74,6 +74,10 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 	return ref, added, nil
 }
 
+func (s *Store) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
+	return anchor.PutType(ctx, s, ref, typ)
+}
+
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > $1 ORDER BY blobs.ref`
