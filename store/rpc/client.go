@@ -80,6 +80,17 @@ func (c *Client) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
 	return err
 }
 
+func (c *Client) GetTypes(ctx context.Context, ref bs.Ref) ([][]byte, error) {
+	resp, err := c.sc.GetTypes(ctx, &GetTypesRequest{Ref: ref[:]})
+	if code := status.Code(err); code == codes.Unimplemented {
+		return nil, bs.ErrNotTStore
+	}
+	if err != nil {
+		return nil, err
+	}
+	return resp.Types, nil
+}
+
 // AnchorMapRef implements anchor.Getter.
 func (c *Client) AnchorMapRef(ctx context.Context) (bs.Ref, error) {
 	resp, err := c.sc.AnchorMapRef(ctx, &AnchorMapRefRequest{})

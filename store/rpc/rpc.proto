@@ -27,6 +27,14 @@ message PutTypeRequest {
 
 message PutTypeResponse {}
 
+message GetTypesRequest {
+  bytes ref = 1;
+}
+
+message GetTypesResponse {
+  repeated bytes types = 1;
+}
+
 message ListRefsRequest {
   bytes start = 1;
 }
@@ -52,6 +60,7 @@ service Store {
   rpc Get (GetRequest) returns (GetResponse);
   rpc Put (PutRequest) returns (PutResponse);
   rpc PutType (PutTypeRequest) returns (PutTypeResponse);
+  rpc GetTypes(GetTypesRequest) returns (GetTypesResponse);
   rpc ListRefs (ListRefsRequest) returns (stream ListRefsResponse);
 
   rpc AnchorMapRef(AnchorMapRefRequest) returns (AnchorMapRefResponse);

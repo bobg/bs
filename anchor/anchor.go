@@ -11,7 +11,6 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/bobg/bs"
@@ -224,11 +223,18 @@ func Put(ctx context.Context, s Store, name string, ref bs.Ref, at time.Time) er
 			return mref, errors.Wrap(err, "marshaling anchor list")
 		}
 
-		newMapRef, _, err := m.Set(ctx, s, []byte(name), listBytes)
+		v := vanilla{s: s}
+
+		newMapRef, _, err := m.Set(ctx, v, []byte(name), listBytes)
 		return newMapRef, err
 	})
 }
 
+const typesAnchorName = "__github.com/bobg/bs/anchor__reserved__types__"
+
+// PutType associates a type with a ref by placing it in a special schema entry in the anchor map.
+// Concrete instantiations of bs.TStore that are also anchor.Stores
+// may use this function as their implementation of the PutType method.
 func PutType(ctx context.Context, s Store, ref bs.Ref, typ []byte) error {
 	now := time.Now()
 
@@ -237,54 +243,108 @@ func PutType(ctx context.Context, s Store, ref bs.Ref, typ []byte) error {
 		return errors.Wrap(err, "storing type")
 	}
 
-	var typesMap *schema.Map
-
-	typesMapRef, err := Get(ctx, s, protoTypesAnchorName, now)
-	if errors.Is(err, bs.ErrNotFound) {
-		typesMap = schema.NewMap()
-	} else if err != nil {
-		return errors.Wrap(err, "getting proto types map ref")
-	} else {
-		typesMap, err = schema.LoadMap(ctx, s, typesMapRef)
-		if err != nil {
-			return errors.Wrap(err, "loading proto types map")
-		}
-	}
-
 	// TODO: use optimistic locking here in case of concurrent updates to the same typeset.
 
-	var typeSet *schema.Set
-	typeSetRefBytes, found, err := typesMap.Lookup(ctx, s, ref[:])
+	typesMap, typeSet, err := typeSetForRef(ctx, s, ref, now)
 	if err != nil {
-		return errors.Wrapf(err, "loading type set for proto ref %s", ref)
+		return err
 	}
-	if found {
-		typeSet, err = schema.LoadSet(ctx, s, bs.RefFromBytes(typeSetRefBytes))
-		if err != nil {
-			return errors.Wrapf(err, "loading type set for proto ref %s", ref)
-		}
-	} else {
+	if typesMap == nil {
+		typesMap = schema.NewMap()
+	}
+	if typeSet == nil {
 		typeSet = schema.NewSet()
 	}
 
-	typeSetRef, updated, err := typeSet.Add(ctx, s, typeRef)
+	// Don't let the schema operations below call PutType in an infinite regress.
+	v := vanilla{s: s}
+
+	typeSetRef, updated, err := typeSet.Add(ctx, v, typeRef)
 	if err != nil {
-		return errors.Wrapf(err, "adding type for proto ref %s", ref)
+		return errors.Wrapf(err, "adding type for ref %s", ref)
 	}
 	if !updated {
 		return nil
 	}
 
-	typesMapRef, outcome, err := typesMap.Set(ctx, s, ref[:], typeSetRef[:])
+	typesMapRef, outcome, err := typesMap.Set(ctx, v, ref[:], typeSetRef[:])
 	if err != nil {
-		return errors.Wrapf(err, "updating type set for proto ref %s", ref)
+		return errors.Wrapf(err, "updating type set for ref %s", ref)
 	}
 	if outcome == schema.ONone {
 		return nil
 	}
 
-	err = Put(ctx, s, protoTypesAnchorName, typesMapRef, now)
-	return errors.Wrap(err, "updating proto types map anchor")
+	err = Put(ctx, s, typesAnchorName, typesMapRef, now)
+	return errors.Wrap(err, "updating types map anchor")
+}
+
+// GetTypes returns the types associated with a ref.
+// Concrete instantiations of bs.TStore that are also anchor.Stores
+// may use this functionas their implementation of the GetTypes method.
+func GetTypes(ctx context.Context, g Getter, ref bs.Ref) ([][]byte, error) {
+	now := time.Now()
+
+	_, typeSet, err := typeSetForRef(ctx, g, ref, now)
+	if err != nil {
+		return nil, err
+	}
+	var refs []bs.Ref
+	err = typeSet.Each(ctx, g, func(ref bs.Ref) error {
+		refs = append(refs, ref)
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "iterating over type set for ref %s", ref)
+	}
+	blobs, err := bs.GetMulti(ctx, g, refs)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting types from type set for ref %s", ref)
+	}
+	result := make([][]byte, 0, len(blobs))
+	for _, blob := range blobs {
+		result = append(result, blob)
+	}
+	return result, nil
+}
+
+// Returns the typesMap (for all refs) and the ref-specific typeSet.
+func typeSetForRef(ctx context.Context, g Getter, ref bs.Ref, when time.Time) (*schema.Map, *schema.Set, error) {
+	typesMapRef, err := Get(ctx, g, typesAnchorName, when)
+	if errors.Is(err, bs.ErrNotFound) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "getting types map ref")
+	}
+	typesMap, err := schema.LoadMap(ctx, g, typesMapRef)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "loading types map")
+	}
+	typeSetRefBytes, found, err := typesMap.Lookup(ctx, g, ref[:])
+	if err != nil {
+		return typesMap, nil, errors.Wrapf(err, "finding type set for ref %s", ref)
+	}
+	if !found {
+		return typesMap, nil, nil
+	}
+	typeSet, err := schema.LoadSet(ctx, g, bs.RefFromBytes(typeSetRefBytes))
+	return typesMap, typeSet, err
+}
+
+// A vanilla wraps an anchor.Store
+// (or any other bs.Store)
+// and make it act like a vanilla bs.Store with no additional methods.
+// This is needed to break an infinite recursion in PutType.
+type vanilla struct {
+	s bs.Store
+}
+
+func (v vanilla) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error)     { return v.s.Get(ctx, ref) }
+func (v vanilla) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) { return v.s.Put(ctx, b) }
+
+func (v vanilla) ListRefs(ctx context.Context, ref bs.Ref, f func(bs.Ref) error) error {
+	return v.s.ListRefs(ctx, ref, f)
 }
 
 // Each iterates through all anchors in g in an indeterminate order,
@@ -434,79 +494,4 @@ func Sync(ctx context.Context, stores []Store) error {
 	}
 
 	return nil
-}
-
-const protoTypesAnchorName = "__github.com/bobg/bs/anchor__reserved__proto_types__"
-
-// PutProto does what bs.PutProto does,
-// but additionally stores type info about the stored protobuf
-// in a special entry in the anchor map.
-//
-// The entry,
-// which is at the anchor key protoTypesAnchorName,
-// is a schema.Map mapping blob refs to schema.Sets full of types.
-// Each type is the ref of a protobuf "descriptor."
-func PutProto(ctx context.Context, s Store, m proto.Message) (bs.Ref, bool, error) {
-	now := time.Now()
-
-	ref, added, err := bs.PutProto(ctx, s, m)
-	if err != nil || !added {
-		return ref, added, err
-	}
-
-	protoDescriptor := m.ProtoReflect().Descriptor()
-	protoType := protodesc.ToDescriptorProto(protoDescriptor)
-	protoTypeRef, _, err := bs.PutProto(ctx, s, protoType)
-	if err != nil {
-		return ref, added, errors.Wrap(err, "computing protobuf type")
-	}
-
-	var typesMap *schema.Map
-
-	typesMapRef, err := Get(ctx, s, protoTypesAnchorName, now)
-	if errors.Is(err, bs.ErrNotFound) {
-		typesMap = schema.NewMap()
-	} else if err != nil {
-		return ref, added, errors.Wrap(err, "getting proto types map ref")
-	} else {
-		typesMap, err = schema.LoadMap(ctx, s, typesMapRef)
-		if err != nil {
-			return ref, added, errors.Wrap(err, "loading proto types map")
-		}
-	}
-
-	// TODO: use optimistic locking here in case of concurrent updates to the same typeset.
-
-	var typeSet *schema.Set
-	typeSetRefBytes, found, err := typesMap.Lookup(ctx, s, ref[:])
-	if err != nil {
-		return ref, added, errors.Wrapf(err, "loading type set for proto ref %s", ref)
-	}
-	if found {
-		typeSet, err = schema.LoadSet(ctx, s, bs.RefFromBytes(typeSetRefBytes))
-		if err != nil {
-			return ref, added, errors.Wrapf(err, "loading type set for proto ref %s", ref)
-		}
-	} else {
-		typeSet = schema.NewSet()
-	}
-
-	typeSetRef, updated, err := typeSet.Add(ctx, s, protoTypeRef)
-	if err != nil {
-		return ref, added, errors.Wrapf(err, "adding type for proto ref %s", ref)
-	}
-	if !updated {
-		return ref, added, nil
-	}
-
-	typesMapRef, outcome, err := typesMap.Set(ctx, s, ref[:], typeSetRef[:])
-	if err != nil {
-		return ref, added, errors.Wrapf(err, "updating type set for proto ref %s", ref)
-	}
-	if outcome == schema.ONone {
-		return ref, added, nil
-	}
-
-	err = Put(ctx, s, protoTypesAnchorName, typesMapRef, now)
-	return ref, added, errors.Wrap(err, "updating proto types map anchor")
 }

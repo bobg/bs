@@ -47,6 +47,10 @@ type TStore interface {
 	// PutType associates typ with ref.
 	// A given ref may have many types.
 	PutType(ctx context.Context, ref Ref, typ []byte) error
+
+	// Get the types that have been associated with a ref.
+	// They are returned in an indeterminate order.
+	GetTypes(context.Context, Ref) ([][]byte, error)
 }
 
 // MultiPutter is an interface that Stores may optionally implement to make the PutMulti function efficient.

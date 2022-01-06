@@ -65,7 +65,12 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 func (s *Store) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
+	// TODO: some logging here
 	return anchor.PutType(ctx, s, ref, typ)
+}
+
+func (s *Store) GetTypes(ctx context.Context, ref bs.Ref) ([][]byte, error) {
+	return anchor.GetTypes(ctx, s, ref)
 }
 
 // AnchorMapRef implements anchor.Getter.

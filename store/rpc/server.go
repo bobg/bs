@@ -56,6 +56,16 @@ func (s *Server) PutType(ctx context.Context, req *PutTypeRequest) (*PutTypeResp
 	return &PutTypeResponse{}, err
 }
 
+func (s *Server) GetTypes(ctx context.Context, req *GetTypesRequest) (*GetTypesResponse, error) {
+	ts, ok := s.s.(bs.TStore)
+	if !ok {
+		return nil, status.Error(codes.Unimplemented, bs.ErrNotTStore.Error())
+	}
+	ref := bs.RefFromBytes(req.Ref)
+	types, err := ts.GetTypes(ctx, ref)
+	return &GetTypesResponse{Types: types}, err
+}
+
 // ListRefs implements StoreServer.ListRefs.
 func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error {
 	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {

@@ -79,6 +79,10 @@ func (s *Store) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
 	return anchor.PutType(ctx, s, ref, typ)
 }
 
+func (s *Store) GetTypes(ctx context.Context, ref bs.Ref) ([][]byte, error) {
+	return anchor.GetTypes(ctx, s, ref)
+}
+
 // Delete implements bs.DeleterStore.
 func (s *Store) Delete(_ context.Context, ref bs.Ref) error {
 	s.mu.Lock()

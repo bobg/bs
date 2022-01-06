@@ -60,6 +60,10 @@ func (s *Store) PutType(ctx context.Context, ref bs.Ref, typ []byte) error {
 	return anchor.PutType(ctx, s, ref, typ)
 }
 
+func (s *Store) GetTypes(ctx context.Context, ref bs.Ref) ([][]byte, error) {
+	return anchor.GetTypes(ctx, s, ref)
+}
+
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
 	return s.s.ListRefs(ctx, start, f)
