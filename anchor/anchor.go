@@ -289,6 +289,9 @@ func GetTypes(ctx context.Context, g Getter, ref bs.Ref) ([][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if typeSet == nil {
+		return nil, nil
+	}
 	var refs []bs.Ref
 	err = typeSet.Each(ctx, g, func(ref bs.Ref) error {
 		refs = append(refs, ref)

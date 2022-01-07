@@ -53,6 +53,9 @@ func GetMulti(ctx context.Context, g Getter, refs []Ref) (map[Ref]Blob, error) {
 		res[trip.ref] = trip.blob
 	}
 
+	if errmap == nil {
+		return res, nil
+	}
 	return res, errmap
 }
 

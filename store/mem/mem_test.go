@@ -24,3 +24,7 @@ func TestAnchors(t *testing.T) {
 func TestAllRefs(t *testing.T) {
 	testutil.AllRefs(context.Background(), t, func() bs.Store { return New() })
 }
+
+func TestTypes(t *testing.T) {
+	testutil.Types(context.Background(), t, New())
+}
