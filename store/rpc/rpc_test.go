@@ -41,14 +41,14 @@ func TestRPC(t *testing.T) {
 
 	c := NewClient(cc)
 
+	t.Run("anchors", func(t *testing.T) {
+		testutil.Anchors(ctx, t, c, true)
+	})
 	t.Run("readwrite", func(t *testing.T) {
 		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
 		if err != nil {
 			t.Fatal(err)
 		}
 		testutil.ReadWrite(ctx, t, c, data)
-	})
-	t.Run("anchors", func(t *testing.T) {
-		testutil.Anchors(ctx, t, c, true)
 	})
 }

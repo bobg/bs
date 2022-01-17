@@ -74,7 +74,7 @@ func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error 
 }
 
 // AnchorMapRef implements StoreServer.AnchorMapRef.
-func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (*AnchorMapRefResponse, error) {
+func (s *Server) AnchorMapRef(ctx context.Context, req *AnchorMapRefRequest) (resp *AnchorMapRefResponse, err error) {
 	astore, ok := s.s.(anchor.Getter)
 	if !ok {
 		return nil, status.Error(codes.Unimplemented, anchor.ErrNotAnchorStore.Error())
