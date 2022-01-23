@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	stderrs "errors"
+	"errors"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -92,7 +92,7 @@ func withStore(t *testing.T, f func(context.Context, *Store)) {
 		iter := bucket.Objects(ctx, nil)
 		for {
 			attrs, err := iter.Next()
-			if stderrs.Is(err, iterator.Done) {
+			if errors.Is(err, iterator.Done) {
 				break
 			}
 			if err != nil {
@@ -110,6 +110,8 @@ func withStore(t *testing.T, f func(context.Context, *Store)) {
 		if err != nil {
 			t.Logf("could not delete bucket %s (%s)", bucketName, err)
 		}
+
+		t.Logf("deleted bucket %s", bucketName)
 	}()
 
 	f(ctx, New(bucket))

@@ -26,20 +26,7 @@ var _ anchor.Store = &Store{}
 // A blob with ref R is stored in a bucket object named b:hex(R)
 // (where hex(R) denotes the hexadecimal encoding of R).
 //
-// A type annotation T for blob ref R is stored as a zero-length object named t:hex(R):hex(T).
-//
-// An anchor with name N at time T pointing to ref R
-// stores the bytes of R in an object named a:hex(N):nanos(M-T),
-// where nanos denotes the representation of a time
-// as a 30-digit number of nanoseconds since the Unix epoch
-// (base 10, zero-padded),
-// and M is the maximum useful time in Go,
-// given by the formula:
-//   time.Unix(1<<63-1-int64((1969*365+1969/4-1969/100+1969/400)*24*60*60), 999999999)
-// (see https://stackoverflow.com/a/32620397).
-// This representation optimizes finding the latest anchor for a given name
-// (in the common case)
-// by querying the prefix a:hex(N):
+// The anchor map ref is stored in a bucket object named anchormapref.
 type Store struct {
 	bucket *storage.BucketHandle
 }
@@ -130,6 +117,43 @@ func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) erro
 	}
 }
 
+func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
+	prefix = strings.ToLower(prefix)
+	for len(prefix) > 0 {
+		end := hexval(prefix[len(prefix)-1:][0])
+		if !incl {
+			end++
+		}
+		prefix = prefix[:len(prefix)-1]
+		for c := end; c < 16; c++ {
+			err := f(prefix + string(hexdigit(c)))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func hexval(b byte) int {
+	switch {
+	case '0' <= b && b <= '9':
+		return int(b - '0')
+	case 'a' <= b && b <= 'f':
+		return int(10 + b - 'a')
+	case 'A' <= b && b <= 'F':
+		return int(10 + b - 'A')
+	}
+	return 0
+}
+
+func hexdigit(n int) byte {
+	if n < 10 {
+		return byte(n + '0')
+	}
+	return byte(n - 10 + 'a')
+}
+
 const anchorMapRefObjName = "anchormapref"
 
 // AnchorMapRef implements anchor.Getter.
@@ -188,43 +212,6 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error 
 		return anchor.ErrUpdateConflict
 	}
 	return err
-}
-
-func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
-	prefix = strings.ToLower(prefix)
-	for len(prefix) > 0 {
-		end := hexval(prefix[len(prefix)-1:][0])
-		if !incl {
-			end++
-		}
-		prefix = prefix[:len(prefix)-1]
-		for c := end; c < 16; c++ {
-			err := f(prefix + string(hexdigit(c)))
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func hexval(b byte) int {
-	switch {
-	case '0' <= b && b <= '9':
-		return int(b - '0')
-	case 'a' <= b && b <= 'f':
-		return int(10 + b - 'a')
-	case 'A' <= b && b <= 'F':
-		return int(10 + b - 'A')
-	}
-	return 0
-}
-
-func hexdigit(n int) byte {
-	if n < 10 {
-		return byte(n + '0')
-	}
-	return byte(n - 10 + 'a')
 }
 
 func blobObjName(ref bs.Ref) string {
