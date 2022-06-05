@@ -7,15 +7,18 @@ require (
 	cloud.google.com/go/storage v1.16.0
 	github.com/bobg/flock v0.0.0-20210807151335-599054c8997d
 	github.com/bobg/hashsplit v1.1.1
+	github.com/bobg/mghash v0.1.1 // indirect
 	github.com/bobg/sqlutil v1.0.0
 	github.com/bobg/subcmd v1.0.1
 	github.com/bobg/subcmd/v2 v2.0.0-20210830045600-57c90b5c4a7a // indirect
+	github.com/gibson042/canonicaljson-go v1.0.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/lib/pq v1.10.2
-	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/magefile/mage v1.13.0 // indirect
+	github.com/mattn/go-sqlite3 v1.14.13
 	github.com/pkg/errors v0.9.1
 	golang.org/x/net v0.0.0-20210726213435-c6fcb2dbf985 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
