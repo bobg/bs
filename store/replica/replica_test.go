@@ -2,7 +2,7 @@ package replica
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"sort"
 	"testing"
 
@@ -73,7 +73,7 @@ func TestAllRefs(t *testing.T) {
 }
 
 func TestReadWrite(t *testing.T) {
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+	data, err := os.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}

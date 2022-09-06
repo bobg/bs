@@ -5,7 +5,7 @@ import (
 	"compress/flate"
 	"compress/lzw"
 	"context"
-	"io/ioutil"
+	"io"
 )
 
 // LZW is a Transformer implementing lzw compression.
@@ -27,7 +27,7 @@ func (l LZW) Out(_ context.Context, inp []byte) ([]byte, error) {
 	r := bytes.NewReader(inp)
 	rr := lzw.NewReader(r, l.Order, 8)
 	defer rr.Close()
-	return ioutil.ReadAll(rr)
+	return io.ReadAll(rr)
 }
 
 // Flate is a Transformer implementing RFC1951 DEFLATE compression.
@@ -53,5 +53,5 @@ func (f Flate) Out(_ context.Context, inp []byte) ([]byte, error) {
 	r := bytes.NewReader(inp)
 	rr := flate.NewReader(r)
 	defer rr.Close()
-	return ioutil.ReadAll(rr)
+	return io.ReadAll(rr)
 }

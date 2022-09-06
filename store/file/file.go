@@ -3,7 +3,6 @@ package file
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,7 +41,7 @@ func (s *Store) blobpath(ref bs.Ref) string {
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 	path := s.blobpath(ref)
-	blob, err := ioutil.ReadFile(path)
+	blob, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, bs.ErrNotFound
 	}
@@ -88,7 +87,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 		return errors.Wrapf(err, "ensuring %s exists", s.blobroot())
 	}
 
-	topLevel, err := ioutil.ReadDir(s.blobroot())
+	topLevel, err := os.ReadDir(s.blobroot())
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", s.blobroot())
 	}
@@ -110,7 +109,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 			continue
 		}
 
-		midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
+		midLevel, err := os.ReadDir(filepath.Join(s.blobroot(), topName))
 		if err != nil {
 			return errors.Wrapf(err, "reading dir %s/%s", s.blobroot(), topName)
 		}
@@ -130,7 +129,7 @@ func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error
 				continue
 			}
 
-			blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
+			blobInfos, err := os.ReadDir(filepath.Join(s.blobroot(), topName, midName))
 			if err != nil {
 				return errors.Wrapf(err, "reading dir %s/%s/%s", s.blobroot(), topName, midName)
 			}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := ioutil.ReadAll(r)
+	got, err := io.ReadAll(r)
 	if err != nil {
 		t.Fatal(err)
 	}

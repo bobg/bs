@@ -3,7 +3,7 @@ package transform
 import (
 	"compress/lzw"
 	"context"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/bobg/bs/store/mem"
@@ -13,7 +13,7 @@ import (
 func TestTransform(t *testing.T) {
 	ctx := context.Background()
 
-	data, err := ioutil.ReadFile("../../testdata/commonsense.txt")
+	data, err := os.ReadFile("../../testdata/commonsense.txt")
 	if err != nil {
 		t.Fatal(err)
 	}

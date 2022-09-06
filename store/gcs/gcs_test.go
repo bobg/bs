@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -44,7 +43,7 @@ const (
 
 func TestStore(t *testing.T) {
 	withStore(t, func(ctx context.Context, store *Store) {
-		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		data, err := os.ReadFile("../../testdata/yubnub.opus")
 		if err != nil {
 			t.Fatal(err)
 		}

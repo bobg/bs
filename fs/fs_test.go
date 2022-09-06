@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,7 +30,7 @@ func TestFS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tmpdir, err := ioutil.TempDir("", "bsfstest")
+	tmpdir, err := os.MkdirTemp("", "bsfstest")
 	if err != nil {
 		t.Fatal(err)
 	}
