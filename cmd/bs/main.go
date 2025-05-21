@@ -81,9 +81,9 @@ func main() {
 
 	err = subcmd.Run(ctx, maincmd{s: ss}, flag.Args())
 
-	var usage subcmd.Usage
-	if errors.As(err, &usage) {
-		fatal(usage.Long())
+	var usageErr subcmd.UsageErr
+	if errors.As(err, &usageErr) {
+		fatal(usageErr.Detail())
 	} else if err != nil {
 		fatal(err)
 	}
