@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
+	"github.com/bobg/subcmd/v2"
 	"google.golang.org/grpc"
 
-	"github.com/bobg/subcmd/v2"
-
-	"github.com/bobg/bs/store/rpc"
+	"github.com/bobg/bs/v2/store/rpc"
 )
 
 func (c maincmd) client(ctx context.Context, addr string, insecure bool, args []string) error {

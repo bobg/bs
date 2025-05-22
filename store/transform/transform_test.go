@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/bobg/bs/store/mem"
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2/store/mem"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestTransform(t *testing.T) {

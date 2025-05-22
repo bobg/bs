@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/split"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/split"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 const testDir = "."

@@ -5,13 +5,14 @@ package logging
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = (*Store)(nil)
@@ -40,17 +41,9 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 }
 
 // ListRefs implements bs.Getter.ListRefs.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
 	log.Printf("ListRefs, start=%s", start)
-	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
-		err := f(ref)
-		if err != nil {
-			log.Printf("  ERROR in ListRefs: %s: %s", ref, err)
-		} else {
-			log.Printf("  ListRefs: %s", ref)
-		}
-		return err
-	})
+	return s.s.ListRefs(ctx, start)
 }
 
 // Put implements bs.Store.Put.

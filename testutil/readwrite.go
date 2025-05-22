@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/split"
 )
 
 // ReadWrite permits testing a Store implementation

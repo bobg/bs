@@ -3,6 +3,7 @@ package bs
 import (
 	"context"
 	"errors"
+	"iter"
 )
 
 // Getter is a read-only Store (qv).
@@ -10,18 +11,19 @@ type Getter interface {
 	// Get gets a blob by its ref.
 	Get(context.Context, Ref) (Blob, error)
 
-	// ListRefs calls a function for each blob ref in the store in lexicographic order,
+	// ListRefs returns the sequence of refs in the store in lexicographic order,
 	// beginning with the first ref _after_ the specified one.
 	//
-	// The calls reflect at least the set of refs
+	// The sequence reflects at least the set of refs
 	// known at the moment ListRefs was called.
 	// It is unspecified whether later changes,
-	// that happen concurrently with ListRefs,
+	// that happen while iterating over the sequence,
 	// are reflected.
 	//
-	// If the callback function returns an error,
-	// ListRefs exits with that error.
-	ListRefs(context.Context, Ref, func(r Ref) error) error
+	// The returned error pointer is never nil.
+	// It may be dereferenced after consuming the returned sequence
+	// to check for errors.
+	ListRefs(context.Context, Ref) (iter.Seq[Ref], *error)
 }
 
 // MultiGetter is an interface that Getters may optionally implement to make the GetMulti function efficient.

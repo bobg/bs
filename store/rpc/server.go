@@ -3,12 +3,12 @@ package rpc
 import (
 	context "context"
 
-	"github.com/pkg/errors"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
+	"github.com/bobg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
 )
 
 var _ StoreServer = &Server{}
@@ -47,9 +47,13 @@ func (s *Server) Put(ctx context.Context, req *PutRequest) (*PutResponse, error)
 
 // ListRefs implements StoreServer.ListRefs.
 func (s *Server) ListRefs(req *ListRefsRequest, srv Store_ListRefsServer) error {
-	return s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start), func(ref bs.Ref) error {
-		return srv.Send(&ListRefsResponse{Ref: ref[:]})
-	})
+	refs, errptr := s.s.ListRefs(srv.Context(), bs.RefFromBytes(req.Start))
+	for ref := range refs {
+		if err := srv.Send(&ListRefsResponse{Ref: ref[:]}); err != nil {
+			return err
+		}
+	}
+	return *errptr
 }
 
 // AnchorMapRef implements StoreServer.AnchorMapRef.

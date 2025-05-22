@@ -4,14 +4,15 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/bobg/bs"
-	. "github.com/bobg/bs/gc"
-	"github.com/bobg/bs/split"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	. "github.com/bobg/bs/v2/gc"
+	"github.com/bobg/bs/v2/split"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 type memKeep struct {
@@ -82,12 +83,9 @@ func TestGC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var want []bs.Ref
-	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-		want = append(want, ref)
-		return nil
-	})
-	if err != nil {
+	refs, errptr := store.ListRefs(ctx, bs.Zero)
+	want := slices.Collect(refs)
+	if err := *errptr; err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,12 +115,9 @@ func TestGC(t *testing.T) {
 		t.Error("got 0 deletions during gc.Run")
 	}
 
-	var got []bs.Ref
-	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-		got = append(got, ref)
-		return nil
-	})
-	if err != nil {
+	refs, errptr = store.ListRefs(ctx, bs.Zero)
+	got := slices.Collect(refs)
+	if err := *errptr; err != nil {
 		t.Fatal(err)
 	}
 

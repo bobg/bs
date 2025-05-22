@@ -4,14 +4,15 @@ package pg
 import (
 	"context"
 	"database/sql"
+	"iter"
 
-	"github.com/bobg/sqlutil"
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
 	"github.com/lib/pq"
-	"github.com/pkg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = (*Store)(nil)
@@ -75,34 +76,10 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
 	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > $1 ORDER BY blobs.ref`
 
-	var lastRef *bs.Ref
-	err := sqlutil.ForQueryRows(ctx, s.db, q, start, func(ref bs.Ref) error {
-		if lastRef == nil {
-			lastRef = &ref
-		} else {
-			if ref != *lastRef {
-				err := f(*lastRef)
-				if err != nil {
-					return err
-				}
-				lastRef = &ref
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if lastRef != nil {
-		err = f(*lastRef)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return seqs.SQL[bs.Ref](ctx, s.db, q, start)
 }
 
 // AnchorMapRef implements anchor.Getter.

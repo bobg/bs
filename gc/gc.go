@@ -3,10 +3,12 @@ package gc
 
 import (
 	"context"
+	"iter"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
 )
 
 // Keep is a set of refs to protect from garbage collection.
@@ -67,32 +69,33 @@ func Protect(ctx context.Context, g bs.Getter, k Keep, ref bs.Ref, traverse Prot
 // deleting all refs not protected by k.
 // See Protect.
 func Run(ctx context.Context, store bs.DeleterStore, k Keep) error {
-	var (
-		repeat  = errors.New("repeat") // sentinel for ListRefs call
-		lastRef bs.Ref
-	)
+	var lastRef bs.Ref
 	for {
+		newLastRef := lastRef
+
 		// We need a new ListRefs call after each Delete
 		// because bs.Store does not guarantee that deletions don't affect the iteration in ListRefs.
-		err := store.ListRefs(ctx, lastRef, func(ref bs.Ref) error {
+		refs, errptr := store.ListRefs(ctx, lastRef)
+		for ref := range refs {
 			ok, err := k.Contains(ctx, ref)
 			if err != nil {
 				return errors.Wrapf(err, "checking ref %s", ref)
 			}
 			if ok {
-				return nil
+				continue
 			}
-			err = store.Delete(ctx, ref)
-			if err != nil {
+			if err := store.Delete(ctx, ref); err != nil {
 				return errors.Wrapf(err, "deleting ref %s", ref)
 			}
-			lastRef = ref
-			return repeat
-		})
-		if errors.Is(err, repeat) {
-			continue
+			newLastRef = ref
+			break
 		}
-		return err
+		if err := *errptr; err != nil {
+			return errors.Wrap(err, "iterating over refs")
+		}
+		if newLastRef == lastRef {
+			return nil
+		}
 	}
 }
 
@@ -116,10 +119,16 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs implements bs.Getter.ListRefs.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	return s.S.ListRefs(ctx, start, func(ref bs.Ref) error {
-		s.Refs++
-		return f(ref)
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		refs, errptr := s.S.ListRefs(ctx, start)
+		for ref := range refs {
+			s.Refs++
+			if !yield(ref) {
+				break
+			}
+		}
+		return *errptr
 	})
 }
 

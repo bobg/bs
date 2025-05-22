@@ -3,15 +3,16 @@ package replica
 import (
 	"context"
 	"encoding/json"
+	"iter"
 	"reflect"
 	"sync"
 
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/pkg/errors"
-
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ bs.Store = (*Store)(nil)
@@ -233,78 +234,77 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 // ListRefs implements bs.Getter.
 // It delegates the request to all of the synchronous stores in s
 // and synthesizes the result from the union of their refs.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	if err := s.checkErr(); err != nil {
-		return errors.Wrap(err, "in async-store goroutine")
-	}
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		if err := s.checkErr(); err != nil {
+			return errors.Wrap(err, "in async-store goroutine")
+		}
 
-	chans := make([]chan bs.Ref, len(s.sync))
-	for i := 0; i < len(s.sync); i++ {
-		chans[i] = make(chan bs.Ref, 1)
-	}
+		chans := make([]chan bs.Ref, len(s.sync))
+		for i := 0; i < len(s.sync); i++ {
+			chans[i] = make(chan bs.Ref, 1)
+		}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-	g, ctx := errgroup.WithContext(ctx)
+		g, ctx := errgroup.WithContext(ctx)
 
-	for i, store := range s.sync {
-		var (
-			i     = i
-			store = store
-		)
-		g.Go(func() error {
-			defer close(chans[i])
-			return store.ListRefs(ctx, start, func(ref bs.Ref) error {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case chans[i] <- ref:
-					return nil
+		for i, store := range s.sync {
+			g.Go(func() error {
+				defer close(chans[i])
+
+				refs, errptr := store.ListRefs(ctx, start)
+				for ref := range refs {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case chans[i] <- ref:
+					}
 				}
+				return *errptr
 			})
-		})
-	}
+		}
 
-	last := start
-	next := make([]bs.Ref, len(s.sync))
-	for i, ch := range chans {
-		next[i] = <-ch
-	}
+		last := start
+		next := make([]bs.Ref, len(s.sync))
+		for i, ch := range chans {
+			next[i] = <-ch
+		}
 
-	for {
-		var (
-			best      bs.Ref
-			bestIndex int
-		)
-		for i, ref := range next {
-			if ref.IsZero() {
-				continue
-			}
-			if ref == last {
-				ref = <-chans[i]
-				next[i] = ref
+		for {
+			var (
+				best      bs.Ref
+				bestIndex int
+			)
+			for i, ref := range next {
+				if ref.IsZero() {
+					continue
+				}
+				if ref == last {
+					ref = <-chans[i]
+					next[i] = ref
+				}
+				if best.IsZero() {
+					best, bestIndex = ref, i
+					continue
+				}
+				if ref.Less(best) {
+					best, bestIndex = ref, i
+				}
 			}
 			if best.IsZero() {
-				best, bestIndex = ref, i
-				continue
+				break
 			}
-			if ref.Less(best) {
-				best, bestIndex = ref, i
+			if !yield(best) {
+				break
 			}
+			last = best
+			next[bestIndex] = <-chans[bestIndex]
 		}
-		if best.IsZero() {
-			break
-		}
-		err := f(best)
-		if err != nil {
-			return err
-		}
-		last = best
-		next[bestIndex] = <-chans[bestIndex]
-	}
 
-	return g.Wait()
+		return g.Wait()
+	})
 }
 
 func (s *Store) checkErr() error {

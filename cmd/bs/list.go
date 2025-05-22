@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
 )
 
 func (c maincmd) listRefs(ctx context.Context, start string, _ []string) error {
@@ -24,10 +24,12 @@ func (c maincmd) listRefs(ctx context.Context, start string, _ []string) error {
 		}
 	}
 
-	return c.s.ListRefs(ctx, startRef, func(ref bs.Ref) error {
+	refs, errptr := c.s.ListRefs(ctx, startRef)
+	for ref := range refs {
 		fmt.Printf("%s\n", ref)
-		return nil
-	})
+	}
+
+	return *errptr
 }
 
 func (c maincmd) listAnchors(ctx context.Context, _ []string) error {

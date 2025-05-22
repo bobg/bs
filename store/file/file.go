@@ -4,17 +4,19 @@ package file
 import (
 	"context"
 	"io/ioutil"
+	"iter"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 
+	"github.com/bobg/errors"
 	"github.com/bobg/flock"
-	"github.com/pkg/errors"
+	"github.com/bobg/seqs"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = &Store{}
@@ -80,83 +82,82 @@ func (s *Store) Put(_ context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	err := os.MkdirAll(s.blobroot(), 0755)
-	if os.IsExist(err) {
-		// ok
-	} else if err != nil {
-		return errors.Wrapf(err, "ensuring %s exists", s.blobroot())
-	}
-
-	topLevel, err := ioutil.ReadDir(s.blobroot())
-	if err != nil {
-		return errors.Wrapf(err, "reading dir %s", s.blobroot())
-	}
-
-	startHex := start.String()
-	topIndex := sort.Search(len(topLevel), func(n int) bool {
-		return topLevel[n].Name() >= startHex[:2]
-	})
-	for i := topIndex; i < len(topLevel); i++ {
-		topInfo := topLevel[i]
-		if !topInfo.IsDir() {
-			continue
-		}
-		topName := topInfo.Name()
-		if len(topName) != 2 {
-			continue
-		}
-		if _, err = strconv.ParseInt(topName, 16, 64); err != nil {
-			continue
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		if err := os.MkdirAll(s.blobroot(), 0755); err != nil && !os.IsExist(err) {
+			return errors.Wrapf(err, "ensuring %s exists", s.blobroot())
 		}
 
-		midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
+		topLevel, err := ioutil.ReadDir(s.blobroot())
 		if err != nil {
-			return errors.Wrapf(err, "reading dir %s/%s", s.blobroot(), topName)
+			return errors.Wrapf(err, "reading dir %s", s.blobroot())
 		}
-		midIndex := sort.Search(len(midLevel), func(n int) bool {
-			return midLevel[n].Name() >= startHex[:4]
+
+		startHex := start.String()
+		topIndex := sort.Search(len(topLevel), func(n int) bool {
+			return topLevel[n].Name() >= startHex[:2]
 		})
-		for j := midIndex; j < len(midLevel); j++ {
-			midInfo := midLevel[j]
-			if !midInfo.IsDir() {
+
+		for i := topIndex; i < len(topLevel); i++ {
+			topInfo := topLevel[i]
+			if !topInfo.IsDir() {
 				continue
 			}
-			midName := midInfo.Name()
-			if len(midName) != 4 {
+			topName := topInfo.Name()
+			if len(topName) != 2 {
 				continue
 			}
-			if _, err = strconv.ParseInt(midName, 16, 64); err != nil {
+			if _, err := strconv.ParseInt(topName, 16, 64); err != nil {
 				continue
 			}
 
-			blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
+			midLevel, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName))
 			if err != nil {
-				return errors.Wrapf(err, "reading dir %s/%s/%s", s.blobroot(), topName, midName)
+				return errors.Wrapf(err, "reading dir %s/%s", s.blobroot(), topName)
 			}
-
-			index := sort.Search(len(blobInfos), func(n int) bool {
-				return blobInfos[n].Name() > startHex
+			midIndex := sort.Search(len(midLevel), func(n int) bool {
+				return midLevel[n].Name() >= startHex[:4]
 			})
-			for k := index; k < len(blobInfos); k++ {
-				blobInfo := blobInfos[k]
-				if blobInfo.IsDir() {
+			for j := midIndex; j < len(midLevel); j++ {
+				midInfo := midLevel[j]
+				if !midInfo.IsDir() {
+					continue
+				}
+				midName := midInfo.Name()
+				if len(midName) != 4 {
+					continue
+				}
+				if _, err = strconv.ParseInt(midName, 16, 64); err != nil {
 					continue
 				}
 
-				ref, err := bs.RefFromHex(blobInfo.Name())
+				blobInfos, err := ioutil.ReadDir(filepath.Join(s.blobroot(), topName, midName))
 				if err != nil {
-					continue
+					return errors.Wrapf(err, "reading dir %s/%s/%s", s.blobroot(), topName, midName)
 				}
 
-				err = f(ref)
-				if err != nil {
-					return err
+				index := sort.Search(len(blobInfos), func(n int) bool {
+					return blobInfos[n].Name() > startHex
+				})
+				for k := index; k < len(blobInfos); k++ {
+					blobInfo := blobInfos[k]
+					if blobInfo.IsDir() {
+						continue
+					}
+
+					ref, err := bs.RefFromHex(blobInfo.Name())
+					if err != nil {
+						continue
+					}
+
+					if !yield(ref) {
+						return nil
+					}
 				}
 			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 const anchorMapRefFileBaseName = "anchormapref"

@@ -4,18 +4,20 @@ package gcs
 import (
 	"context"
 	"io"
+	"iter"
 	"net/http"
 	"strings"
 
 	"cloud.google.com/go/storage"
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = &Store{}
@@ -80,59 +82,56 @@ func (s *Store) putBlob(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
-	// But they can filter by object-name prefix.
-	// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
-	// If `start` is e67a, for example, the sequence of generated prefixes is:
-	//   e67b e67c e67d e67e e67f
-	//   e68 e69 e6a e6b e6c e6d e6e e6f
-	//   e7 e8 e9 ea eb ec ed ee ef
-	//   f
-	return eachHexPrefix(start.String(), false, func(prefix string) error {
-		return s.listRefs(ctx, prefix, f)
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		// Google Cloud Storage iterators have no API for starting in the middle of a bucket.
+		// But they can filter by object-name prefix.
+		// So we take (the hex encoding of) `start` and repeatedly compute prefixes for the objects we want.
+		// If `start` is e67a, for example, the sequence of generated prefixes is:
+		//   e67b e67c e67d e67e e67f
+		//   e68 e69 e6a e6b e6c e6d e6e e6f
+		//   e7 e8 e9 ea eb ec ed ee ef
+		//   f
+		prefixes := hexPrefixes(start.String())
+
+		for prefix := range prefixes {
+			objs := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
+			for {
+				obj, err := objs.Next()
+				if errors.Is(err, iterator.Done) {
+					break
+				}
+				if err != nil {
+					return errors.Wrap(err, "iterating over blobs")
+				}
+
+				ref, err := refFromBlobObjName(obj.Name)
+				if err != nil {
+					return errors.Wrapf(err, "decoding obj name %s", obj.Name)
+				}
+
+				if !yield(ref) {
+					return nil
+				}
+			}
+		}
+		return nil
 	})
 }
 
-func (s *Store) listRefs(ctx context.Context, prefix string, f func(bs.Ref) error) error {
-	iter := s.bucket.Objects(ctx, &storage.Query{Prefix: "b:" + prefix})
-	for {
-		obj, err := iter.Next()
-		if errors.Is(err, iterator.Done) {
-			return nil
-		}
-		if err != nil {
-			return errors.Wrap(err, "iterating over blobs")
-		}
-
-		ref, err := refFromBlobObjName(obj.Name)
-		if err != nil {
-			return errors.Wrapf(err, "decoding obj name %s", obj.Name)
-		}
-
-		err = f(ref)
-		if err != nil {
-			return err
-		}
-	}
-}
-
-func eachHexPrefix(prefix string, incl bool, f func(string) error) error {
+func hexPrefixes(prefix string) iter.Seq[string] {
 	prefix = strings.ToLower(prefix)
-	for len(prefix) > 0 {
-		end := hexval(prefix[len(prefix)-1:][0])
-		if !incl {
-			end++
-		}
-		prefix = prefix[:len(prefix)-1]
-		for c := end; c < 16; c++ {
-			err := f(prefix + string(hexdigit(c)))
-			if err != nil {
-				return err
+	return func(yield func(string) bool) {
+		for len(prefix) > 0 {
+			end := hexval(prefix[len(prefix)-1:][0]) + 1
+			prefix = prefix[:len(prefix)-1]
+			for c := end; c < 16; c++ {
+				if !yield(prefix + string(hexdigit(c))) {
+					return
+				}
 			}
 		}
 	}
-	return nil
 }
 
 func hexval(b byte) int {

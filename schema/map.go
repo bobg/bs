@@ -6,10 +6,10 @@ import (
 	"crypto/sha256"
 	"sort"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/gc"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/gc"
 )
 
 // NewMap produces a new, blank map,

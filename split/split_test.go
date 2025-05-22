@@ -8,8 +8,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 func TestSplitEmpty(t *testing.T) {

@@ -6,15 +6,17 @@ import (
 	"compress/lzw"
 	"context"
 	"fmt"
+	"iter"
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/schema"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/schema"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ bs.Store = &Store{}
@@ -134,18 +136,25 @@ func (s *Store) Put(ctx context.Context, blob bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs implements bs.Getter.ListRefs.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	return s.s.ListRefs(ctx, start, func(ref bs.Ref) error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
-		if err != nil {
-			return errors.Wrap(err, "consulting ref map")
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		refs, errptr := s.s.ListRefs(ctx, start)
+		for ref := range refs {
+			s.mu.Lock()
+			got, ok, err := s.m.Lookup(ctx, s.s, ref[:])
+			s.mu.Unlock()
+			if err != nil {
+				return errors.Wrap(err, "consulting ref map")
+			}
+			if !ok {
+				break // xxx ?
+			}
+			transformedRef := bs.RefFromBytes(got)
+			if !yield(transformedRef) {
+				break
+			}
 		}
-		if !ok {
-			return nil // xxx ?
-		}
-		return f(bs.RefFromBytes(got))
+		return *errptr
 	})
 }
 

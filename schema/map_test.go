@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	. "github.com/bobg/bs/schema"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	. "github.com/bobg/bs/v2/schema"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 func TestMap(t *testing.T) {

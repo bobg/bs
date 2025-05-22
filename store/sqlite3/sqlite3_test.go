@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestStore(t *testing.T) {

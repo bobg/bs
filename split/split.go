@@ -7,12 +7,12 @@ import (
 	"io"
 	"sort"
 
+	"github.com/bobg/errors"
 	"github.com/bobg/hashsplit"
-	"github.com/pkg/errors"
 
-	"github.com/bobg/bs/gc"
+	"github.com/bobg/bs/v2/gc"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
 )
 
 var (

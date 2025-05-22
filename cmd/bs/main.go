@@ -11,20 +11,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bobg/errors"
 	"github.com/bobg/subcmd/v2"
-	"github.com/pkg/errors"
 
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
-	_ "github.com/bobg/bs/store/file"
-	_ "github.com/bobg/bs/store/gcs"
-	_ "github.com/bobg/bs/store/logging"
-	_ "github.com/bobg/bs/store/lru"
-	_ "github.com/bobg/bs/store/mem"
-	_ "github.com/bobg/bs/store/pg"
-	_ "github.com/bobg/bs/store/rpc"
-	_ "github.com/bobg/bs/store/sqlite3"
-	_ "github.com/bobg/bs/store/transform"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
+	_ "github.com/bobg/bs/v2/store/file"
+	_ "github.com/bobg/bs/v2/store/gcs"
+	_ "github.com/bobg/bs/v2/store/logging"
+	_ "github.com/bobg/bs/v2/store/lru"
+	_ "github.com/bobg/bs/v2/store/mem"
+	_ "github.com/bobg/bs/v2/store/pg"
+	_ "github.com/bobg/bs/v2/store/rpc"
+	_ "github.com/bobg/bs/v2/store/sqlite3"
+	_ "github.com/bobg/bs/v2/store/transform"
 )
 
 type maincmd struct {

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
 )
 
 // Factory is a function that can create a blob store from a configuration object.

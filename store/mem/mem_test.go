@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestStore(t *testing.T) {

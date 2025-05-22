@@ -1,18 +1,19 @@
-module github.com/bobg/bs
+module github.com/bobg/bs/v2
 
 go 1.24
 
 require (
 	cloud.google.com/go/storage v1.54.0
+	github.com/bobg/errors v1.1.0
 	github.com/bobg/flock v0.0.0-20210807151335-599054c8997d
 	github.com/bobg/hashsplit v1.1.3
+	github.com/bobg/seqs v1.6.0
 	github.com/bobg/sqlutil v1.1.0
 	github.com/bobg/subcmd/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.28
-	github.com/pkg/errors v0.9.1
 	golang.org/x/sync v0.14.0
 	google.golang.org/api v0.233.0
 	google.golang.org/grpc v1.72.1
@@ -30,6 +31,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.27.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
+	github.com/bobg/go-generics/v4 v4.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chmduquesne/rollinghash v4.0.0+incompatible // indirect
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
@@ -43,6 +45,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect

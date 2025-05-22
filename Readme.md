@@ -1,7 +1,7 @@
 # BS, a content-addressable blob store
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/bobg/bs.svg)](https://pkg.go.dev/github.com/bobg/bs)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bobg/bs)](https://goreportcard.com/report/github.com/bobg/bs)
+[![Go Reference](https://pkg.go.dev/badge/github.com/bobg/bs/v2.svg)](https://pkg.go.dev/github.com/bobg/bs)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bobg/bs/v2)](https://goreportcard.com/report/github.com/bobg/bs)
 [![Tests](https://github.com/bobg/bs/actions/workflows/go.yml/badge.svg)](https://github.com/bobg/bs/actions/workflows/go.yml)
 
 This is BS, an implementation of a content-addressable blob store.

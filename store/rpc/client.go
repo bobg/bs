@@ -3,15 +3,17 @@ package rpc
 import (
 	context "context"
 	"io"
+	"iter"
 
-	"github.com/pkg/errors"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
+	"github.com/bobg/errors"
+	"github.com/bobg/seqs"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = (*Client)(nil)
@@ -42,24 +44,27 @@ func (c *Client) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 }
 
 // ListRefs implements bs.Getter.ListRefs.
-func (c *Client) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	lc, err := c.sc.ListRefs(ctx, &ListRefsRequest{Start: start[:]})
-	if err != nil {
-		return err
-	}
-	for {
-		resp, err := lc.Recv()
-		if err == io.EOF {
-			return nil
-		}
+func (c *Client) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return seqs.Err(func(yield func(bs.Ref) bool) error {
+		lc, err := c.sc.ListRefs(ctx, &ListRefsRequest{Start: start[:]})
 		if err != nil {
-			return errors.Wrap(err, "receiving response")
+			return errors.Wrap(err, "calling ListRefs on server")
 		}
-		err = f(bs.RefFromBytes(resp.Ref))
-		if err != nil {
-			return err
+
+		for {
+			resp, err := lc.Recv()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return errors.Wrap(err, "receiving response")
+			}
+			ref := bs.RefFromBytes(resp.Ref)
+			if !yield(ref) {
+				return nil
+			}
 		}
-	}
+	})
 }
 
 // Put implements bs.Store.Put.

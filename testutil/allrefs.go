@@ -2,13 +2,14 @@ package testutil
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"testing"
 	"testing/quick"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
 )
 
 // AllRefs writes a random set of random blobs to an empty store
@@ -34,12 +35,9 @@ func allRefsHelper(ctx context.Context, t *testing.T, storeFactory func() bs.Sto
 				want = append(want, ref)
 			}
 		}
-		var got []bs.Ref
-		err := store.ListRefs(ctx, bs.Zero, func(r bs.Ref) error {
-			got = append(got, r)
-			return nil
-		})
-		if err != nil {
+		refs, errptr := store.ListRefs(ctx, bs.Zero)
+		got := slices.Collect(refs)
+		if err := *errptr; err != nil {
 			t.Fatal(err)
 		}
 

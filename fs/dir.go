@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/schema"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/schema"
+	"github.com/bobg/bs/v2/split"
 )
 
 // Dir is a directory of files, symlinks, and subdirs.

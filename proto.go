@@ -3,7 +3,7 @@ package bs
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"google.golang.org/protobuf/proto"
 )
 

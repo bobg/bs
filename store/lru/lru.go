@@ -4,13 +4,14 @@ package lru
 import (
 	"context"
 	"encoding/json"
+	"iter"
 
+	"github.com/bobg/errors"
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/pkg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = (*Store)(nil)
@@ -57,8 +58,8 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	return s.s.ListRefs(ctx, start, f)
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
+	return s.s.ListRefs(ctx, start)
 }
 
 // AnchorMapRef implements anchor.Getter.
