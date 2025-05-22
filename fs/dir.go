@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -195,7 +194,7 @@ func (d *Dir) AddDir(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 }
 
 func addDirToMap(ctx context.Context, store bs.Store, path string, m map[string][]byte) error {
-	infos, err := ioutil.ReadDir(path)
+	infos, err := os.ReadDir(path)
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", path)
 	}

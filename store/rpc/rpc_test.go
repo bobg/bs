@@ -1,12 +1,12 @@
 package rpc
 
 import (
-	context "context"
-	"io/ioutil"
+	"context"
 	"net"
+	"os"
 	"testing"
 
-	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/bobg/bs/v2/store/mem"
@@ -42,7 +42,7 @@ func TestRPC(t *testing.T) {
 	c := NewClient(cc)
 
 	t.Run("readwrite", func(t *testing.T) {
-		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		data, err := os.ReadFile("../../testdata/yubnub.opus")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -33,7 +32,7 @@ func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, 
 		}
 		ref = w.Root
 	} else {
-		blob, err := ioutil.ReadAll(os.Stdin)
+		blob, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return errors.Wrap(err, "reading stdin")
 		}

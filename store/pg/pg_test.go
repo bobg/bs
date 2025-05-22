@@ -3,7 +3,6 @@ package pg
 import (
 	"context"
 	"database/sql"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 
 func TestStore(t *testing.T) {
 	withStore(t, func(ctx context.Context, store *Store) {
-		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		data, err := os.ReadFile("../../testdata/yubnub.opus")
 		if err != nil {
 			t.Fatal(err)
 		}
