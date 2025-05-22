@@ -3,7 +3,6 @@ package fs
 
 import (
 	"context"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -159,17 +158,12 @@ func add(ctx context.Context, store bs.Store, path string) (*Dirent, error) {
 	}
 	defer f.Close()
 
-	w := split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
+	root, err := split.Split(ctx, store, f)
 	if err != nil {
-		return nil, errors.Wrapf(err, "split-writing to store from %s", path)
-	}
-	err = w.Close()
-	if err != nil {
-		return nil, errors.Wrapf(err, "finishing split-writing to store from %s", path)
+		return nil, errors.Wrapf(err, "splitting file %s", path)
 	}
 
-	dirent.Item = w.Root.String()
+	dirent.Item = root.String()
 	return dirent, nil
 }
 

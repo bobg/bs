@@ -17,16 +17,10 @@ import (
 func ReadWrite(ctx context.Context, t *testing.T, store bs.Store, data []byte) {
 	t1 := time.Now()
 
-	w := split.NewWriter(ctx, store)
-	_, err := io.Copy(w, bytes.NewReader(data))
+	ref, err := split.Split(ctx, store, bytes.NewReader(data))
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = w.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ref := w.Root
 	t.Logf("wrote %d bytes in %s", len(data), time.Since(t1))
 
 	t2 := time.Now()

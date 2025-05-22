@@ -2,7 +2,6 @@ package gc_test
 
 import (
 	"context"
-	"io"
 	"os"
 	"slices"
 	"testing"
@@ -66,19 +65,13 @@ func TestGC(t *testing.T) {
 
 	ctx := context.Background()
 
-	w := split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = w.Close()
+	root, err := split.Split(ctx, store, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	k := &memKeep{m: make(map[bs.Ref]struct{})}
-	err = Protect(ctx, store, k, w.Root, split.Protect)
+	err = Protect(ctx, store, k, root, split.Protect)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,19 +88,11 @@ func TestGC(t *testing.T) {
 	}
 	defer f.Close()
 
-	w = split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
-	if err != nil {
+	if _, err := split.Split(ctx, store, f); err != nil {
 		t.Fatal(err)
 	}
 
-	err = w.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = Run(ctx, store, k)
-	if err != nil {
+	if err := Run(ctx, store, k); err != nil {
 		t.Fatal(err)
 	}
 
