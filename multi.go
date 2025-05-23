@@ -4,81 +4,85 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
+
+	"github.com/bobg/go-generics/v4/parallel"
+	"github.com/bobg/go-generics/v4/slices"
 )
 
 // GetMulti gets multiple blobs with a single call.
 // By default this is implemented as a bunch of concurrent individual Get calls.
 // However, if g implements MultiGetter, its GetMulti method is used instead.
-// The return value is a mapping of input refs to the blobs that were found in g.
+// The return value is a sequence of blobs corresponding to the input refs.
 // The returned error may be a MultiErr,
 // mapping input refs to errors encountered retrieving those specific refs.
 // This function may return a successful partial result even in case of error.
 // In particular, when the error return is a MultiErr,
 // every input ref appears in either the result map or the MultiErr map.
-func GetMulti(ctx context.Context, g Getter, refs []Ref) (map[Ref]Blob, error) {
+func GetMulti(ctx context.Context, g Getter, refs []Ref) ([]Blob, error) {
 	if m, ok := g.(MultiGetter); ok {
 		return m.GetMulti(ctx, refs)
 	}
 
-	type triple struct {
-		ref  Ref
+	type tuple struct {
 		blob Blob
 		err  error
 	}
 
-	var (
-		res = make(map[Ref]Blob)
-		ch  = make(chan triple)
-		wg  sync.WaitGroup
-	)
+	var anyErrs bool
 
-	for _, ref := range refs {
-		ref := ref
-		wg.Add(1)
-		go func() {
-			blob, err := g.Get(ctx, ref)
-			ch <- triple{ref: ref, blob: blob, err: err}
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	var errmap MultiErr
-
-	for trip := range ch {
-		if trip.err != nil {
-			if errmap == nil {
-				errmap = make(MultiErr)
-			}
-			errmap[trip.ref] = trip.err
-			continue
+	vals, err := parallel.Values(ctx, len(refs), func(ctx context.Context, i int) (tuple, error) {
+		blob, err := g.Get(ctx, refs[i])
+		if err != nil {
+			anyErrs = true
 		}
-		res[trip.ref] = trip.blob
+		return tuple{blob: blob, err: err}, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	// Go typed-nil pitfall: can't just return errmap if errmap is nil.
-	if errmap != nil {
-		return res, errmap
+	result := slices.Map(vals, func(v tuple) Blob { return v.blob })
+	if !anyErrs {
+		return result, nil
 	}
-	return res, nil
+
+	errs, _ := slices.Mapx(vals, func(i int, v tuple) (error, error) {
+		if v.err == nil {
+			return nil, nil
+		}
+		return RefErr{Ref: refs[i], Err: v.err}, nil
+	})
+	return result, MultiErr(errs)
 }
 
 // MultiErr is a type of error returned by GetMulti and PutMulti.
-// It maps individual refs to errors encountered trying to Get or Put them.
-type MultiErr map[Ref]error
+// It contains one slot for each Ref or Blob of the input.
+// Each slot is nil for success, or the error produced by the corresponding input.
+type MultiErr []error
+
+type RefErr struct {
+	Ref Ref
+	Err error
+}
+
+func (e RefErr) Error() string {
+	return fmt.Sprintf("%s: %s", e.Ref, e.Err)
+}
+
+func (e RefErr) Unwrap() error {
+	return e.Err
+}
 
 // Error implements the error interface.
 func (e MultiErr) Error() string {
-	var strs []string
-	for ref, err := range e {
-		strs = append(strs, fmt.Sprintf("%s: %s", ref, err))
-	}
-	return "error(s): " + strings.Join(strs, "; ")
+	errs := e.Unwrap()
+	strs := slices.Map(errs, func(err error) string { return err.Error() })
+	return strings.Join(strs, "; ")
+}
+
+func (e MultiErr) Unwrap() []error {
+	errs := []error(e)
+	return slices.Filter(errs, func(err error) bool { return err != nil })
 }
 
 // PutMulti stores multiple blobs with a single call.
@@ -90,7 +94,7 @@ func (e MultiErr) Error() string {
 // This function may return a successful partial result even in case of error.
 // In particular, when the error return is a MultiErr,
 // the ref of every input blob appears in either the result map or the MultiErr map.
-func PutMulti(ctx context.Context, s Store, blobs []Blob) (map[Ref]bool, error) {
+func PutMulti(ctx context.Context, s Store, blobs []Blob) ([]MultiPair, error) {
 	if m, ok := s.(MultiPutter); ok {
 		return m.PutMulti(ctx, blobs)
 	}
@@ -101,43 +105,34 @@ func PutMulti(ctx context.Context, s Store, blobs []Blob) (map[Ref]bool, error) 
 		err   error
 	}
 
-	var (
-		res = make(map[Ref]bool)
-		ch  = make(chan triple)
-		wg  sync.WaitGroup
-	)
+	var anyErrs bool
 
-	for _, blob := range blobs {
-		blob := blob
-		wg.Add(1)
-		go func() {
-			ref, added, err := s.Put(ctx, blob)
-			ch <- triple{ref: ref, added: added, err: err}
-			wg.Done()
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	var errmap MultiErr
-
-	for trip := range ch {
-		if trip.err != nil {
-			if errmap == nil {
-				errmap = make(MultiErr)
-			}
-			errmap[trip.ref] = trip.err
-			continue
+	vals, err := parallel.Values(ctx, len(blobs), func(ctx context.Context, i int) (triple, error) {
+		ref, added, err := s.Put(ctx, blobs[i])
+		if err != nil {
+			anyErrs = true
 		}
-		res[trip.ref] = trip.added
+		return triple{ref: ref, added: added, err: err}, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	// Go typed-nil pitfall: can't just return errmap if errmap is nil.
-	if errmap != nil {
-		return res, errmap
+	result := slices.Map(vals, func(v triple) MultiPair {
+		return MultiPair{Ref: v.ref, Added: v.added}
+	})
+	if !anyErrs {
+		return result, nil
 	}
-	return res, nil
+
+	errs, _ := slices.Mapx(vals, func(i int, v triple) (error, error) {
+		if v.err == nil {
+			return nil, nil
+		}
+		if v.ref.IsZero() {
+			return v.err, nil
+		}
+		return RefErr{Ref: v.ref, Err: v.err}, nil
+	})
+	return result, MultiErr(errs)
 }

@@ -28,7 +28,7 @@ type Getter interface {
 
 // MultiGetter is an interface that Getters may optionally implement to make the GetMulti function efficient.
 type MultiGetter interface {
-	GetMulti(context.Context, []Ref) (map[Ref]Blob, error)
+	GetMulti(context.Context, []Ref) ([]Blob, error)
 }
 
 // Store is a blob store.
@@ -45,7 +45,12 @@ type Store interface {
 
 // MultiPutter is an interface that Stores may optionally implement to make the PutMulti function efficient.
 type MultiPutter interface {
-	PutMulti(context.Context, []Blob) (map[Ref]bool, error)
+	PutMulti(context.Context, []Blob) ([]MultiPair, error)
+}
+
+type MultiPair struct {
+	Ref   Ref
+	Added bool
 }
 
 // DeleterStore is the type of a Store that can also delete blobs.
