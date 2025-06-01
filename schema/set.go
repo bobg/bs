@@ -6,10 +6,10 @@ import (
 	"context"
 	"sort"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/gc"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/gc"
 )
 
 // NewSet produces a new, empty Set,

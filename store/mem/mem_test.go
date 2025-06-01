@@ -2,15 +2,15 @@ package mem
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"testing"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestStore(t *testing.T) {
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+	data, err := os.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}

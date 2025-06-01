@@ -3,19 +3,17 @@ package fs
 
 import (
 	"context"
-	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/schema"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/schema"
+	"github.com/bobg/bs/v2/split"
 )
 
 // Dir is a directory of files, symlinks, and subdirs.
@@ -160,17 +158,12 @@ func add(ctx context.Context, store bs.Store, path string) (*Dirent, error) {
 	}
 	defer f.Close()
 
-	w := split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
+	root, err := split.Split(ctx, store, f)
 	if err != nil {
-		return nil, errors.Wrapf(err, "split-writing to store from %s", path)
-	}
-	err = w.Close()
-	if err != nil {
-		return nil, errors.Wrapf(err, "finishing split-writing to store from %s", path)
+		return nil, errors.Wrapf(err, "splitting file %s", path)
 	}
 
-	dirent.Item = w.Root.String()
+	dirent.Item = root.String()
 	return dirent, nil
 }
 
@@ -195,7 +188,7 @@ func (d *Dir) AddDir(ctx context.Context, store bs.Store, path string) (bs.Ref, 
 }
 
 func addDirToMap(ctx context.Context, store bs.Store, path string, m map[string][]byte) error {
-	infos, err := ioutil.ReadDir(path)
+	infos, err := os.ReadDir(path)
 	if err != nil {
 		return errors.Wrapf(err, "reading dir %s", path)
 	}

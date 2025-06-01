@@ -2,14 +2,15 @@ package store_test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/bobg/bs"
-	. "github.com/bobg/bs/store"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	. "github.com/bobg/bs/v2/store"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 func TestSync(t *testing.T) {
@@ -40,23 +41,17 @@ func TestSync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var refs []bs.Ref
-	err = stores[0].ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-		refs = append(refs, ref)
-		return nil
-	})
-	if err != nil {
+	refsSeq, errptr := stores[0].ListRefs(ctx, bs.Zero)
+	refs := slices.Collect(refsSeq)
+	if err := *errptr; err != nil {
 		t.Fatal(err)
 	}
 
 	for i := 1; i < len(stores); i++ {
 		s := stores[i]
-		var refs2 []bs.Ref
-		err = s.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-			refs2 = append(refs2, ref)
-			return nil
-		})
-		if err != nil {
+		refs2Seq, errptr := s.ListRefs(ctx, bs.Zero)
+		refs2 := slices.Collect(refs2Seq)
+		if err := *errptr; err != nil {
 			t.Fatal(err)
 		}
 		if diff := cmp.Diff(refs2, refs); diff != "" {

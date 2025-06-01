@@ -5,7 +5,7 @@ import (
 
 	"github.com/bobg/hashsplit"
 
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
 )
 
 var _ hashsplit.Node = (*nodeWrapper)(nil)

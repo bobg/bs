@@ -7,11 +7,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/fs"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/fs"
 )
 
 func (c maincmd) ls(ctx context.Context, a, refstr, atstr string, _ []string) error {

@@ -4,36 +4,30 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/split"
 )
 
-func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits, fanout uint, _ []string) error {
+func (c maincmd) put(ctx context.Context, a string, dosplit bool, atstr string, bits, fanout int, _ []string) error {
 	var (
 		ref   bs.Ref
 		err   error
 		added bool
 	)
 	if dosplit {
-		w := split.NewWriter(ctx, c.s, split.Bits(bits))
-		_, err = io.Copy(w, os.Stdin)
+		var err error
+		ref, err = split.Split(ctx, c.s, os.Stdin, split.Bits(bits), split.Fanout(fanout))
 		if err != nil {
 			return errors.Wrap(err, "splitting stdin to store")
 		}
-		err = w.Close()
-		if err != nil {
-			return errors.Wrap(err, "finishing splitting stdin to store")
-		}
-		ref = w.Root
 	} else {
-		blob, err := ioutil.ReadAll(os.Stdin)
+		blob, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return errors.Wrap(err, "reading stdin")
 		}

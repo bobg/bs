@@ -5,16 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestEachHexPrefix(t *testing.T) {
@@ -24,14 +24,7 @@ func TestEachHexPrefix(t *testing.T) {
 		"e7", "e8", "e9", "ea", "eb", "ec", "ed", "ee", "ef",
 		"f",
 	}
-	var got []string
-	err := eachHexPrefix("e67a", false, func(prefix string) error {
-		got = append(got, prefix)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := slices.Collect(hexPrefixes("e67a"))
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -44,7 +37,7 @@ const (
 
 func TestStore(t *testing.T) {
 	withStore(t, func(ctx context.Context, store *Store) {
-		data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+		data, err := os.ReadFile("../../testdata/yubnub.opus")
 		if err != nil {
 			t.Fatal(err)
 		}

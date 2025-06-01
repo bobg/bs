@@ -8,19 +8,20 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 func TestSplitEmpty(t *testing.T) {
 	m := mem.New()
-	w := NewWriter(context.Background(), m)
-	err := w.Close()
+
+	root, err := Split(context.Background(), m, bytes.NewReader(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if w.Root != bs.Zero {
-		t.Errorf("got Root of %s, want %s", w.Root, bs.Zero)
+
+	if root != bs.Zero {
+		t.Errorf("got Root of %s, want %s", root, bs.Zero)
 	}
 }
 
@@ -28,7 +29,6 @@ func TestSplit(t *testing.T) {
 	var (
 		ctx = context.Background()
 		s   = mem.New()
-		w   = NewWriter(ctx, s, Bits(4), Fanout(2))
 	)
 
 	f, err := os.Open("../testdata/yubnub.opus")
@@ -37,11 +37,7 @@ func TestSplit(t *testing.T) {
 	}
 	defer f.Close()
 
-	_, err = io.Copy(w, f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = w.Close()
+	root, err := Split(ctx, s, f, Bits(4), Fanout(2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +47,7 @@ func TestSplit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r, err := NewReader(ctx, s, w.Root)
+	r, err := NewReader(ctx, s, root)
 	if err != nil {
 		t.Fatal(err)
 	}

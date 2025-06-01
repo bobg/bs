@@ -4,11 +4,11 @@ import (
 	"context"
 	"sort"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
 )
 
 // Sync synchronizes two or more stores.
@@ -31,18 +31,18 @@ func Sync(ctx context.Context, stores []bs.Store) error {
 
 	tuples := make([]*tuple, 0, len(stores))
 	for i, s := range stores {
-		i, s := i, s
 		ch := make(chan bs.Ref)
 		eg.Go(func() error {
 			defer close(ch)
-			return s.ListRefs(ctx2, bs.Zero, func(ref bs.Ref) error {
+			refs, errptr := s.ListRefs(ctx2, bs.Zero)
+			for ref := range refs {
 				select {
 				case <-ctx2.Done():
 					return ctx2.Err()
 				case ch <- ref:
 				}
-				return nil
-			})
+			}
+			return *errptr
 		})
 		tuples = append(tuples, &tuple{n: i, s: s, ch: ch})
 	}

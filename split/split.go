@@ -7,126 +7,128 @@ import (
 	"io"
 	"sort"
 
-	"github.com/bobg/hashsplit"
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
+	"github.com/bobg/go-generics/v4/slices"
+	"github.com/bobg/hashsplit/v2"
+	"github.com/bobg/seqs"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/bobg/bs/gc"
-
-	"github.com/bobg/bs"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/gc"
 )
 
-var (
-	_ io.WriteCloser = (*Writer)(nil)
-	_ io.ReadSeeker  = (*Reader)(nil)
-)
-
-// Writer is an io.WriteCloser that splits its input with a hashsplit.Splitter,
-// writing the chunks to a bs.Store as separate blobs.
-// It additionally assembles those chunks into a tree with a hashsplit.TreeBuilder.
-// The tree nodes are also written to the bs.Store as serialized Node objects.
-// The bs.Ref of the tree root is available as Writer.Root after a call to Close.
-// If no data was written before the Writer was closed,
-// Root will be bs.Zero.
-type Writer struct {
-	Ctx    context.Context
-	Root   bs.Ref // populated by Close
-	st     bs.Store
-	spl    *hashsplit.Splitter
-	tb     *hashsplit.TreeBuilder
-	fanout uint
-}
-
-// NewWriter produces a new Writer writing to the given blob store.
-// The given context object is stored in the Writer and used in subsequent calls to Write and Close.
-// This is an antipattern but acceptable when an object must adhere to a context-free stdlib interface
-// (https://github.com/golang/go/wiki/CodeReviewComments#contexts).
-// Callers may replace the context object during the lifetime of the Writer as needed.
-func NewWriter(ctx context.Context, st bs.Store, opts ...Option) *Writer {
-	w := &Writer{
-		Ctx:    ctx,
-		st:     st,
-		fanout: 8, // TODO: does this provide the best fan-out?
-	}
-
-	tb := hashsplit.TreeBuilder{
-		F: func(n *hashsplit.TreeBuilderNode) (hashsplit.Node, error) {
-			var (
-				offset = n.Offset()
-				result = Node{
-					Offset: offset,
-					Size:   n.Size(),
-				}
-			)
-
-			for _, child := range n.Nodes {
-				childNodeWrapper := child.(*nodeWrapper)
-				ref, _, err := bs.PutProto(w.Ctx, st, childNodeWrapper.node)
-				if err != nil {
-					return nil, err
-				}
-				result.Nodes = append(result.Nodes, &Child{Ref: ref[:], Offset: offset})
-				offset += childNodeWrapper.Size()
-			}
-
-			for _, chunk := range n.Chunks {
-				ref, _, err := st.Put(w.Ctx, chunk)
-				if err != nil {
-					return nil, err
-				}
-				result.Leaves = append(result.Leaves, &Child{Ref: ref[:], Offset: offset})
-				offset += uint64(len(chunk))
-			}
-
-			return &nodeWrapper{node: &result, ctx: w.Ctx, st: st}, nil // Note, this *Node is not written to the store, but its children are
-		},
-	}
-	w.tb = &tb
-
-	spl := hashsplit.NewSplitter(func(bytes []byte, level uint) error {
-		return tb.Add(bytes, level/w.fanout)
-	})
-	spl.MinSize = 1024
-	spl.SplitBits = 16
-	w.spl = spl
-
+func Split(ctx context.Context, st bs.Store, r io.Reader, opts ...Option) (bs.Ref, error) {
+	spl := &splitter{spl: hashsplit.NewSplitter(), fanout: 8}
+	spl.spl.SplitBits = 16
 	for _, opt := range opts {
-		opt(w)
+		opt(spl)
 	}
-	return w
-}
-
-// Write implements io.Writer.
-func (w *Writer) Write(inp []byte) (int, error) {
-	return w.spl.Write(inp)
-}
-
-// Close implements io.Closer.
-func (w *Writer) Close() error {
-	if w.tb == nil {
-		return nil
-	}
-	err := w.spl.Close()
-	if err != nil {
-		return err
-	}
-	root, err := w.tb.Root()
-	if err != nil {
-		return err
-	}
-	if root != nil {
-		rootNodeWrapper := root.(*nodeWrapper)
-		rootRef, _, err := bs.PutProto(w.Ctx, w.st, rootNodeWrapper.node)
-		if err != nil {
-			return err
+	split, errptr := spl.spl.Split(r)
+	reducedLevels := seqs.Map2(split, func(chunk []byte, level int) ([]byte, int) { return chunk, level / spl.fanout })
+	tree := hashsplit.Tree(reducedLevels)
+	var (
+		root     *hashsplit.TreeNode
+		nodeRefs = make(map[*hashsplit.TreeNode]bs.Ref)
+	)
+	for node := range tree {
+		if err := storeNodeChildrenAndLeaves(ctx, st, node, nodeRefs); err != nil {
+			return bs.Zero, errors.Wrap(err, "storing tree node")
 		}
-		w.Root = rootRef
+		root = node
 	}
-	w.tb = nil
+	if err := *errptr; err != nil {
+		return bs.Zero, errors.Wrap(err, "splitting input")
+	}
+	if root == nil {
+		return bs.Zero, nil
+	}
+	return storeNode(ctx, st, root, nodeRefs)
+}
+
+func storeNodeChildrenAndLeaves(ctx context.Context, st bs.Store, node *hashsplit.TreeNode, refs map[*hashsplit.TreeNode]bs.Ref) error {
+	if err := storeNodeChildren(ctx, st, node, refs); err != nil {
+		return errors.Wrap(err, "storing node children")
+	}
+	return storeNodeLeaves(ctx, st, node)
+}
+
+func storeNodeChildren(ctx context.Context, st bs.Store, node *hashsplit.TreeNode, refs map[*hashsplit.TreeNode]bs.Ref) error {
+	for _, child := range node.Children {
+		if _, err := storeNode(ctx, st, child, refs); err != nil {
+			return errors.Wrap(err, "storing child node")
+		}
+	}
 	return nil
 }
 
+func storeNode(ctx context.Context, st bs.Store, node *hashsplit.TreeNode, refs map[*hashsplit.TreeNode]bs.Ref) (bs.Ref, error) {
+	p, err := treeNodeToProto(node, refs)
+	if err != nil {
+		return bs.Zero, errors.Wrap(err, "converting node to proto")
+	}
+	ref, _, err := bs.PutProto(ctx, st, p)
+	if err != nil {
+		return bs.Zero, errors.Wrap(err, "storing node")
+	}
+	refs[node] = ref
+	return ref, nil
+}
+
+func treeNodeToProto(node *hashsplit.TreeNode, refs map[*hashsplit.TreeNode]bs.Ref) (*Node, error) {
+	// Note: node.Chunks has already been mapped to (serialized) Child protos
+	// in an earlier call to storeNodeLeaves.
+
+	result := &Node{
+		Offset: node.Offset,
+		Size:   node.Size,
+		Nodes: slices.Map(node.Children, func(child *hashsplit.TreeNode) *Child {
+			ref := refs[child]
+			return &Child{
+				Ref:    ref[:],
+				Offset: child.Offset,
+			}
+		}),
+	}
+	leaves, err := slices.Mapx(node.Chunks, func(_ int, chunk []byte) (*Child, error) {
+		var p Child
+		err := proto.Unmarshal(chunk, &p)
+		return &p, err
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "unmarshalling chunk")
+	}
+	result.Leaves = leaves
+	return result, nil
+}
+
+func storeNodeLeaves(ctx context.Context, st bs.Store, node *hashsplit.TreeNode) error {
+	offset := node.Offset
+	for i, chunk := range node.Chunks {
+		ref, _, err := st.Put(ctx, chunk)
+		if err != nil {
+			return errors.Wrap(err, "storing chunk")
+		}
+		child := &Child{
+			Ref:    ref[:],
+			Offset: offset,
+		}
+		offset += uint64(len(chunk)) // xxx ?
+		p, err := proto.Marshal(child)
+		if err != nil {
+			return errors.Wrap(err, "marshalling chunk proto")
+		}
+		node.Chunks[i] = p
+	}
+	return nil
+}
+
+type splitter struct {
+	spl    *hashsplit.Splitter
+	fanout int
+}
+
 // Option is the type of an option passed to NewWriter.
-type Option = func(*Writer)
+type Option func(*splitter)
 
 // Bits is an option for NewWriter that changes the number of trailing zero bits in the rolling checksum used to identify chunk boundaries.
 // A chunk boundary occurs on average once every 2^n bytes.
@@ -134,9 +136,9 @@ type Option = func(*Writer)
 // The default value for n is 16,
 // producing a chunk boundary every 65,536 bytes,
 // and a median chunk size of 45,426 bytes.
-func Bits(n uint) Option {
-	return func(w *Writer) {
-		w.spl.SplitBits = n
+func Bits(n int) Option {
+	return func(spl *splitter) {
+		spl.spl.SplitBits = n
 	}
 }
 
@@ -146,8 +148,8 @@ func Bits(n uint) Option {
 // The value must be 64 or higher.
 // The default is 1024.
 func MinSize(n int) Option {
-	return func(w *Writer) {
-		w.spl.MinSize = n
+	return func(spl *splitter) {
+		spl.spl.MinSize = n
 	}
 }
 
@@ -158,9 +160,9 @@ func MinSize(n int) Option {
 // nodes in the hashsplit tree will tend to have around 2n children each,
 // because each chunk's "level" is reduced by dividing it by n.
 // For more information see https://pkg.go.dev/github.com/bobg/hashsplit#TreeBuilder.Add.
-func Fanout(n uint) Option {
-	return func(w *Writer) {
-		w.fanout = n
+func Fanout(n int) Option {
+	return func(spl *splitter) {
+		spl.fanout = n
 	}
 }
 

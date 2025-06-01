@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
 )
 
 // Anchors tests writing, reading, and listing anchors.

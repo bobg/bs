@@ -3,11 +3,15 @@ package bs_test
 import (
 	"context"
 	"errors"
+	"maps"
+	"reflect"
 	"testing"
 	"testing/quick"
 
-	. "github.com/bobg/bs"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/go-generics/v4/slices"
+
+	. "github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 func TestMulti(t *testing.T) {
@@ -16,95 +20,85 @@ func TestMulti(t *testing.T) {
 		s   = mem.New()
 	)
 
-	err := quick.Check(func(yesBlobs, noBlobs map[string]struct{}) bool {
-		blobs := make([]Blob, 0, len(yesBlobs))
-		for b := range yesBlobs {
-			blobs = append(blobs, []byte(b))
-		}
+	err := quick.Check(func(yes, no []string) bool {
+		var (
+			yesBlobs = slices.Map(yes, func(s string) Blob { return Blob(s) })
+			yesRefs  = slices.Map(yesBlobs, func(b Blob) Ref { return b.Ref() })
+		)
 
-		refsMap, err := PutMulti(ctx, s, blobs)
+		putResult, err := PutMulti(ctx, s, yesBlobs)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
 
-		refs := make([]Ref, 0, len(refsMap))
-		for ref := range refsMap {
-			refs = append(refs, ref)
+		gotRefs := slices.Map(putResult, func(p MultiPair) Ref { return p.Ref })
+		if !reflect.DeepEqual(gotRefs, yesRefs) {
+			t.Logf("got refs %v, want %v", gotRefs, yesRefs)
+			return false
 		}
-		got, err := GetMulti(ctx, s, refs)
+
+		gotBlobs, err := GetMulti(ctx, s, yesRefs)
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		for ref := range refsMap {
-			if _, ok := got[ref]; !ok {
-				t.Logf("ref %s missing after GetMulti", ref)
-				return false
-			}
-		}
-		for ref := range got {
-			if _, ok := refsMap[ref]; !ok {
-				t.Logf("got unexpected ref %s after GetMulti", ref)
-				return false
-			}
+		if !reflect.DeepEqual(gotBlobs, yesBlobs) {
+			t.Logf("got blobs %v, want %v", gotBlobs, yesBlobs)
+			return false
 		}
 
-		noRefs := make(map[Ref]string)
-		for b := range noBlobs {
-			if _, ok := yesBlobs[b]; ok {
-				// Filter anything out of noBlobs that also exists in yesBlobs.
-				continue
-			}
-			if b == "" {
+		noMap := make(map[Ref]Blob)
+		for _, s := range no {
+			if s == "" {
 				// TODO: This test fails when we don't exclude the empty blob. Why?
 				continue
 			}
-			ref := Blob(b).Ref()
-			noRefs[ref] = b
-			refs = append(refs, ref)
-		}
 
-		if len(noRefs) == 0 {
+			var (
+				b   = Blob(s)
+				ref = b.Ref()
+			)
+			noMap[ref] = b
+		}
+		for _, yesRef := range yesRefs {
+			if _, ok := noMap[yesRef]; ok {
+				delete(noMap, yesRef)
+			}
+		}
+		if len(noMap) == 0 {
+			// No blobs in no that are not in yes.
 			return true
 		}
 
-		got, err = GetMulti(ctx, s, refs)
+		noRefs := slices.Collect(maps.Keys(noMap))
+
+		gotBlobs, err = GetMulti(ctx, s, noRefs)
 		if err == nil {
-			t.Log("got no error from second GetMulti, want MultiErr")
+			t.Log("got no error from GetMulti, want MultiErr")
 			return false
 		}
 
-		merr, ok := err.(MultiErr)
-		if !ok {
+		var merr MultiErr
+		if !errors.As(err, &merr) {
 			t.Logf("got %T error from second GetMulti, want MultiErr", err)
 			return false
 		}
-		for ref, e := range merr {
-			if _, ok := noRefs[ref]; !ok {
-				t.Logf("got unexpected error for ref %s after second GetMulti", ref)
+
+		for i, e := range merr {
+			if e == nil {
+				t.Logf("got nil error for ref %s after second GetMulti", noRefs[i])
 				return false
 			}
-			if !errors.Is(e, ErrNotFound) {
-				t.Logf("got error %s for ref %s after second GetMulti, want %s", e, ref, ErrNotFound)
+
+			var rerr RefErr
+			if !errors.As(e, &rerr) {
+				t.Logf("got %T error for ref %s after second GetMulti, want RefErr", e, noRefs[i])
 				return false
 			}
-		}
-		for ref, noBlob := range noRefs {
-			if _, ok := merr[ref]; !ok {
-				t.Logf("ref %s missing from MultiErr after second GetMulti (blob %s)", ref, noBlob)
-				return false
-			}
-		}
-		for ref := range refsMap {
-			if _, ok := got[ref]; !ok {
-				t.Logf("ref %s missing after GetMulti", ref)
-				return false
-			}
-		}
-		for ref := range got {
-			if _, ok := refsMap[ref]; !ok {
-				t.Logf("got unexpected ref %s after GetMulti", ref)
+
+			if rerr.Ref != noRefs[i] {
+				t.Logf("got ref %s in error for ref %s after second GetMulti", rerr.Ref, noRefs[i])
 				return false
 			}
 		}

@@ -2,21 +2,20 @@ package file
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"testing"
 
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestStore(t *testing.T) {
-	dirname, err := ioutil.TempDir("", "filestore")
+	dirname, err := os.MkdirTemp("", "filestore")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(dirname)
 
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+	data, err := os.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +24,7 @@ func TestStore(t *testing.T) {
 }
 
 func TestAnchors(t *testing.T) {
-	dirname, err := ioutil.TempDir("", "filestore")
+	dirname, err := os.MkdirTemp("", "filestore")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,13 +9,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/schema"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/schema"
 )
 
 var (

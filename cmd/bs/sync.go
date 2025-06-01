@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store"
 )
 
 func (c maincmd) sync(ctx context.Context, args []string) error {

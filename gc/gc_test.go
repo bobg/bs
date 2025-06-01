@@ -2,16 +2,16 @@ package gc_test
 
 import (
 	"context"
-	"io"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/bobg/bs"
-	. "github.com/bobg/bs/gc"
-	"github.com/bobg/bs/split"
-	"github.com/bobg/bs/store/mem"
+	"github.com/bobg/bs/v2"
+	. "github.com/bobg/bs/v2/gc"
+	"github.com/bobg/bs/v2/split"
+	"github.com/bobg/bs/v2/store/mem"
 )
 
 type memKeep struct {
@@ -65,29 +65,20 @@ func TestGC(t *testing.T) {
 
 	ctx := context.Background()
 
-	w := split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = w.Close()
+	root, err := split.Split(ctx, store, f)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	k := &memKeep{m: make(map[bs.Ref]struct{})}
-	err = Protect(ctx, store, k, w.Root, split.Protect)
+	err = Protect(ctx, store, k, root, split.Protect)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var want []bs.Ref
-	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-		want = append(want, ref)
-		return nil
-	})
-	if err != nil {
+	refs, errptr := store.ListRefs(ctx, bs.Zero)
+	want := slices.Collect(refs)
+	if err := *errptr; err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,19 +88,11 @@ func TestGC(t *testing.T) {
 	}
 	defer f.Close()
 
-	w = split.NewWriter(ctx, store)
-	_, err = io.Copy(w, f)
-	if err != nil {
+	if _, err := split.Split(ctx, store, f); err != nil {
 		t.Fatal(err)
 	}
 
-	err = w.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = Run(ctx, store, k)
-	if err != nil {
+	if err := Run(ctx, store, k); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,12 +100,9 @@ func TestGC(t *testing.T) {
 		t.Error("got 0 deletions during gc.Run")
 	}
 
-	var got []bs.Ref
-	err = store.ListRefs(ctx, bs.Zero, func(ref bs.Ref) error {
-		got = append(got, ref)
-		return nil
-	})
-	if err != nil {
+	refs, errptr = store.ListRefs(ctx, bs.Zero)
+	got := slices.Collect(refs)
+	if err := *errptr; err != nil {
 		t.Fatal(err)
 	}
 

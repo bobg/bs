@@ -4,10 +4,10 @@ import (
 	"context"
 	"os"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/split"
 )
 
 // IsDir tells whether d refers to a directory.

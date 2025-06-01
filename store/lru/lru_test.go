@@ -2,11 +2,11 @@ package lru
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 	"testing"
 
-	"github.com/bobg/bs/store/mem"
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2/store/mem"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestStore(t *testing.T) {
@@ -14,7 +14,7 @@ func TestStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+	data, err := os.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}

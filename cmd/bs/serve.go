@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 	"google.golang.org/grpc"
 
-	"github.com/bobg/bs/store/rpc"
+	"github.com/bobg/bs/v2/store/rpc"
 )
 
 func (c maincmd) serve(ctx context.Context, addr string, _ []string) error {

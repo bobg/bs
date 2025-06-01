@@ -11,20 +11,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bobg/errors"
 	"github.com/bobg/subcmd/v2"
-	"github.com/pkg/errors"
 
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
-	_ "github.com/bobg/bs/store/file"
-	_ "github.com/bobg/bs/store/gcs"
-	_ "github.com/bobg/bs/store/logging"
-	_ "github.com/bobg/bs/store/lru"
-	_ "github.com/bobg/bs/store/mem"
-	_ "github.com/bobg/bs/store/pg"
-	_ "github.com/bobg/bs/store/rpc"
-	_ "github.com/bobg/bs/store/sqlite3"
-	_ "github.com/bobg/bs/store/transform"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
+	_ "github.com/bobg/bs/v2/store/file"
+	_ "github.com/bobg/bs/v2/store/gcs"
+	_ "github.com/bobg/bs/v2/store/logging"
+	_ "github.com/bobg/bs/v2/store/lru"
+	_ "github.com/bobg/bs/v2/store/mem"
+	_ "github.com/bobg/bs/v2/store/pg"
+	_ "github.com/bobg/bs/v2/store/rpc"
+	_ "github.com/bobg/bs/v2/store/sqlite3"
+	_ "github.com/bobg/bs/v2/store/transform"
 )
 
 type maincmd struct {
@@ -81,9 +81,9 @@ func main() {
 
 	err = subcmd.Run(ctx, maincmd{s: ss}, flag.Args())
 
-	var usage subcmd.Usage
-	if errors.As(err, &usage) {
-		fatal(usage.Long())
+	var usageErr subcmd.UsageErr
+	if errors.As(err, &usageErr) {
+		fatal(usageErr.Detail())
 	} else if err != nil {
 		fatal(err)
 	}
@@ -124,8 +124,8 @@ func (c maincmd) Subcmds() map[string]subcmd.Subcmd {
 			"-anchor", subcmd.String, "", "anchor to assign to added ref",
 			"-split", subcmd.Bool, false, "get a split tree instead of a single blob",
 			"-at", subcmd.String, "", "timestamp for anchor (default: now)",
-			"-bits", subcmd.Uint, 14, "with -split, the number of bits to split on (to control chunk size)",
-			"-fanout", subcmd.Uint, 4, "with -split, divisor for each node's level, to control fan-out (higher numbers = more children per node)",
+			"-bits", subcmd.Int, 14, "with -split, the number of bits to split on (to control chunk size)",
+			"-fanout", subcmd.Int, 4, "with -split, divisor for each node's level, to control fan-out (higher numbers = more children per node)",
 		),
 		"serve", c.serve, "run a bs server", subcmd.Params(
 			"-addr", subcmd.String, ":2969", "server listen address",

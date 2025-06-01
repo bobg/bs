@@ -3,12 +3,17 @@ package mem
 
 import (
 	"context"
+	"iter"
+	"maps"
+	"slices"
 	"sort"
 	"sync"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/store"
+	"github.com/bobg/seqs"
+
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/store"
 )
 
 var _ anchor.Store = (*Store)(nil)
@@ -36,26 +41,25 @@ func (s *Store) Get(_ context.Context, ref bs.Ref) (bs.Blob, error) {
 }
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
-func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
+func (s *Store) ListRefs(ctx context.Context, start bs.Ref) (iter.Seq[bs.Ref], *error) {
 	s.mu.Lock()
-	var refs []bs.Ref
-	for ref := range s.blobs {
-		if ref.Less(start) || ref == start {
-			continue
-		}
-		refs = append(refs, ref)
-	}
+	refs := slices.Collect(seqs.Filter(maps.Keys(s.blobs), func(ref bs.Ref) bool {
+		return start.Less(ref)
+	}))
 	s.mu.Unlock()
 
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Less(refs[j]) })
 
-	for _, ref := range refs {
-		err := f(ref)
-		if err != nil {
-			return err
+	f := func(yield func(bs.Ref) bool) {
+		for _, ref := range refs {
+			if !yield(ref) {
+				return
+			}
 		}
 	}
-	return nil
+
+	var err error
+	return f, &err
 }
 
 // Put adds a blob to the store if it wasn't already present.

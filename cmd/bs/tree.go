@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/bobg/errors"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/anchor"
-	"github.com/bobg/bs/split"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/anchor"
+	"github.com/bobg/bs/v2/split"
 )
 
 func (c maincmd) tree(ctx context.Context, a, refstr, atstr string, _ []string) error {

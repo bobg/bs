@@ -2,15 +2,16 @@ package replica
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
+	"slices"
 	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/bobg/bs"
-	"github.com/bobg/bs/store/mem"
-	"github.com/bobg/bs/testutil"
+	"github.com/bobg/bs/v2"
+	"github.com/bobg/bs/v2/store/mem"
+	"github.com/bobg/bs/v2/testutil"
 )
 
 func TestReplicaSets(t *testing.T) {
@@ -43,12 +44,9 @@ func TestReplicaSets(t *testing.T) {
 
 func checkReplica(ctx context.Context, t *testing.T, name string, s bs.Store, want ...bs.Ref) {
 	t.Run(name, func(t *testing.T) {
-		var got []bs.Ref
-		err := s.ListRefs(ctx, bs.Zero, func(r bs.Ref) error {
-			got = append(got, r)
-			return nil
-		})
-		if err != nil {
+		gotSeq, errptr := s.ListRefs(ctx, bs.Zero)
+		got := slices.Collect(gotSeq)
+		if err := *errptr; err != nil {
 			t.Fatal(err)
 		}
 		sort.Slice(want, func(i, j int) bool { return want[i].Less(want[j]) })
@@ -73,7 +71,7 @@ func TestAllRefs(t *testing.T) {
 }
 
 func TestReadWrite(t *testing.T) {
-	data, err := ioutil.ReadFile("../../testdata/yubnub.opus")
+	data, err := os.ReadFile("../../testdata/yubnub.opus")
 	if err != nil {
 		t.Fatal(err)
 	}
