@@ -45,7 +45,7 @@ func New(ctx context.Context, db *sql.DB) (*Store, error) {
 
 // Get gets the blob with hash `ref`.
 func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
-	const q = `SELECT data FROM blobs WHERE ref = $1`
+	const q = `SELECT data FROM blobs WHERE ref = ?1`
 
 	var b bs.Blob
 	err := s.db.QueryRowContext(ctx, q, ref).Scan(&b)
@@ -57,7 +57,7 @@ func (s *Store) Get(ctx context.Context, ref bs.Ref) (bs.Blob, error) {
 
 // Put adds a blob to the store if it wasn't already present.
 func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
-	const q = `INSERT INTO blobs (ref, data) VALUES ($1, $2) ON CONFLICT DO NOTHING`
+	const q = `INSERT INTO blobs (ref, data) VALUES (?1, ?2) ON CONFLICT DO NOTHING`
 
 	ref := b.Ref()
 	res, err := s.db.ExecContext(ctx, q, ref, b)
@@ -77,7 +77,7 @@ func (s *Store) Put(ctx context.Context, b bs.Blob) (bs.Ref, bool, error) {
 
 // ListRefs produces all blob refs in the store, in lexicographic order.
 func (s *Store) ListRefs(ctx context.Context, start bs.Ref, f func(bs.Ref) error) error {
-	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > $1 ORDER BY blobs.ref`
+	const q = `SELECT blobs.ref FROM blobs WHERE blobs.ref > ?1 ORDER BY blobs.ref`
 
 	var lastRef *bs.Ref
 	err := sqlutil.ForQueryRows(ctx, s.db, q, start, func(ref bs.Ref) error {
@@ -133,7 +133,7 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error 
 	}
 
 	if oldRef.IsZero() {
-		const q = `INSERT INTO anchor_map_ref (ref) VALUES ($1)`
+		const q = `INSERT INTO anchor_map_ref (ref) VALUES (?1)`
 		_, err = s.db.ExecContext(ctx, q, newRef)
 		var e sqlite3.Error
 		if errors.As(err, &e) && e.Code == sqlite3.ErrConstraint {
@@ -142,7 +142,7 @@ func (s *Store) UpdateAnchorMap(ctx context.Context, f anchor.UpdateFunc) error 
 		return err
 	}
 
-	const q = `UPDATE anchor_map_ref SET ref = $1 WHERE ref = $2`
+	const q = `UPDATE anchor_map_ref SET ref = ?1 WHERE ref = ?2`
 	res, err := s.db.ExecContext(ctx, q, newRef, oldRef)
 	if err != nil {
 		return err
